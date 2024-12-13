@@ -3262,7 +3262,6 @@ static signed int DIP_Dump_IMGSYS_DIP_Reg(void)
 			DipDumpTL[DIPNo].region,
 			DIP_RD32(dipRegBasAddr + 0x0424));
 
-
 		/* SMX5O DMA*/
 		cmdq_util_err("smt5 ctrl: 0x%x5BC0(0x%x)-0x%x5BC4(0x%x)",
 			DipDumpTL[DIPNo].region,
@@ -3484,46 +3483,6 @@ static signed int DIP_Dump_IMGSYS_DIP_Reg(void)
 			DIP_RD32(dipRegBasAddr + 0x0A9C),
 			DipDumpTL[DIPNo].region,
 			DIP_RD32(dipRegBasAddr + 0x0AA0));
-
-		/* PACK DxA*/
-		cmdq_util_err("PAK_D1_CTRL: 0x%x3580(0x%x)",
-			DipDumpTL[DIPNo].region,
-			DIP_RD32(dipRegBasAddr + 0x2580));
-		cmdq_util_err("PAK_D4_CTRL: 0x%x5AC0(0x%x)",
-			DipDumpTL[DIPNo].region,
-			DIP_RD32(dipRegBasAddr + 0x4AC0));
-		cmdq_util_err("PAK_D5_CTRL: 0x%x5B80(0x%x)",
-			DipDumpTL[DIPNo].region,
-			DIP_RD32(dipRegBasAddr + 0x4B80));
-		cmdq_util_err("PAK_D16_CTRL: 0x%x5C80(0x%x)",
-			DipDumpTL[DIPNo].region,
-			DIP_RD32(dipRegBasAddr + 0x4C80));
-		cmdq_util_err("PAK_D2_CTRL: 0x%x7380(0x%x)",
-			DipDumpTL[DIPNo].region,
-			DIP_RD32(dipRegBasAddr + 0x6380));
-		cmdq_util_err("PAK_D3_CTRL: 0x%x7600(0x%x)",
-			DipDumpTL[DIPNo].region,
-			DIP_RD32(dipRegBasAddr + 0x7600));
-		cmdq_util_err("PAK_D6_CTRL: 0x%x8980(0x%x)",
-			DipDumpTL[DIPNo].region,
-			DIP_RD32(dipRegBasAddr + 0x7980));
-		cmdq_util_err("PAK_D7_CTRL: 0x%x89C0(0x%x)",
-			DipDumpTL[DIPNo].region,
-			DIP_RD32(dipRegBasAddr + 0x79C0));
-		cmdq_util_err("PAK_D8_CTRL: 0x%x8A00(0x%x)",
-			DipDumpTL[DIPNo].region,
-			DIP_RD32(dipRegBasAddr + 0x7A00));
-		/*MCRP */
-		cmdq_util_err("MCRP D1A: 0x%x4780(0x%x)-0x%x4784(0x%x)",
-			DipDumpTL[DIPNo].region,
-			DIP_RD32(dipRegBasAddr + 0x3780),
-			DipDumpTL[DIPNo].region,
-			DIP_RD32(dipRegBasAddr + 0x3784));
-		cmdq_util_err("MCRP D2A: 0x%x86C0(0x%x)-0x%x86C4(0x%x)",
-			DipDumpTL[DIPNo].region,
-			DIP_RD32(dipRegBasAddr + 0x76C0),
-			DipDumpTL[DIPNo].region,
-			DIP_RD32(dipRegBasAddr + 0x76C4));
 
 		DIP_WR32(dipRegBasAddr + 0xA8, dipdmacmd);
 		cmdq_util_err("0x%x : dip: 0x%x2194(0x%x)",
@@ -4197,7 +4156,6 @@ static inline void Prepare_Enable_ccf_clock(void)
 
 	if (dip_clk.DIP_IMG_MFB_DIP != NULL) {
 		ret = mtk_smi_larb_get(dip_devs->larb11);
-		LOG_INF("mtk_smi_larb_get larb11 %d\n", ret);
 	if (ret)
 		LOG_ERR("mtk_smi_larb_get larb11 fail %d\n", ret);
 	}
@@ -4245,13 +4203,11 @@ static inline void Disable_Unprepare_ccf_clock(void)
 
 	clk_disable_unprepare(dip_clk.DIP_IMG_DIP);
 	clk_disable_unprepare(dip_clk.DIP_IMG_LARB9);
-	LOG_INF("%s cnt(%d),clk_MFB: %d\n", __func__, G_u4DipEnClkCnt, dip_clk.DIP_IMG_MFB_DIP);
+	LOG_INF("%s cnt(%d)\n", __func__, G_u4DipEnClkCnt);
 	mtk_smi_larb_put(dip_devs->larb9);
 
-	if (dip_clk.DIP_IMG_MFB_DIP != NULL) {
+	if (dip_clk.DIP_IMG_MFB_DIP != NULL)
 		mtk_smi_larb_put(dip_devs->larb11);
-		LOG_INF("mtk_smi_larb_put larb11 %d\n");
-	}
 
 	pm_runtime_put_sync(dip_devs->dev);
 
@@ -4484,6 +4440,7 @@ static void DIP_EnableClock(bool En)
 #else
 		/*LOG_INF("CCF:disable_unprepare clk\n");*/
 		Disable_Unprepare_ccf_clock();
+
 		spin_lock(&(IspInfo.SpinLockClock));
 		G_u4DipEnClkCnt--;
 		spin_unlock(&(IspInfo.SpinLockClock));
@@ -7036,7 +6993,9 @@ static signed int DIP_release(
 #else
 	wake_lock(&dip_wake_lock);
 #endif
-	DIP_EnableClock(MFALSE);
+	if (G_u4DipEnClkCnt > 0)
+		DIP_EnableClock(MFALSE);
+
 #ifdef CONFIG_PM_WAKELOCKS
 	__pm_relax(dip_wake_lock);
 #else
@@ -8790,7 +8749,9 @@ int32_t DIP_MDPResetCallback(uint64_t engineFlag)
 int32_t DIP_MDPClockOffCallback(uint64_t engineFlag)
 {
 	/* LOG_DBG("DIP_MDPClockOffCallback"); */
-	DIP_EnableClock(MFALSE);
+	if (G_u4DipEnClkCnt > 0)
+		DIP_EnableClock(MFALSE);
+
 #ifdef CONFIG_PM_WAKELOCKS
 		__pm_relax(isp_mdp_wake_lock);
 #else

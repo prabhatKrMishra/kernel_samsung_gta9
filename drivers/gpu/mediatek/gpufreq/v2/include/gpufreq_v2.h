@@ -276,6 +276,8 @@ void gpufreq_pdc_control(enum gpufreq_power_state power);
 void gpufreq_fake_spm_mtcmos_control(enum gpufreq_power_state power);
 void gpufreq_register_gpufreq_fp(struct gpufreq_platform_fp *platform_fp);
 void gpufreq_register_gpuppm_fp(struct gpuppm_platform_fp *platform_fp);
+extern unsigned int __gpufreq_get_seg_max_opp_index(void);
+extern int __gpufreq_get_gpu_temp(void);
 
 /* Debug */
 struct gpufreq_debug_opp_info gpufreq_get_debug_opp_info(enum gpufreq_target target);

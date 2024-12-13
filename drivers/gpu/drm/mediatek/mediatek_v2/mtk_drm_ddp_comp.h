@@ -16,51 +16,6 @@
 //#include <linux/interconnect-provider.h>
 #include "mtk-interconnect.h"
 
-/* Compatibility with 32-bit shift operation */
-#if IS_ENABLED(CONFIG_ARCH_DMA_ADDR_T_64BIT)
-#define DO_SHIFT_RIGHT(x, n) ({     \
-	(n) < (8 * sizeof(u64)) ? (x) >> (n) : 0;	\
-})
-#define DO_SHIFT_LEFT(x, n) ({      \
-	(n) < (8 * sizeof(u64)) ? (x) << (n) : 0;	\
-})
-#else
-#define DO_SHIFT_RIGHT(x, n) ({     \
-	(n) < (8 * sizeof(u32)) ? (x) >> (n) : 0;	\
-})
-#define DO_SHIFT_LEFT(x, n) ({      \
-	(n) < (8 * sizeof(u32)) ? (x) << (n) : 0;	\
-})
-#endif
-
-/* Compatible with 32bit division and mold operation */
-#if IS_ENABLED(CONFIG_ARCH_DMA_ADDR_T_64BIT)
-#define DO_COMMON_DIV(x, base) ((x) / (base))
-#define DO_COMMMON_MOD(x, base) ((x) % (base))
-#else
-#define DO_COMMON_DIV(x, base) ({                   \
-	uint64_t result = 0;                        \
-	if (sizeof(x) < sizeof(uint64_t))           \
-		result = ((x) / (base));            \
-	else {                                      \
-		uint64_t __x = (x);                 \
-		do_div(__x, (base));                \
-		result = __x;                       \
-	}                                           \
-	result;                                     \
-})
-#define DO_COMMMON_MOD(x, base) ({                  \
-	uint32_t result = 0;                        \
-	if (sizeof(x) < sizeof(uint64_t))           \
-		result = ((x) % (base));            \
-	else {                                      \
-		uint64_t __x = (x);                 \
-		result = do_div(__x, (base));       \
-	}                                           \
-	result;                                     \
-})
-#endif
-
 struct device;
 struct device_node;
 struct drm_crtc;
@@ -426,8 +381,6 @@ enum mtk_ddp_io_cmd {
 	DSI_VFP_DEFAULT_MODE,
 	DSI_GET_TIMING,
 	DSI_GET_MODE_BY_MAX_VREFRESH,
-	DSI_GET_MODE_CONT,
-	DSI_SET_PANEL_PARAMS_BY_IDX,
 	DSI_FILL_MODE_BY_CONNETOR,
 	PMQOS_SET_BW,
 	PMQOS_SET_HRT_BW,
@@ -448,7 +401,6 @@ enum mtk_ddp_io_cmd {
 	DSI_SET_CRTC_AVAIL_MODES,
 	DSI_TIMING_CHANGE,
 	GET_PANEL_NAME,
-	GET_ALL_CONNECTOR_PANEL_NAME,
 	DSI_CHANGE_MODE,
 	BACKUP_OVL_STATUS,
 	MIPI_HOPPING,
@@ -482,6 +434,13 @@ enum mtk_ddp_io_cmd {
 	DUAL_TE_INIT,
 	DSI_GET_CMD_MODE_LINE_TIME,
 	OVL_GET_SOURCE_BPC,
+	/* Simple api start*/
+	SET_LCM_DCS_CMD,
+	SET_LCM_CMDQ,
+	READ_LCM_DCS_CMD,
+	/* Simple api end*/
+	DSI_SET_DISP_ON_CMD,
+	DSI_HBM_SET_LCM,
 };
 
 struct golden_setting_context {
@@ -491,6 +450,7 @@ struct golden_setting_context {
 	unsigned int dst_height;
 	// add for rdma default goden setting
 	unsigned int vrefresh;
+	bool disable_rdma_underflow;
 };
 
 struct mtk_ddp_config {
@@ -836,9 +796,7 @@ int mtk_ddp_comp_register(struct drm_device *drm, struct mtk_ddp_comp *comp);
 void mtk_ddp_comp_unregister(struct drm_device *drm, struct mtk_ddp_comp *comp);
 int mtk_ddp_comp_get_type(enum mtk_ddp_comp_id comp_id);
 bool mtk_dsi_is_cmd_mode(struct mtk_ddp_comp *comp);
-enum mtk_ddp_comp_id mtk_dsi_get_comp_id(struct drm_connector *c);
 bool mtk_ddp_comp_is_output(struct mtk_ddp_comp *comp);
-bool mtk_ddp_comp_is_output_by_id(enum mtk_ddp_comp_id id);
 void mtk_ddp_comp_get_name(struct mtk_ddp_comp *comp, char *buf, int buf_len);
 int mtk_ovl_layer_num(struct mtk_ddp_comp *comp);
 void mtk_ddp_write(struct mtk_ddp_comp *comp, unsigned int value,
@@ -854,10 +812,6 @@ void mtk_ddp_comp_clk_prepare(struct mtk_ddp_comp *comp);
 void mtk_ddp_comp_clk_unprepare(struct mtk_ddp_comp *comp);
 void mtk_ddp_comp_iommu_enable(struct mtk_ddp_comp *comp,
 			       struct cmdq_pkt *handle);
-void mt6765_mtk_sodi_config(struct drm_device *drm, enum mtk_ddp_comp_id id,
-			    struct cmdq_pkt *handle, void *data);
-void mt6768_mtk_sodi_config(struct drm_device *drm, enum mtk_ddp_comp_id id,
-			    struct cmdq_pkt *handle, void *data);
 void mt6779_mtk_sodi_config(struct drm_device *drm, enum mtk_ddp_comp_id id,
 			    struct cmdq_pkt *handle, void *data);
 void mt6885_mtk_sodi_config(struct drm_device *drm, enum mtk_ddp_comp_id id,

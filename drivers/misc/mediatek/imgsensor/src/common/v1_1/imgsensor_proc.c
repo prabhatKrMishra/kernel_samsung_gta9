@@ -645,6 +645,49 @@ static const struct proc_ops fcamera_proc_fops_status_info = {
 	.proc_read = seq_read,
 };
 
+/* TabA9 code for SR-AX6739A-01-247 by wuwenjie at 2023/04/24 start */
+#define HQEXTEND_CAM_MODULE_INFO "cameraModuleInfo"
+static char hqextend_cameraModuleInfo[255];
+static struct proc_dir_entry *hqextend_proc_entry;
+
+static ssize_t hqextend_cameraModuleInfo_read
+    (struct file *file, char __user *page, size_t size, loff_t *ppos)
+{
+    char buf[255] = {0};
+    int rc = 0;
+    pr_info("E");
+    snprintf(buf, 255,
+            "%s",
+            hqextend_cameraModuleInfo);
+
+    rc = simple_read_from_buffer(page, size, ppos, buf, strlen(buf));
+    pr_info("X");
+
+    return rc;
+}
+static ssize_t hqextend_cameraModuleInfo_write
+    (struct file *filp, const char __user *buffer,
+    size_t count, loff_t *off)
+{
+    pr_info("E");
+    memset(hqextend_cameraModuleInfo,0,strlen(hqextend_cameraModuleInfo));
+    if (copy_from_user(hqextend_cameraModuleInfo, buffer, count))
+    {
+        pr_err("[cameradebug] write fail");
+        return -EFAULT;
+    }
+
+    pr_info("[cameradebug] buffer=%s",hqextend_cameraModuleInfo);
+    pr_info("X");
+    return 0;
+}
+
+static const struct proc_ops hqextend_cameraModuleInfo_fops = {
+    .proc_read = hqextend_cameraModuleInfo_read,
+    .proc_write = hqextend_cameraModuleInfo_write,
+};
+
+
 enum IMGSENSOR_RETURN imgsensor_proc_init(void)
 {
 	memset(mtk_ccm_name, 0, camera_info_size);
@@ -665,9 +708,17 @@ enum IMGSENSOR_RETURN imgsensor_proc_init(void)
 	/* Camera information */
 	proc_create(PROC_CAMERA_INFO, 0000, NULL, &fcamera_proc_fops1);
 
+    hqextend_proc_entry=proc_create(HQEXTEND_CAM_MODULE_INFO,
+                                0664, NULL,
+                                &hqextend_cameraModuleInfo_fops);
+    if (NULL == hqextend_proc_entry) {
+            pr_err("[cameradebug]create hqextend_proc_entry-cameraModuleInfo failed");
+            remove_proc_entry(HQEXTEND_CAM_MODULE_INFO, NULL);
+    }
+
 	return IMGSENSOR_RETURN_SUCCESS;
 }
-
+/* TabA9 code for SR-AX6739A-01-247 by wuwenjie at 2023/04/24 end */
 void imgsensor_proc_exit(void)
 {
 	 remove_proc_entry("driver/camsensor", NULL);

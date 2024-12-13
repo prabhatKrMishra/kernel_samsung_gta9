@@ -30,11 +30,6 @@
 #include "mtk_heap.h"
 #include "cam_common.h"
 
-#if IS_ENABLED(CONFIG_COMPAT)
-/* 32/64 bit compatible */
-#include <linux/compat.h>
-#endif
-
 #define CAM_MEM_DEV_NAME "camera-mem"
 
 #define LogTag "[CAM_MEM]"
@@ -849,18 +844,6 @@ static long cam_mem_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Pa
 	return Ret;
 }
 
-#if IS_ENABLED(CONFIG_COMPAT)
-static long cam_mem_ioctl_compat(struct file *filp, unsigned int cmd,
-			     unsigned long arg)
-{
-	if (!filp->f_op || !filp->f_op->unlocked_ioctl) {
-		LOG_NOTICE("No op or no unlocked_ioctl\n");
-		return -ENOTTY;
-	}
-
-	return filp->f_op->unlocked_ioctl(filp, cmd, arg);
-}
-#endif
 
 /*******************************************************************************
  *
@@ -874,9 +857,6 @@ static const struct file_operations CamMemFileOper = {
 	.open = cam_mem_open,
 	.release = cam_mem_release,
 	.unlocked_ioctl = cam_mem_ioctl,
-#if IS_ENABLED(CONFIG_COMPAT)
-	.compat_ioctl = cam_mem_ioctl_compat,
-#endif
 };
 
 /*******************************************************************************
@@ -1066,7 +1046,6 @@ static int cam_mem_probe(struct platform_device *pDev)
 {
 	int Ret = 0;
 	struct device *dev = NULL;
-	unsigned int bit_mask_val = 0;
 
 	LOG_NOTICE("+\n");
 
@@ -1087,17 +1066,9 @@ static int cam_mem_probe(struct platform_device *pDev)
 
 	CamMem_get_larb(pDev);
 
-#if IS_ENABLED(CONFIG_ARM64)
-	bit_mask_val = 34;
-#else
-	bit_mask_val = 31;
-#endif
-	if (dma_set_mask_and_coherent(&pDev->dev, DMA_BIT_MASK(bit_mask_val)))
-		LOG_NOTICE("%s: No suitable DMA available, DMA_BIT_MASK(%d)\n",
-			pDev->dev.of_node->name, bit_mask_val);
-	else
-		LOG_INF("dma_set_mask_and_coherent(%s, DMA_BIT_MASK(%d))\n",
-			pDev->dev.of_node->name, bit_mask_val);
+	if (dma_set_mask_and_coherent(&pDev->dev, DMA_BIT_MASK(34)))
+		LOG_NOTICE("%s: No suitable DMA available\n",
+			pDev->dev.of_node->name);
 
 	/* Create class register */
 	pCamMemClass = class_create(THIS_MODULE, "CamMemDrv");

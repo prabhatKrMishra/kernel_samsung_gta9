@@ -28,7 +28,6 @@ const struct venc_common_if *get_enc_vcp_if(void);
 
 static const struct venc_common_if * get_data_path_ptr(void)
 {
-#if IS_ENABLED(CONFIG_MTK_TINYSYS_VCP_SUPPORT)
 	if (VCU_FPTR(vcu_get_plat_device)) {
 		if (mtk_vcodec_vcp & (1 << MTK_INST_ENCODER))
 			return get_enc_vcp_if();
@@ -36,12 +35,6 @@ static const struct venc_common_if * get_data_path_ptr(void)
 			return get_enc_vcu_if();
 	} else
 		return get_enc_vcp_if();
-#endif
-#if IS_ENABLED(CONFIG_VIDEO_MEDIATEK_VCU)
-	if (VCU_FPTR(vcu_get_plat_device))
-		return get_enc_vcu_if();
-#endif
-	return NULL;
 }
 
 int venc_if_init(struct mtk_vcodec_ctx *ctx, unsigned int fourcc)

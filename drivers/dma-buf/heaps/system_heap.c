@@ -22,6 +22,7 @@
 #include <linux/scatterlist.h>
 #include <linux/slab.h>
 #include <linux/vmalloc.h>
+#include <trace/hooks/mm.h>
 
 #include "page_pool.h"
 #include "deferred-free-helper.h"
@@ -66,11 +67,10 @@ struct system_heap_buffer {
 };
 
 #define LOW_ORDER_GFP (GFP_HIGHUSER | __GFP_ZERO | __GFP_COMP)
-#define MID_ORDER_GFP (LOW_ORDER_GFP | __GFP_NOWARN)
 #define HIGH_ORDER_GFP  (((GFP_HIGHUSER | __GFP_ZERO | __GFP_NOWARN \
 				| __GFP_NORETRY) & ~__GFP_RECLAIM) \
 				| __GFP_COMP)
-static gfp_t order_flags[] = {HIGH_ORDER_GFP, MID_ORDER_GFP, LOW_ORDER_GFP};
+static gfp_t order_flags[] = {HIGH_ORDER_GFP, HIGH_ORDER_GFP, LOW_ORDER_GFP};
 /*
  * The selection of the orders used for allocation (1MB, 64K, 4K) is designed
  * to match with the sizes often found in IOMMUs. Using order 4 pages instead
@@ -413,26 +413,12 @@ static int system_heap_mmap(struct dma_buf *dmabuf, struct vm_area_struct *vma)
 static void *system_heap_do_vmap(struct system_heap_buffer *buffer)
 {
 	struct sg_table *table = &buffer->sg_table;
-	int npages = 0;
-	struct page **pages = NULL;
+	int npages = PAGE_ALIGN(buffer->len) / PAGE_SIZE;
+	struct page **pages = vmalloc(sizeof(struct page *) * npages);
 	struct page **tmp = pages;
 	struct sg_page_iter piter;
 	pgprot_t pgprot = PAGE_KERNEL;
 	void *vaddr;
-
-	/*
-	 * in 32bit project compile the arithmetic division, the "/" will
-	 * cause the __aeabi_uldivmod error.
-	 *
-	 * use DO_DMA_BUFFER_COMMON_DIV and DO_DMA_BUFFER_COMMON_MOD to
-	 * intead "/".
-	 *
-	 * original code is
-	 * int npages = PAGE_ALIGN(buffer->len) / PAGE_SIZE;
-	 */
-	npages = DO_DMA_BUFFER_COMMON_DIV(PAGE_ALIGN(buffer->len), PAGE_SIZE);
-	pages = vmalloc(sizeof(struct page *) * npages);
-	tmp = pages;
 
 	if (!pages)
 		return ERR_PTR(-ENOMEM);
@@ -548,21 +534,9 @@ static void system_heap_buf_free(struct deferred_freelist_item *item,
 static void mtk_mm_heap_dma_buf_release(struct dma_buf *dmabuf)
 {
 	struct system_heap_buffer *buffer = dmabuf->priv;
-	int npages = 0;
+	int npages = PAGE_ALIGN(buffer->len) / PAGE_SIZE;
 	int i, j;
 	unsigned long buf_len = buffer->len;
-
-	/*
-	 * in 32bit project compile the arithmetic division, the "/" will
-	 * cause the __aeabi_uldivmod error.
-	 *
-	 * use DO_DMA_BUFFER_COMMON_DIV and DO_DMA_BUFFER_COMMON_MOD to
-	 * intead "/".
-	 *
-	 * original code is
-	 * int npages = PAGE_ALIGN(buffer->len) / PAGE_SIZE;
-	 */
-	npages = DO_DMA_BUFFER_COMMON_DIV(PAGE_ALIGN(buffer->len), PAGE_SIZE);
 
 	spin_lock(&dmabuf->name_lock);
 	pr_debug("%s: inode:%lu, size:%lu, name:%s\n", __func__,
@@ -605,20 +579,8 @@ static void mtk_mm_heap_dma_buf_release(struct dma_buf *dmabuf)
 static void system_heap_dma_buf_release(struct dma_buf *dmabuf)
 {
 	struct system_heap_buffer *buffer = dmabuf->priv;
+	int npages = PAGE_ALIGN(buffer->len) / PAGE_SIZE;
 	unsigned long buf_len = buffer->len;
-	int npages = 0;
-
-	/*
-	 * in 32bit project compile the arithmetic division, the "/" will
-	 * cause the __aeabi_uldivmod error.
-	 *
-	 * use DO_DMA_BUFFER_COMMON_DIV and DO_DMA_BUFFER_COMMON_MOD to
-	 * intead "/".
-	 *
-	 * original code is
-	 * int npages = PAGE_ALIGN(buffer->len) / PAGE_SIZE;
-	 */
-	npages = DO_DMA_BUFFER_COMMON_DIV(PAGE_ALIGN(buffer->len), PAGE_SIZE);
 
 	dmabuf_release_check(dmabuf);
 
@@ -710,17 +672,7 @@ static struct dma_buf *system_heap_do_allocate(struct dma_heap *heap,
 	int i, ret = -ENOMEM;
 	struct task_struct *task = current->group_leader;
 
-	/*
-	 * in 32bit project compile the arithmetic division, the "/" will
-	 * cause the __aeabi_uldivmod error.
-	 *
-	 * use DO_DMA_BUFFER_COMMON_DIV and DO_DMA_BUFFER_COMMON_MOD to
-	 * intead "/".
-	 *
-	 * original code is
-	 * if (len / PAGE_SIZE > totalram_pages()) {
-	 */
-	if (DO_DMA_BUFFER_COMMON_DIV(len, PAGE_SIZE) > totalram_pages()) {
+	if (len / PAGE_SIZE > totalram_pages()) {
 		pr_info("%s error: len %ld is more than %ld\n",
 			__func__, len, totalram_pages() * PAGE_SIZE);
 		return ERR_PTR(-ENOMEM);
@@ -773,18 +725,7 @@ static struct dma_buf *system_heap_do_allocate(struct dma_heap *heap,
 	get_task_comm(buffer->tid_name, current);
 	buffer->pid = task_pid_nr(task);
 	buffer->tid = task_pid_nr(current);
-
-	/*
-	 * in 32bit project compile the arithmetic division, the "/" will
-	 * cause the __aeabi_uldivmod error.
-	 *
-	 * use DO_DMA_BUFFER_COMMON_DIV and DO_DMA_BUFFER_COMMON_MOD to
-	 * intead "/".
-	 *
-	 * original code is
-	 * buffer->ts  = sched_clock() / 1000;
-	 */
-	buffer->ts  = DO_DMA_BUFFER_COMMON_DIV(sched_clock(), 1000);
+	buffer->ts  = sched_clock() / 1000;
 	buffer->show = system_buf_priv_dump;
 
 	/* create the dmabuf */
@@ -1001,6 +942,46 @@ static int set_heap_dev_dma(struct device *heap_dev)
 	return 0;
 }
 
+static void mtk_system_heap_show_mem(void *data, unsigned int filter, nodemask_t *nodemask)
+{
+	pr_info("%s: %ld kB\n", "System", atomic64_read(&dma_heap_normal_total) >> 10);
+}
+
+static void mtk_system_heap_meminfo(void *data, struct seq_file *m)
+{
+	show_val_meminfo(m, "System", atomic64_read(&dma_heap_normal_total) >> 10);
+}
+
+static inline long get_dma_heap_pool_total_kbytes(struct dma_heap *heap)
+{
+	if (!heap)
+		return 0;
+
+	return system_get_pool_size(heap) >> 10;
+}
+
+static void dma_heap_pool_show_mem(void *data, unsigned int filter, nodemask_t *nodemask)
+{
+	struct dma_heap *heap = (struct dma_heap *)data;
+	long total_kbytes = get_dma_heap_pool_total_kbytes(heap);
+
+	if (total_kbytes < 0)
+		return;
+
+	pr_info("%s: %ld kB\n", "DmaHeapPool", total_kbytes);
+}
+
+static void dma_heap_pool_meminfo(void *data, struct seq_file *m)
+{
+	struct dma_heap *heap = (struct dma_heap *)data;
+	long total_kbytes = get_dma_heap_pool_total_kbytes(heap);
+
+	if (total_kbytes < 0)
+		return;
+
+	show_val_meminfo(m, "DmaHeapPool", total_kbytes);
+}
+
 static int system_heap_create(void)
 {
 	struct dma_heap_export_info exp_info;
@@ -1066,6 +1047,15 @@ static int system_heap_create(void)
 	mb(); /* make sure we only set allocate after dma_mask is set */
 	mtk_mm_uncached_heap_ops.allocate = mtk_mm_uncached_heap_allocate;
 	pr_info("%s add heap[%s] success\n", __func__, exp_info.name);
+
+	/* Add to vendor hooks system heap size */
+	register_trace_android_vh_show_mem(mtk_system_heap_show_mem, NULL);
+	register_trace_android_vh_meminfo_proc_show(mtk_system_heap_meminfo, NULL);
+
+	/* Add to vendor hooks dmabuf pool size */
+	register_trace_android_vh_show_mem(dma_heap_pool_show_mem, (void *)sys_heap);
+	register_trace_android_vh_meminfo_proc_show(dma_heap_pool_meminfo, (void *)sys_heap);
+
 	return 0;
 }
 
@@ -1106,4 +1096,3 @@ EXPORT_SYMBOL_GPL(is_system_heap_dmabuf);
 
 module_init(system_heap_create);
 MODULE_LICENSE("GPL v2");
-

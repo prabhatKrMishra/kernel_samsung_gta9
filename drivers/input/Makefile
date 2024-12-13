@@ -24,8 +24,22 @@ obj-$(CONFIG_INPUT_MOUSE)	+= mouse/
 obj-$(CONFIG_INPUT_JOYSTICK)	+= joystick/
 obj-$(CONFIG_INPUT_TABLET)	+= tablet/
 obj-$(CONFIG_INPUT_TOUCHSCREEN)	+= touchscreen/
+# Tab A9 code for SR-AX6739A-01-314 by xiongxiaoliang at 20230502 start
+obj-$(CONFIG_INPUT_SAR)	+= sar/
+# Tab A9 code for SR-AX6739A-01-314 by xiongxiaoliang at 20230502 end
 obj-$(CONFIG_INPUT_MISC)	+= misc/
 
 obj-$(CONFIG_INPUT_APMPOWER)	+= apm-power.o
 
 obj-$(CONFIG_RMI4_CORE)		+= rmi4/
+
+obj-$(CONFIG_SEC_INPUT_BOOSTER)	+= input_booster_lkm.o
+ifdef CONFIG_SEC_INPUT_BOOSTER_MODE
+	input_booster_lkm-$(CONFIG_SEC_INPUT_BOOSTER)	+= evdev_booster.o input_booster_mode.o
+else
+	input_booster_lkm-$(CONFIG_SEC_INPUT_BOOSTER)	+= evdev_booster.o input_booster.o
+endif
+input_booster_lkm-$(CONFIG_SEC_INPUT_BOOSTER_MTK)       += input_booster_mtk.o
+ifdef CONFIG_MTK_DVFSRC
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat/
+endif

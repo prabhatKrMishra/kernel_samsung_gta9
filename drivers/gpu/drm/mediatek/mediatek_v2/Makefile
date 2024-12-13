@@ -52,6 +52,8 @@ mediatek-drm-y := mtk_drm_drv.o \
 		  mtk_disp_inlinerotate.o \
 		  mtk_mmlsys_bypass_mode.o \
 		  platform/mtk_drm_6789.o \
+		  mtk_notify.o \
+		  mtk_cust.o \
 
 #ccflags-y += -DDRM_CMDQ_DISABLE
 #mediatek-drm-y += mtk_cmdq_dummy.o
@@ -79,12 +81,8 @@ obj-$(CONFIG_DRM_MEDIATEK) += mtk_sync.o
 
 obj-$(CONFIG_DRM_MEDIATEK) += mtk_panel_ext.o
 obj-$(CONFIG_DRM_MEDIATEK) += mtk_disp_notify.o
-
-ifneq ($(CONFIG_MTK_TINYSYS_SCP_SUPPORT),)
-ifeq ($(CONFIG_MTK_TINYSYS_SCP_CM4_SUPPORT),)
 obj-$(CONFIG_DRM_MEDIATEK) += mtk_aod_scp.o
-endif
-endif
+
 obj-$(CONFIG_DRM_MEDIATEK) += mtk_disp_sec.o
 
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/scp/include/

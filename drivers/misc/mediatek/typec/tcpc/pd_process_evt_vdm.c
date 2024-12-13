@@ -8,6 +8,9 @@
 #include "inc/pd_process_evt.h"
 #include "inc/pd_dpm_core.h"
 #include "pd_dpm_prv.h"
+/*Tab A9 code for SR-AX6739A-01-482 by qiaodan at 20230516 start*/
+#include <linux/power/gxy_psy_sysfs.h>
+/*Tab A9 code for SR-AX6739A-01-482 by qiaodan at 20230516 end*/
 
 /* VDM reactions */
 
@@ -17,6 +20,12 @@
 #define VDM_CMD_FLAG_RECV_BY_UFP			(1<<3)
 #define VDM_CMD_FLAG_RECV_BY_DFP			(1<<4)
 #define VDM_CMD_FLAG_PD30_DUPLEX			(1<<5)
+
+/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 start */
+#ifndef MIN
+#define MIN(a, b)       ((a < b) ? (a) : (b))
+#endif
+/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 end */
 
 struct vdm_state_transition {
 	uint8_t	vdm_cmd;
@@ -202,10 +211,18 @@ static bool pd_vdm_state_transit(
 		return false;
 	}
 
+    /* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 start */
+	// if (vdm_cmdt == CMDT_INIT) {	/* Recv */
+	// 	if (!vdm_is_state_transition_available(
+	// 		pd_port, true, state_transition))
+	// 		return false;
 	if (vdm_cmdt == CMDT_INIT) {	/* Recv */
 		if (!vdm_is_state_transition_available(
-			pd_port, true, state_transition))
-			return false;
+			pd_port, true, state_transition)) {
+			PE_TRANSIT_STATE(pd_port, PE_UFP_VDM_SEND_NAK);
+			return true;
+		}
+	/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 end */
 
 		return pd_vdm_state_transit_rx(pd_port, state_transition);
 	}
@@ -226,7 +243,6 @@ enum {
 	VDM_STATE_TRANSIT_SOP_CMD = 0,
 	VDM_STATE_TRANSIT_SOP_PRIME_CMD = VDM_CMD_FLAG_CABLE_CMD,
 	VDM_STATE_TRANSIT_NAK = 2,
-
 	VDM_STATE_TRANSIT_CHECK_TX = 3,
 };
 
@@ -238,6 +254,9 @@ static bool pe_check_vdm_state_transit_valid(
 	uint8_t vdm_cmd;
 	uint8_t cable_cmd;
 	uint8_t vdm_cmd_flags;
+	/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 start */
+	uint8_t svdm_ver;
+	/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 end */
 	uint32_t curr_vdm_hdr;
 
 	curr_state = pd_port->pe_state_curr;
@@ -256,6 +275,8 @@ static bool pe_check_vdm_state_transit_valid(
 
 	vdm_cmd = PD_VDO_CMD(curr_vdm_hdr);
 	*vdm_cmdt = PD_VDO_CMDT(curr_vdm_hdr);
+	/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 start */
+	svdm_ver = PD_VDO_VER(curr_vdm_hdr);
 
 	if (state_transition->vdm_cmd != vdm_cmd)
 		return false;
@@ -268,7 +289,16 @@ static bool pe_check_vdm_state_transit_valid(
 
 	if (cable_cmd && curr_state != state_transition->vdm_request_state)
 		return false;
-
+#if CONFIG_USB_PD_REV30_SYNC_SVDM_VER
+	if (vdm_cmd == CMD_DISCOVER_IDENT)
+	{
+		if (transit_type == VDM_STATE_TRANSIT_SOP_CMD)
+			pd_port->svdm_version[0] = MIN(pd_port->svdm_version[0], svdm_ver);
+		else if (transit_type == VDM_STATE_TRANSIT_SOP_PRIME_CMD)
+			pd_port->svdm_version[1] = MIN(pd_port->svdm_version[1], svdm_ver);
+	}
+#endif	/* CONFIG_USB_PD_REV30_SYNC_SVDM_VER */
+/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 end */
 	return true;
 }
 
@@ -594,6 +624,10 @@ static inline bool pd_process_data_msg(
 {
 	bool ret = false;
 	uint32_t vdm_hdr;
+	/*Tab A9 code for SR-AX6739A-01-482 by qiaodan at 20230516 start*/
+	uint32_t idh_hdr = 0;
+	uint32_t idh_type = 0;
+	/*Tab A9 code for SR-AX6739A-01-482 by qiaodan at 20230516 end*/
 	struct pd_msg *pd_msg = pd_event->pd_msg;
 
 	if (pd_event->msg != PD_DATA_VENDOR_DEF)
@@ -616,6 +650,14 @@ static inline bool pd_process_data_msg(
 		PE_DBG("reset vdm_state\n");
 #endif /* if PE_DBG_RESET_VDM_DIS == 0 */
 	}
+
+	/*Tab A9 code for SR-AX6739A-01-482 by qiaodan at 20230516 start*/
+	idh_hdr = pd_msg->payload[VDO_INDEX_IDH];
+	idh_type = PD_IDH_PTYPE(idh_hdr);
+	if ((idh_type == IDH_PTYPE_HUB) || (idh_type == IDH_PTYPE_AMA)) {
+		gxy_usb_set_pdhub_flag(true);
+	}
+	/*Tab A9 code for SR-AX6739A-01-482 by qiaodan at 20230516 end*/
 
 	print_vdm_msg(pd_port, pd_event);
 
@@ -833,11 +875,23 @@ static inline void pd_parse_tcp_dpm_evt_uvdm(struct pd_port *pd_port)
 	memcpy(pd_port->uvdm_data,
 		vdm_data->vdos, sizeof(uint32_t) * vdm_data->cnt);
 
+/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 start */
+// #if CONFIG_USB_PD_SVDM
+// 	if (pd_check_rev30(pd_port) &&
+// 		(pd_port->uvdm_data[0] & VDO_SVDM_TYPE)) {
+// 		pd_port->uvdm_data[0] |= VDO_SVDM_VERS(SVDM_REV20);
+// 		// pd_port->uvdm_data[0] |= VDO_SVDM_VERS(pd_get_svdm_ver(pd_port,
+// 		// 	pd_get_svdm_ver(pd_port, TCPC_TX_SOP)));
+// 	}
+// #endif	/* CONFIG_USB_PD_SVDM */
 #if CONFIG_USB_PD_SVDM
 	if (pd_check_rev30(pd_port) &&
-		(pd_port->uvdm_data[0] & VDO_SVDM_TYPE))
-		pd_port->uvdm_data[0] |= VDO_SVDM_VERS(SVDM_REV20);
+		(pd_port->uvdm_data[0] & VDO_SVDM_TYPE)) {
+		    pd_port->uvdm_data[0] |= VDO_SVDM_VERS(pd_get_svdm_ver(pd_port,
+		 	pd_get_svdm_ver(pd_port, TCPC_TX_SOP)));
+	}
 #endif	/* CONFIG_USB_PD_SVDM */
+/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 end */
 }
 #endif	/* CONFIG_USB_PD_CUSTOM_VDM */
 

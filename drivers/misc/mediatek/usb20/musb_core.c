@@ -40,6 +40,10 @@
 
 int musb_fake_CDP;
 
+/*Tab A9 code for AX6739A-30 by qiaodan at 20230502 start*/
+extern int g_board_id_status;
+/*Tab A9 code for AX6739A-30 by qiaodan at 20230502 end*/
+
 /*
  * kernel_init_done should be set in early-init stage through
  * init.$platform.usb.rc
@@ -2372,7 +2376,6 @@ int musb_init_controller(struct device *dev, int nIrq, void __iomem *ctrl)
 	struct musb *musb;
 	struct musb_hdrc_platform_data *plat = dev->platform_data;
 	struct usb_hcd *hcd;
-	struct device_node *np = dev->parent->of_node;
 
 	/* resolve CR ALPS01823375 */
 	u8 u8_busperf3 = 0;
@@ -2393,11 +2396,6 @@ int musb_init_controller(struct device *dev, int nIrq, void __iomem *ctrl)
 		status = -ENOMEM;
 		goto fail0;
 	}
-
-	status = of_property_read_u32(np, "usb_phy_offset", &musb->mtk_usb_phy_offset);
-	if (status)
-		musb->mtk_usb_phy_offset = 0x300;
-	DBG(0, "musb->mtk_usb_phy_offset : 0x%x\n", musb->mtk_usb_phy_offset);
 
 	mtk_musb = musb;
 	sema_init(&musb->musb_lock, 1);
@@ -3144,71 +3142,158 @@ static void usb_dpidle_request(int mode)
 }
 #endif
 
-#ifdef DISABLE_FOR_BRING_UP
 #if IS_ENABLED(CONFIG_USB_MTK_OTG)
 static struct regmap *pericfg;
+static struct regmap *infracg;
+
+static u32 uwk_vers;
+
+enum musb_uwk_vers {
+	MUSB_UWK_V1 = 1,  /* MT6855 */
+	MUSB_UWK_V2,      /* MT6789 */
+};
+
+/* MT6855 */
+#define USB_WAKEUP_DEC_CON1     0x214
+#define USB1_CDEN               BIT(0)
+
+/* MT6789 */
+#define USB_WK_CTRL		0x420
+#define USB_CDEN		BIT(6)
+#define USB_IP_SLEEP		BIT(12)
+#define USB_CDDEBOUNCE(x)	(((x) & 0xf) << 28)
+#define MISC_CONFIG		0xf08
+#define USB_CD_CLR		BIT(7)
 
 static void mt_usb_wakeup(struct musb *musb, bool enable)
 {
+
 	u32 tmp;
 	bool is_con = musb->port1_status & USB_PORT_STAT_CONNECTION;
 
-	if (IS_ERR_OR_NULL(pericfg)) {
+	if (uwk_vers == 0) {
 		DBG(0, "init fail");
 		return;
 	}
 
 	DBG(0, "connection=%d\n", is_con);
 
-	if (enable) {
-		regmap_read(pericfg, USB_WAKEUP_DEC_CON1, &tmp);
-		tmp |= USB1_CDDEBOUNCE(0x8) | USB1_CDEN;
-		regmap_write(pericfg, USB_WAKEUP_DEC_CON1, tmp);
+	if (is_con == 0 && enable != 0) {
+		DBG(0, "Only OTG Adapter\n");
+		return;
+	}
 
-		tmp = musb_readw(musb->mregs, RESREG);
+	if (enable) {
+		tmp = musb_readl(musb->mregs, RESREG);
 		if (is_con)
 			tmp &= ~HSTPWRDWN_OPT;
 		else
 			tmp |= HSTPWRDWN_OPT;
-		musb_writew(musb->mregs, RESREG, tmp);
-	} else {
-		regmap_read(pericfg, USB_WAKEUP_DEC_CON1, &tmp);
-		tmp &= ~(USB1_CDEN | USB1_CDDEBOUNCE(0xf));
-		regmap_write(pericfg, USB_WAKEUP_DEC_CON1, tmp);
+		musb_writel(musb->mregs, RESREG, tmp);
 
-		tmp = musb_readw(musb->mregs, RESREG);
-		tmp &= ~HSTPWRDWN_OPT;
-		musb_writew(musb->mregs, RESREG, tmp);
-		if (is_con && !musb->is_active) {
-			DBG(0, "resume with device connected\n");
-			musb->is_active = 1;
+		switch (uwk_vers) {
+		case MUSB_UWK_V1:
+			if (pericfg == NULL)
+				return;
+			regmap_read(pericfg, USB_WAKEUP_DEC_CON1, &tmp);
+			tmp |= USB1_CDEN;
+			regmap_write(pericfg, USB_WAKEUP_DEC_CON1, tmp);
+			break;
+		case MUSB_UWK_V2:
+			if (pericfg == NULL || infracg == NULL)
+				return;
+			regmap_read(infracg, MISC_CONFIG, &tmp);
+			tmp |= USB_CD_CLR;
+			regmap_write(infracg, MISC_CONFIG, tmp);
+
+			mdelay(5);
+
+			regmap_read(pericfg, USB_WK_CTRL, &tmp);
+			tmp |= USB_CDDEBOUNCE(0x8) | USB_CDEN;
+			regmap_write(pericfg, USB_WK_CTRL, tmp);
+
+			mdelay(5);
+
+			regmap_read(infracg, MISC_CONFIG, &tmp);
+			tmp &= ~USB_CD_CLR;
+			regmap_write(infracg, MISC_CONFIG, tmp);
+			break;
+		default:
+			return;
 		}
+	} else {
+		switch (uwk_vers) {
+		case MUSB_UWK_V1:
+			if (pericfg == NULL)
+				return;
+			regmap_read(pericfg, USB_WAKEUP_DEC_CON1, &tmp);
+			tmp &= ~(USB1_CDEN);
+			regmap_write(pericfg, USB_WAKEUP_DEC_CON1, tmp);
+			break;
+		case MUSB_UWK_V2:
+			if (pericfg == NULL)
+				return;
+			regmap_read(pericfg, USB_WK_CTRL, &tmp);
+			tmp &= ~(USB_CDEN | USB_CDDEBOUNCE(0x8));
+			regmap_write(pericfg, USB_WK_CTRL, tmp);
+			break;
+		default:
+			return;
+		}
+
+		tmp = musb_readl(musb->mregs, RESREG);
+		tmp &= ~HSTPWRDWN_OPT;
+		musb_writel(musb->mregs, RESREG, tmp);
+
 	}
+
 }
 
 static int mt_usb_wakeup_init(struct musb *musb)
 {
 	struct device_node *node;
-
-	node = of_find_compatible_node(NULL, NULL,
-					"mediatek,mt6765-usb20");
+	node = musb->glue->dev->of_node;
 
 	if (!node) {
 		DBG(0, "map node failed\n");
 		return -ENODEV;
 	}
 
+	if (of_property_read_bool(node, "wakeup-source")) {
+		DBG(0, "Support remote wakeup\n");
+		if (of_device_is_compatible(node, "mediatek,mt6855-usb20"))
+			uwk_vers = 1;
+		else if (of_device_is_compatible(node, "mediatek,mt6789-usb20"))
+			uwk_vers = 2;
+		else
+			return -EINVAL;
+		/* Add another platform with specific uwk_vers here  */
+	} else {
+		DBG(0, "Not Support remote wakeup\n");
+		uwk_vers = 0;
+		return -EINVAL;
+	}
+
 	pericfg = syscon_regmap_lookup_by_phandle(node,
 					"pericfg");
 	if (IS_ERR(pericfg)) {
 		DBG(0, "fail to get pericfg regs\n");
-		return PTR_ERR(pericfg);
+		pericfg = NULL;
 	}
+
+	infracg = syscon_regmap_lookup_by_phandle(node,
+					"infracg");
+
+	if (IS_ERR(infracg)) {
+		DBG(0, "fail to get infracg regs\n");
+		infracg = NULL;
+	}
+
+	DBG(0, "usb wakeup init successful");
 
 	return 0;
 }
 #endif
-#endif /* End of if 0  */
 
 static u32 cable_mode = CABLE_MODE_NORMAL;
 #ifndef FPGA_PLATFORM
@@ -3773,6 +3858,7 @@ void do_connection_work(struct work_struct *data)
 			DBG(0, "lock not active\n");
 		}
 		usb_clk_state = ON_TO_OFF;
+		mtk_musb->xceiv->otg->state = OTG_STATE_B_IDLE;
 	} else
 		DBG(0, "do nothing, usb_on:%d, power:%d\n",
 				usb_on, mtk_musb->power);
@@ -3828,6 +3914,7 @@ void mt_usb_disconnect(void)
 	DBG(0, "[MUSB] USB disconnect\n");
 	issue_connection_work(CONNECTION_OPS_DISC);
 }
+EXPORT_SYMBOL(mt_usb_disconnect);
 
 void mt_usb_dev_disconnect(void)
 {
@@ -4218,7 +4305,8 @@ static int mt_usb_init(struct musb *musb)
 #if IS_ENABLED(CONFIG_USB_MTK_OTG)
 	mt_usb_otg_init(musb);
 	/* enable host suspend mode */
-	/* mt_usb_wakeup_init(musb); */
+	uwk_vers = 0;
+	mt_usb_wakeup_init(musb);
 	musb->host_suspend = true;
 #endif
 	DBG(0, "%s done\n", __func__);
@@ -4291,7 +4379,7 @@ static const struct musb_platform_ops mt_usb_ops = {
 	.prepare_clk = mt_usb_prepare_clk,
 	.unprepare_clk = mt_usb_unprepare_clk,
 #if IS_ENABLED(CONFIG_USB_MTK_OTG)
-	/* .enable_wakeup = mt_usb_wakeup, */
+	.enable_wakeup = mt_usb_wakeup,
 #endif
 };
 
@@ -4517,6 +4605,12 @@ static int musb_probe(struct platform_device *pdev)
 	musb_force_on = 1;
 #endif
 
+	/*Tab A9 code for AX6739A-30 by qiaodan at 20230502 start*/
+	if (g_board_id_status == 0) {
+		musb_force_on = 1;
+	}
+	/*Tab A9 code for AX6739A-30 by qiaodan at 20230502 end*/
+
 	return 0;
 
 err2:
@@ -4580,8 +4674,6 @@ static const struct of_device_id apusb_of_ids[] = {
 	{.compatible = "mediatek,mt6789-usb20",},
 	{.compatible = "mediatek,mt6855-usb20",},
 	{.compatible = "mediatek,mt6833-usb20",},
-	{.compatible = "mediatek,mt6768-usb20",},
-	{.compatible = "mediatek,mt6765-usb20",},
 	{},
 };
 MODULE_DEVICE_TABLE(of, apusb_of_ids);

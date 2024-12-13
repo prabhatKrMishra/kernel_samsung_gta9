@@ -471,6 +471,8 @@ static inline void __meminit sparse_buffer_free(unsigned long size)
 	memblock_free_early(__pa(sparsemap_buf), size);
 }
 
+phys_addr_t memmapsize;
+
 static void __init sparse_buffer_init(unsigned long size, int nid)
 {
 	phys_addr_t addr = __pa(MAX_DMA_ADDRESS);
@@ -482,6 +484,8 @@ static void __init sparse_buffer_init(unsigned long size, int nid)
 	 */
 	sparsemap_buf = memblock_alloc_exact_nid_raw(size, section_map_size(),
 					addr, MEMBLOCK_ALLOC_ACCESSIBLE, nid);
+
+	memmapsize += size;
 	sparsemap_buf_end = sparsemap_buf + size;
 }
 

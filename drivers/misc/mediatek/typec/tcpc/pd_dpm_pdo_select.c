@@ -123,6 +123,32 @@ static bool dpm_select_pdo_from_vsafe5v(
 	return false;
 }
 
+/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 start */
+#define TCPC_VBUS_SINK_9V    (9000)
+static bool dpm_select_pdo_from_15w(
+	struct dpm_select_info_t *select_info,
+	struct dpm_pdo_info_t *sink, struct dpm_pdo_info_t *source)
+{
+	int uw;
+
+	if ((source->vmax > TCPC_VBUS_SINK_9V) || (source->vmin > TCPC_VBUS_SINK_9V)) {
+		return false;
+	}
+
+	if (source->vmax < sink->vmax) {
+		return dpm_select_pdo_from_vsafe5v(select_info, sink, source);
+	}
+
+	uw = dpm_calc_src_cap_power_uw(source, sink);
+	if (source->vmax > select_info->cur_mv) {
+		select_info->max_uw = uw;
+		select_info->cur_mv = source->vmax;
+		return true;
+	}
+	return false;
+}
+/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 end */
+
 /*
  * Select PDO from Direct Charge
  */
@@ -162,13 +188,16 @@ static bool dpm_select_pdo_from_direct_charge(
  * Select PDO from Custom
  */
 
+/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 start */
 static bool dpm_select_pdo_from_custom(
 	struct dpm_select_info_t *select_info,
 	struct dpm_pdo_info_t *sink, struct dpm_pdo_info_t *source)
 {
 	/* TODO */
-	return dpm_select_pdo_from_vsafe5v(select_info, sink, source);
+	//return dpm_select_pdo_from_vsafe5v(select_info, sink, source);
+	return dpm_select_pdo_from_15w(select_info, sink, source);
 }
+/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 end */
 
 /*
  * Select PDO from Max Power

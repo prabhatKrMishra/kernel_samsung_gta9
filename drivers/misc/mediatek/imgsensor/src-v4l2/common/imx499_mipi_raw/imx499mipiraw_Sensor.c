@@ -50,6 +50,7 @@
 #define write_cmos_sensor(...) subdrv_i2c_wr_u16(__VA_ARGS__)
 #define imx499_table_write_cmos_sensor(...) subdrv_i2c_wr_regs_u8(__VA_ARGS__)
 
+
 #define TYPE2 0
 #define HV_MIRROR_FLIP 1
 /************************************************************************

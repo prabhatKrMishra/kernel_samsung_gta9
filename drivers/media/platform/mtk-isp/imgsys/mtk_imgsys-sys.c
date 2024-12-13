@@ -243,7 +243,7 @@ int mtk_imgsys_hw_working_buf_pool_init(struct mtk_imgsys_dev *imgsys_dev)
 		buf->frameparam.vaddr =
 			buf->buffer.vaddr + DIP_FRAMEPARAM_OFFSET;
 
-		pr_info("DIP_FRAMEPARAM_SZ:%ld",
+		pr_info("DIP_FRAMEPARAM_SZ:%d",
 			sizeof(struct img_ipi_frameparam));
 		dev_dbg(imgsys_dev->dev,
 			"%s: frameparam(%d), scp_daddr(%pad), vaddr(0x%llx)\n",
@@ -587,12 +587,12 @@ static void cmdq_cb_timeout_worker(struct work_struct *work)
 	pipe = (struct mtk_imgsys_pipe *)swork->pipe;
 	if (!pipe->streaming) {
 		pr_info("%s pipe already streamoff\n", __func__);
-		goto release_req;
+		goto release_work;
 	}
 
 	if (!req) {
 		pr_info("%s NULL request Address\n", __func__);
-		goto release_work;
+		return;
 	}
 
 	frm_info = (struct swfrm_info_t *)(swork->req_sbuf_kva);
@@ -631,11 +631,9 @@ static void cmdq_cb_timeout_worker(struct work_struct *work)
 		wake_up_interruptible(&frm_info_waitq);
 	}
 
-release_req:
-	media_request_put(&req->req);
-
 release_work:
-	mtk_hcp_put_gce_buffer(pipe->imgsys_dev->scp_pdev);
+	mtk_hcp_put_gce_buffer(req->imgsys_pipe->imgsys_dev->scp_pdev);
+	media_request_put(&req->req);
 	/*vfree(swork);*/
 	pr_debug("%s leave\n", __func__);
 }
@@ -697,8 +695,7 @@ static void imgsys_cmdq_timeout_cb_func(struct cmdq_cb_data data,
 	media_request_get(&req->req);
 	swork = &(imgsys_timeout_winfo[imgsys_timeout_idx]);
 	swork->req = req;
-	swork->req_sbuf_kva = frm_info_cb->req_sbuf_goft
-		+ mtk_hcp_get_gce_mem_virt(imgsys_dev->scp_pdev);
+	swork->req_sbuf_kva = frm_info_cb->req_sbuf_kva;
 	swork->pipe = frm_info_cb->pipe;
 	swork->fail_uinfo_idx = fail_subfidx;
 	swork->fail_isHWhang = isHWhang;
@@ -1077,8 +1074,7 @@ static void imgsys_mdp_cb_func(struct cmdq_cb_data data,
 			gwork.reqfd = swfrminfo_cb->request_fd;
 			//memcpy((void *)(&(gwork->user_info)), (void *)(&(frm_info_cb->user_info)),
 			//	sizeof(struct img_swfrm_info));
-			gwork.req_sbuf_kva = swfrminfo_cb->req_sbuf_goft
-				+ mtk_hcp_get_gce_mem_virt(imgsys_dev->scp_pdev);
+			gwork.req_sbuf_kva = swfrminfo_cb->req_sbuf_kva;
 			gwork.pipe = swfrminfo_cb->pipe;
 			cmdq_cb_done_worker(&gwork.work);
 			/*grouping, paired with scp_handler*/
@@ -1422,6 +1418,7 @@ static void imgsys_scp_handler(void *data, unsigned int len, void *priv)
 	struct img_sw_buffer *swbuf_data = NULL;
 	struct swfrm_info_t *swfrm_info = NULL;
 	struct gce_work *gwork;
+	int swfrm_cnt;
 	u64 time_local_reddonescpStart = 0;
 	int i = 0;
 	void *gce_virt = NULL;
@@ -1451,7 +1448,7 @@ static void imgsys_scp_handler(void *data, unsigned int len, void *priv)
 		return;
 	}
 
-	if (((int)(swbuf_data->offset) < 0) ||
+	if ((swbuf_data->offset < 0) ||
 		(swbuf_data->offset > mtk_hcp_get_gce_mem_size(imgsys_dev->scp_pdev))) {
 		pr_info("%s: invalid swbuf_data->offset(%d), max(%d)\n",
 			__func__, swbuf_data->offset,
@@ -1465,6 +1462,7 @@ static void imgsys_scp_handler(void *data, unsigned int len, void *priv)
 	}
 
 	swfrm_info->req_sbuf_goft = swbuf_data->offset;
+	swfrm_info->req_sbuf_kva = gce_virt + (swbuf_data->offset);
 
 #if MTK_CM4_SUPPORT == 0
 
@@ -1562,6 +1560,14 @@ static void imgsys_scp_handler(void *data, unsigned int len, void *priv)
 	if (!swfrm_info->user_info[0].subfrm_idx)
 		req->tstate.time_reddonescpStart = time_local_reddonescpStart;
 
+	swfrm_cnt = atomic_inc_return(&req->swfrm_cnt);
+	if (swfrm_cnt == 1)
+		dev_dbg(imgsys_dev->dev,
+		"%d:%d:%s: request num(%d)/frame no(%d), request fd(%d) kva(0x%lx) tfnum(%d) sidx(%d)\n",
+		current->pid, current->tgid, __func__, swfrm_info->request_no,
+		swfrm_info->frame_no, swfrm_info->request_fd, (unsigned long)swfrm_info,
+		swfrm_info->total_frmnum, swfrm_info->user_info[0].subfrm_idx);
+
 	up(&imgsys_dev->sem);
 	/* TODO: log only safe to remove */
 	if (!req->working_buf) {
@@ -1636,9 +1642,6 @@ static void imgsys_scp_handler(void *data, unsigned int len, void *priv)
 			if (!reqfd_find) {
 				cb_info = vmalloc(
 					sizeof(vlist_type(struct reqfd_cbinfo_t)));
-				if (!cb_info)
-					return;
-
 				INIT_LIST_HEAD(vlist_link(cb_info, struct reqfd_cbinfo_t));
 				cb_info->req_fd = swfrm_info->request_fd;
 				cb_info->req_no = swfrm_info->request_no;
@@ -1694,6 +1697,13 @@ static void imgsys_cleartoken_handler(void *data, unsigned int len, void *priv)
 	swbuf_data = (struct img_sw_buffer *)data;
 	gce_virt = mtk_hcp_get_gce_mem_virt(imgsys_dev->scp_pdev);
 	cleartoken_info = (struct cleartoken_info_t *)(gce_virt + (swbuf_data->offset));
+
+	if (swbuf_data->offset > mtk_hcp_get_gce_mem_size(imgsys_dev->scp_pdev)) {
+		pr_info("%s: invalid swbuf_data->offset(%u), max(%d)\n",
+			__func__, swbuf_data->offset,
+			mtk_hcp_get_gce_mem_size(imgsys_dev->scp_pdev));
+		return;
+	}
 
 	if (!cleartoken_info) {
 		pr_info("%s: invalid swfrm_info\n", __func__);
@@ -2037,12 +2047,8 @@ static int mtk_imgsys_hw_connect(struct mtk_imgsys_dev *imgsys_dev)
 	if (IS_ERR_OR_NULL(dvfs_info->reg))
 		dev_dbg(dvfs_info->dev,
 			"%s: [ERROR] reg is err or null\n", __func__);
-	else {
-		ret = regulator_enable(dvfs_info->reg);
-		if (ret)
-			dev_info(imgsys_dev->dev, "%s: regulater_enable failed\n", __func__);
-
-	}
+	else
+		regulator_enable(dvfs_info->reg);
 
 	pm_runtime_get_sync(imgsys_dev->dev);
 	/*set default value for hw module*/
@@ -2394,13 +2400,10 @@ void mtk_imgsys_hw_enqueue(struct mtk_imgsys_dev *imgsys_dev,
 		if (!is_batch_mode(req))
 			mtk_imgsys_std_ipi_params_config(req);
 #else
-#ifdef DESC_SUPPORT
 		if (is_desc_mode(req))
 			mtk_imgsys_desc_ipi_params_config(req);
 		else
 			mtk_imgsys_std_ipi_params_config(req);
-#endif
-		mtk_imgsys_std_ipi_params_config(req);
 #endif
 	}
 

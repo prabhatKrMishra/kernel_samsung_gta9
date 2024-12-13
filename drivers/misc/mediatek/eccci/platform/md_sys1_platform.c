@@ -48,7 +48,6 @@
 #endif
 
 unsigned int ap_plat_info;
-
 struct ccci_md_regulator {
 	struct regulator *reg_ref;
 	unsigned char *reg_name;
@@ -109,6 +108,12 @@ void ccci_dump(void)
 }
 EXPORT_SYMBOL(ccci_dump);
 #endif
+
+unsigned int ccci_get_ap_plat_info(void)
+{
+	return ap_plat_info;
+}
+EXPORT_SYMBOL(ccci_get_ap_plat_info);
 
 /* md1 sys_clk_cg no need set in this API*/
 static void ccci_set_clk_cg(struct ccci_modem *md, unsigned int on)
@@ -199,8 +204,6 @@ static void md_cd_get_md_bootup_status(
 		__func__, res.a0, res.a1, res.a2);
 }
 
-static atomic_t reg_dump_ongoing;
-
 static void md_cd_dump_debug_register(struct ccci_modem *md)
 {
 	/* MD no need dump because of bus hang happened - open for debug */
@@ -232,16 +235,10 @@ static void md_cd_dump_debug_register(struct ccci_modem *md)
 		return;
 	}
 
-	if (atomic_cmpxchg(&reg_dump_ongoing, 0, 1) == 1) {
-		CCCI_NORMAL_LOG(-1, TAG, "[%s] one dump already on-going\n", __func__);
-		return;
-	}
-
 	md_cd_lock_modem_clock_src(1);
 	md_dump_reg(md->index);
 	md_cd_lock_modem_clock_src(0);
 
-	atomic_set(&reg_dump_ongoing, 0);
 }
 
 static void md_cd_check_emi_state(struct ccci_modem *md, int polling)
@@ -643,9 +640,8 @@ static int md_cd_power_off(struct ccci_modem *md, unsigned int timeout)
 	flight_mode_set_by_atf(md, true);
 
 	/* enable sequencer setting to AOC2.5 for gen98 */
-	if ((md_cd_plat_val_ptr.md_gen >= 6298) && (ccci_get_hs2_done_status())) {
+	if (md_cd_plat_val_ptr.md_gen >= 6298) {
 		ret = md1_enable_sequencer_setting(md);
-		reset_modem_hs2_status();
 		if (ret)
 			return ret;
 	}
@@ -1139,12 +1135,12 @@ static int md_cd_get_modem_hw_info(struct platform_device *dev_ptr,
 			__func__);
 		return -1;
 	}
-
 	ret = of_property_read_u32(dev_ptr->dev.of_node,
 		"mediatek,ap_plat_info", &ap_plat_info);
-	CCCI_NORMAL_LOG(-1, TAG, "ap_plat_info : %u\n", ap_plat_info);
-
-
+	if (ret < 0)
+		CCCI_ERROR_LOG(0, TAG, "%s:get DTS:ap_plat_info fail\n", __func__);
+	else
+		CCCI_NORMAL_LOG(0, TAG, "ap_plat_info : %u\n", ap_plat_info);
 	CCCI_DEBUG_LOG(dev_cfg->index, TAG,
 		"modem hw info get idx:%d\n", dev_cfg->index);
 	if ((dev_cfg->index != MD_SYS1) ||

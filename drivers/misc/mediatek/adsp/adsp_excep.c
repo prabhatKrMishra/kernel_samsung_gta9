@@ -140,9 +140,11 @@ static int dump_buffer(struct adsp_exception_control *ctrl, int coredump_id)
 	n += dump_adsp_shared_memory(buf + n, total - n, ADSP_A_LOGGER_MEM_ID);
 	n += dump_adsp_shared_memory(buf + n, total - n, ADSP_B_LOGGER_MEM_ID);
 
+	mutex_lock(&ctrl->lock);
 	reinit_completion(&ctrl->done);
 	ctrl->buf_backup = buf;
 	ctrl->buf_size = total;
+	mutex_unlock(&ctrl->lock);
 
 	pr_debug("%s, vmalloc size %u, buffer %p, dump_size %u",
 		 __func__, total, buf, n);
@@ -375,6 +377,8 @@ int init_adsp_exception_control(struct device *dev,
 #if IS_ENABLED(CONFIG_MTK_AEE_IPANIC)
 	mrdump_set_extra_dump(AEE_EXTRA_FILE_ADSP, get_adsp_misc_buffer);
 #endif
+	mutex_init(&ctrl->lock);
+
 	ctrl->waitq = waitq;
 	ctrl->workq = workq;
 	ctrl->buf_backup = NULL;
@@ -460,6 +464,7 @@ static ssize_t adsp_dump_show(struct file *filep, struct kobject *kobj,
 	ssize_t n = 0;
 	struct adsp_exception_control *ctrl = &excep_ctrl;
 
+	mutex_lock(&ctrl->lock);
 	if (ctrl->buf_backup) {
 		n = copy_from_buffer(buf, -1, ctrl->buf_backup,
 			ctrl->buf_size, offset, size);
@@ -474,6 +479,7 @@ static ssize_t adsp_dump_show(struct file *filep, struct kobject *kobj,
 			complete(&ctrl->done);
 		}
 	}
+	mutex_unlock(&ctrl->lock);
 
 	return n;
 }

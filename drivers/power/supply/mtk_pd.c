@@ -161,7 +161,13 @@ static int _pd_is_algo_ready(struct chg_alg_device *alg)
 		if (ret_value == ALG_READY) {
 			uisoc = pd_hal_get_uisoc(alg);
 			if (pd->input_current_limit1 != -1 ||
+				/*Tab A9 code for SR-AX6739A-01-504 by qiaodan at 20230531 start*/
+				#if defined(CONFIG_CUSTOM_PROJECT_OT11)
+				/* skip */
+				#else
 				pd->charging_current_limit1 != -1 ||
+				#endif //CONFIG_CUSTOM_PROJECT_OT11
+				/*Tab A9 code for SR-AX6739A-01-504 by qiaodan at 20230531 end*/
 				pd->input_current_limit2 != -1 ||
 				pd->charging_current_limit2 != -1 ||
 				uisoc >= pd->pd_stop_battery_soc ||
@@ -496,7 +502,12 @@ void mtk_pdc_reset(struct chg_alg_device *alg)
 int __mtk_pdc_get_setting(struct chg_alg_device *alg, int *newvbus, int *newcur,
 			int *newidx)
 {
+	/*Tab A9 code for SR-AX6739A-01-503 by qiaodan at 20230510 start*/
+	#if !defined(CONFIG_CUSTOM_PROJECT_OT11) || defined(FIXME)
 	int ret = 0;
+	#endif
+	/*Tab A9 code for SR-AX6739A-01-503 by qiaodan at 20230510 end*/
+
 	int idx, selected_idx;
 	unsigned int pd_max_watt, pd_min_watt, now_max_watt;
 	struct mtk_pd *pd = dev_get_drvdata(&alg->dev);
@@ -520,11 +531,18 @@ int __mtk_pdc_get_setting(struct chg_alg_device *alg, int *newvbus, int *newcur,
 	if (cap->nr == 0)
 		return -1;
 
+	/*Tab A9 code for SR-AX6739A-01-503 by qiaodan at 20230510 start*/
+	/* Because there is no ibus detection, fixed value is required*/
+	#if defined(CONFIG_CUSTOM_PROJECT_OT11)
+	ibus = PD_IBUS_FIXED_VALUE;
+	#else
 	ret = pd_hal_get_ibus(alg, &ibus);
 	if (ret < 0) {
 		pd_err("[%s] get ibus fail, keep default voltage\n", __func__);
 		return -1;
 	}
+	#endif
+	/*Tab A9 code for SR-AX6739A-01-503 by qiaodan at 20230510 end*/
 
 #ifdef FIXME
 	if (info->data.parallel_vbus) {
@@ -590,6 +608,16 @@ int __mtk_pdc_get_setting(struct chg_alg_device *alg, int *newvbus, int *newcur,
 	pd_max_watt = cap->max_mv[idx] * (cap->ma[idx]
 			/ 100 * (100 - pd->ibus_err) - 100);
 
+	/*Tab A9 code for SR-AX6739A-01-503 by qiaodan at 20230510 start*/
+	/* Because there is no ibus detection, fixed value is required*/
+	#if defined(CONFIG_CUSTOM_PROJECT_OT11)
+	if (cap->max_mv[idx] > PD_VOLTAGE_THR &&
+		cap->max_mv[idx] < pd->vbus_h) {
+		pd_max_watt = cap->max_mv[idx] * (cap->ma[idx] - 10);
+	}
+	#endif
+	/*Tab A9 code for SR-AX6739A-01-503 by qiaodan at 20230510 end*/
+
 	pd_dbg("pd_max_watt:%d %d %d %d %d\n", idx,
 		cap->max_mv[idx],
 		cap->ma[idx],
@@ -617,6 +645,15 @@ int __mtk_pdc_get_setting(struct chg_alg_device *alg, int *newvbus, int *newcur,
 	if (pd_min_watt <= 5000000)
 		pd_min_watt = 5000000;
 
+	/*Tab A9 code for AX6739A-723 by qiaodan at 20230606 start*/
+#if defined(CONFIG_CUSTOM_PROJECT_OT11)
+	if (cap->max_mv[idx] > PD_VOLTAGE_THR &&
+		cap->max_mv[idx] < pd->vbus_h) {
+		*newidx = selected_idx;
+		boost = false;
+		buck = false;
+	} else
+#endif
 	if ((now_max_watt >= pd_max_watt) || chg1_mivr || chg2_mivr) {
 		*newidx = pd->pd_boost_idx;
 		boost = true;
@@ -628,6 +665,7 @@ int __mtk_pdc_get_setting(struct chg_alg_device *alg, int *newvbus, int *newcur,
 		boost = false;
 		buck = false;
 	}
+	/*Tab A9 code for AX6739A-723 by qiaodan at 20230606 end*/
 
 	*newvbus = cap->max_mv[*newidx];
 	*newcur = cap->ma[*newidx];
@@ -669,7 +707,13 @@ static int pd_sc_set_charger(struct chg_alg_device *alg)
 
 	mutex_lock(&pd->data_lock);
 	if (pd->charging_current_limit1 != -1) {
+		/*Tab A9 code for SR-AX6739A-01-504 by qiaodan at 20230531 start*/
+		#if defined(CONFIG_CUSTOM_PROJECT_OT11)
+		if (pd->charging_current_limit1 <=
+		#else
 		if (pd->charging_current_limit1 <
+		#endif //CONFIG_CUSTOM_PROJECT_OT11
+		/*Tab A9 code for SR-AX6739A-01-504 by qiaodan at 20230531 end*/
 			pd->sc_charger_current)
 			pd->charging_current1 =
 				pd->charging_current_limit1;
@@ -910,7 +954,13 @@ static int _pd_start_algo(struct chg_alg_device *alg)
 			else if (ret_value == ALG_READY) {
 				uisoc = pd_hal_get_uisoc(alg);
 				if (pd->input_current_limit1 != -1 ||
+					/*Tab A9 code for SR-AX6739A-01-504 by qiaodan at 20230531 start*/
+					#if defined(CONFIG_CUSTOM_PROJECT_OT11)
+					/*skip*/
+					#else
 					pd->charging_current_limit1 != -1 ||
+					#endif //CONFIG_CUSTOM_PROJECT_OT11
+					/*Tab A9 code for SR-AX6739A-01-504 by qiaodan at 20230531 end*/
 					pd->input_current_limit2 != -1 ||
 					pd->charging_current_limit2 != -1 ||
 					uisoc >= pd->pd_stop_battery_soc ||
@@ -961,9 +1011,21 @@ static int _pd_stop_algo(struct chg_alg_device *alg)
 {
 	int ret_value = 0;
 	struct mtk_pd *pd = dev_get_drvdata(&alg->dev);
+	/*Tab A9 code for SR-AX6739A-01-511 by wenyaqi at 20230523 start*/
+	#if defined(CONFIG_CUSTOM_PROJECT_OT11)
+	int vbus = 0;
+	#endif // CONFIG_CUSTOM_PROJECT_OT11
 
 	mutex_lock(&pd->access_lock);
 
+	#if defined(CONFIG_CUSTOM_PROJECT_OT11)
+	vbus = pd_hal_get_vbus(alg) / 1000; //mV
+	if (pd->state == PD_HW_READY && vbus > PD_VOLTAGE_THR) {
+		pd_err("%s vbus=%dmV, set state to PD_RUN\n", __func__,vbus);
+		pd->state = PD_RUN;
+	}
+	#endif // CONFIG_CUSTOM_PROJECT_OT11
+	/*Tab A9 code for SR-AX6739A-01-511 by wenyaqi at 20230523 end*/
 	pd_info("%s state:%d %s\n", __func__,
 		pd->state,
 		pd_state_to_str(pd->state));
@@ -1145,7 +1207,7 @@ static void mtk_pd_parse_dt(struct mtk_pd *pd,
 				struct device *dev)
 {
 	struct device_node *np = dev->of_node;
-	u32 val = 0;
+	u32 val;
 
 	if (of_property_read_u32(np, "min_charger_voltage", &val) >= 0)
 		pd->min_charger_voltage = val;

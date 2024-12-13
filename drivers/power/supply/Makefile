@@ -5,7 +5,9 @@ subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/power_throttling
 subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/include
 
 power_supply-y				:= power_supply_core.o
-power_supply-$(CONFIG_SYSFS)		+= power_supply_sysfs.o
+
+# power_supply-$(CONFIG_SYSFS)		+= power_supply_sysfs_ssdev.o
+power_supply-$(CONFIG_SYSFS)        += power_supply_sysfs.o
 power_supply-$(CONFIG_LEDS_TRIGGERS)	+= power_supply_leds.o
 
 obj-$(CONFIG_POWER_SUPPLY)	+= power_supply.o
@@ -88,14 +90,21 @@ obj-$(CONFIG_CHARGER_BQ24735)	+= bq24735-charger.o
 obj-$(CONFIG_CHARGER_BQ2515X)	+= bq2515x_charger.o
 obj-$(CONFIG_CHARGER_BQ25890)	+= bq25890_charger.o
 obj-$(CONFIG_CHARGER_BQ25980)	+= bq25980_charger.o
-obj-$(CONFIG_CHARGER_BQ2589X)	+= bq2589x_charger.o
-obj-$(CONFIG_BATTERY_MM8013)	+= mm8013.o
+# Tab A9 code for SR-AX6739A-01-494 by qiaodan at 20230502 start
+obj-$(CONFIG_CHARGER_UPM6910X)	+= upm6910x_charger.o
+# Tab A9 code for SR-AX6739A-01-494 by qiaodan at 20230502 end
+# Tab A9 code for SR-AX6739A-01-493 by wenyaqi at 20230502 start
+obj-$(CONFIG_CHARGER_SC89601D)	+= sc89601d_charger.o
+# Tab A9 code for SR-AX6739A-01-493 by wenyaqi at 20230502 end
+# Tab A9 code for AX6739A-1334 by gaozhengwei at 20230620 start
+obj-$(CONFIG_CHARGER_SGM415XX) += sgm415xx_charger.o
+# Tab A9 code for AX6739A-1334 by gaozhengwei at 20230620 end
 obj-$(CONFIG_CHARGER_SMB347)	+= smb347-charger.o
 obj-$(CONFIG_CHARGER_TPS65090)	+= tps65090-charger.o
 obj-$(CONFIG_CHARGER_TPS65217)	+= tps65217_charger.o
-obj-$(CONFIG_CHARGER_RT9465)	+= rt9465.o
-obj-$(CONFIG_BATTERY_MT6357) += mt6357_battery.o
-mt6357_battery-objs := mtk_battery_coulomb_service.o mtk_battery.o mtk_battery_algo.o mt6357-gauge.o mtk_battery_daemon.o
+# Tab A9 code for SR-AX6739A-01-515 by lina at 20230505 start
+obj-$(CONFIG_BATTERY_ID_ADC) += battery_id_adc.o
+# Tab A9 code for SR-AX6739A-01-515 by lina at 20230505 end
 obj-$(CONFIG_BATTERY_MT6358) += mt6358_battery.o
 mt6358_battery-objs := mtk_battery_coulomb_service.o mtk_battery.o mtk_battery_algo.o mt6358-gauge.o mtk_battery_daemon.o
 obj-$(CONFIG_BATTERY_MT6359P) += mt6359p_battery.o
@@ -111,7 +120,6 @@ obj-$(CONFIG_CHARGER_BD99954)	+= bd99954-charger.o
 obj-$(CONFIG_CHARGER_WILCO)	+= wilco-charger.o
 obj-$(CONFIG_RN5T618_POWER)	+= rn5t618_power.o
 obj-$(CONFIG_CHARGER_MT6360)	+= mt6360_pmu_chg.o
-obj-$(CONFIG_CHARGER_MT6370)	+= mt6370_pmu_chg.o
 obj-$(CONFIG_CHARGER_MT6362)	+= mt6362-chg.o
 obj-$(CONFIG_CHARGER_MT6375)	+= mt6375-charger.o
 obj-$(CONFIG_CHARGER_RT9759) += rt9759.o
@@ -119,7 +127,9 @@ obj-$(CONFIG_GAUGE_MT6375)	+= mt6375-battery.o
 mt6375-battery-objs := mtk_battery_coulomb_service.o mtk_battery.o mtk_battery_algo.o mt6375-gauge.o mtk_battery_daemon.o
 obj-$(CONFIG_MTK_CHARGER_TYPE_DETECT)	+= mtk_chg_type_det.o
 obj-$(CONFIG_MTK_CHARGER) += mtk_charger_framework.o mtk_pd_charging.o charger_class.o adapter_class.o mtk_charger_algorithm_class.o mtk_pd_adapter.o
-mtk_charger_framework-objs := mtk_charger.o mtk_charger_intf.o mtk_basic_charger.o mtk_pulse_charger.o
+# Tab A9 U code for AX6739AU-127 by wenyaqi at 20240102 start
+mtk_charger_framework-objs := mtk_charger.o mtk_charger_intf.o mtk_basic_charger.o mtk_pulse_charger.o gxy_battery_ttf.o
+# Tab A9 U code for AX6739AU-127 by wenyaqi at 20240102 end
 mtk_pd_charging-objs := mtk_pd.o mtk_pd_hal.o
 obj-$(CONFIG_MTK_PUMP_EXPRESS_PLUS_20_SUPPORT) += mtk_pep20.o
 mtk_pep20-objs := mtk_pe2.o mtk_pe2_hal.o
@@ -129,6 +139,17 @@ obj-$(CONFIG_MTK_PUMP_EXPRESS_40_SUPPORT) += mtk_pep40.o
 mtk_pep40-objs := mtk_pe4.o mtk_pe4_hal.o
 obj-$(CONFIG_MTK_PUMP_EXPRESS_50_SUPPORT) += mtk_pep50.o
 mtk_pep50-objs := mtk_pe5.o mtk_pe5_hal.o
+# Tab A9 code for SR-AX6739A-01-490 by qiaodan at 20230504 start
+obj-$(CONFIG_GXY_PSY_SYSFS) += gxy_psy_sysfs.o
+# Tab A9 code for SR-AX6739A-01-490 by qiaodan at 20230504 end
+# Tab A9 code for SR-AX6739A-01-499 by wenyaqi at 20230515 start
+obj-$(CONFIG_AFC_CHARGER) += gpio_afc.o
+gpio_afc-objs := afc_charger.o afc_charger_hal.o
+# Tab A9 code for SR-AX6739A-01-499 by wenyaqi at 20230515 end
+
+# Tab A9 code for SR-AX6739A-01-461 by qiaodan at 20230607 start
+obj-$(CONFIG_GXY_VBUS_CTRL) += gxy_vbus_ctrl.o
+# Tab A9 code for SR-AX6739A-01-461 by qiaodan at 20230607 end
 
 ifneq ($(wildcard $(srctree)/$(src)/k6983v1_64_alpha),)
 obj-$(CONFIG_GAUGE_MT6983_ALPHA_SUPPORT) += k6983v1_64_alpha/

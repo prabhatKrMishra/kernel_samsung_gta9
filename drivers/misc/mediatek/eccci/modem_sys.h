@@ -163,6 +163,7 @@ struct ccci_modem {
 	struct md_hw_info *hw_info;
 
 	struct ccci_per_md per_md_data;
+	unsigned int ccci_drv_trigger_upload;
 };
 
 extern struct ccci_modem *modem_sys[MAX_MD_NUM];
@@ -242,5 +243,7 @@ extern int ccci_modem_init_common(struct platform_device *plat_dev,
 
 extern int mrdump_mini_add_extra_file(unsigned long vaddr, unsigned long paddr,
 	unsigned long size, const char *name);
-
+#ifdef CUST_FT_EE_TRIGGER_REBOOT
+extern int ccci_get_ap_debug_level(void);
+#endif
 #endif	/* __CCCI_MODEM_H__ */

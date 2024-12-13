@@ -11,6 +11,18 @@
 #include "inc/tcpci_typec.h"
 #include "inc/tcpci_timer.h"
 
+/*Tab A9 code for SR-AX6739A-01-467 by hualei at 20230506 start*/
+#include <linux/power/gxy_psy_sysfs.h>
+
+/**********************************************************
+ *
+ *   [extern for other module]
+ *
+ *********************************************************/
+extern gxy_usb_set_usbccflag( enum gxy_usb_orient cc_flag);
+/*Tab A9 code for SR-AX6739A-01-467 by hualei at 20230506 end*/
+
+
 #if (CONFIG_TYPEC_CAP_TRY_SOURCE || CONFIG_TYPEC_CAP_TRY_SINK)
 #define CONFIG_TYPEC_CAP_TRY_STATE 1
 #else
@@ -555,6 +567,10 @@ static inline void typec_unattached_snk_and_drp_entry(struct tcpc_device *tcpc)
 
 static inline void typec_unattached_cc_entry(struct tcpc_device *tcpc)
 {
+	/*Tab A9 code for SR-AX6739A-01-467 by hualei at 20230506 start*/
+	gxy_usb_set_usbccflag(GXY_USB_ORIENT_UNKOWN);
+	/*Tab A9 code for SR-AX6739A-01-467 by hualei at 20230506 end*/
+
 #if CONFIG_TYPEC_CAP_ROLE_SWAP
 	if (tcpc->typec_during_role_swap) {
 		TYPEC_NEW_STATE(typec_role_swap);
@@ -683,6 +699,13 @@ static inline int typec_set_polarity(struct tcpc_device *tcpc,
 					bool polarity)
 {
 	tcpc->typec_polarity = polarity;
+	/*Tab A9 code for SR-AX6739A-01-467 by hualei at 20230506 start*/
+	if (polarity == 0) {
+		gxy_usb_set_usbccflag(GXY_USB_ORIENT_CC1);
+	} else {
+		gxy_usb_set_usbccflag(GXY_USB_ORIENT_CC2);
+	}
+	/*Tab A9 code for SR-AX6739A-01-467 by hualei at 20230506 end*/
 	return tcpci_set_polarity(tcpc, polarity);
 }
 
@@ -1468,6 +1491,12 @@ static inline bool typec_attached_snk_cc_change(struct tcpc_device *tcpc)
 {
 	uint8_t cc_res = typec_get_cc_res();
 
+	/*Tab A9 code for P230612-08698 by qiaodan at 20230614 start*/
+	#if IS_ENABLED(CONFIG_USB_POWER_DELIVERY)
+	struct pd_port *pd_port = &tcpc->pd_port;
+	#endif	// CONFIG_USB_POWER_DELIVERY
+	/*Tab A9 code for P230612-08698 by qiaodan at 20230614 end*/
+
 	if (cc_res != tcpc->typec_remote_rp_level) {
 		TYPEC_INFO("RpLvl Change\n");
 		tcpc->typec_remote_rp_level = cc_res;
@@ -1477,8 +1506,17 @@ static inline bool typec_attached_snk_cc_change(struct tcpc_device *tcpc)
 			return true;
 #endif	/* CONFIG_TYPEC_CAP_CUSTOM_HV */
 
+		/*Tab A9 code for P230612-08698 by qiaodan at 20230614 start*/
+		#if IS_ENABLED(CONFIG_USB_POWER_DELIVERY)
+		if (!pd_port->pe_data.pd_connected) {
+			tcpci_sink_vbus(tcpc,
+					TCP_VBUS_CTRL_TYPEC, TCPC_VBUS_SINK_5V, -1);
+		}
+		#else
 		tcpci_sink_vbus(tcpc,
 				TCP_VBUS_CTRL_TYPEC, TCPC_VBUS_SINK_5V, -1);
+		#endif	// CONFIG_USB_POWER_DELIVERY
+		/*Tab A9 code for P230612-08698 by qiaodan at 20230614 end*/
 	}
 
 	return true;

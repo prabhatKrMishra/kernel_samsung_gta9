@@ -45,11 +45,12 @@ static ssize_t mvpu_img_show(struct kobject *kobj, struct kobj_attribute *attr,
 	ret = sprintf(buf, "0x%llx", ptn_total_size);
 	if (ret < 0) {
 		pr_info("[MVPU] %s, sprintf error\n", __func__);
-		return -1;
+		return ret;
 	}
+
 	pr_info("[MVPU] %s, ptn_size = 0x%x\n", __func__, (uint32_t)ptn_total_size);
 
-	return 0;
+	return ret;
 }
 
 static ssize_t mvpu_img_store(struct kobject *kobj, struct kobj_attribute *attr,
@@ -76,13 +77,14 @@ static ssize_t loglevel_show(struct kobject *kobj, struct kobj_attribute *attr,
 
 	if (ret < 0) {
 		pr_info("[MVPU] %s, sprintf error\n", __func__);
-		return -1;
+		return ret;
 	}
+
 	pr_info("[MVPU] %s, level= %d\n", __func__, (uint32_t)level);
 
 	mvpu_ipi_recv(MVPU_LOG_LEVEL, &level);
 
-	return 0;
+	return ret;
 }
 
 static ssize_t loglevel_store(struct kobject *kobj, struct kobj_attribute *attr,

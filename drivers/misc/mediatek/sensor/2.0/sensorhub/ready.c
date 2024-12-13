@@ -124,7 +124,7 @@ static void sensor_rescure_work_fn(struct work_struct *work)
 	spin_lock_irqsave(&sensor_ready_lock, flags);
 	if (scp_platform_ready && !scp_sensor_ready) {
 		pr_alert("rescure sensor by scp reset due to no ready ack\n");
-		scp_wdt_reset(0);
+		//scp_wdt_reset(0);
 	}
 	spin_unlock_irqrestore(&sensor_ready_lock, flags);
 }

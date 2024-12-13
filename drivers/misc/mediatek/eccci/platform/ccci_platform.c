@@ -24,7 +24,25 @@
 #include <mt-plat/mtk_lpae.h>
 #endif
 
+#include "modem_secure_base.h"
+
+#include <linux/arm-smccc.h>
+#include <linux/soc/mediatek/mtk_sip_svc.h>
+
 #define TAG "plat"
+
+unsigned long infra_ao_base;
+
+/*
+ * when MD attached its codeviser for debuging, this bit will be set.
+ * so CCCI should disable some checkings and
+ * operations as MD may not respond to us.
+ */
+unsigned int ccci_get_md_debug_mode(struct ccci_modem *md)
+{
+	return 0;
+}
+EXPORT_SYMBOL(ccci_get_md_debug_mode);
 
 #ifdef FEATURE_LOW_BATTERY_SUPPORT
 static int ccci_md_low_power_notify(

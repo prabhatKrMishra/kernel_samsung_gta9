@@ -77,6 +77,8 @@ static spinlock_t g_PDA_SpinLock;
 
 wait_queue_head_t g_wait_queue_head;
 
+static DEFINE_MUTEX(pda_mutex);
+
 // PDA HW quantity
 static unsigned int g_PDA_quantity;
 
@@ -1245,10 +1247,8 @@ static signed int pda_wait_irq(struct PDA_Data_t *pda_data, unsigned int hw_trig
 		LOG_INF("wait_event_interruptible_timeout Fail\n");
 		pda_data->Status = -2;
 		return -1;
-	} else if (ret < 0) {
-		LOG_INF("wait_event return value:%d\n", ret);
-		if (ret == -ERESTARTSYS)
-			LOG_INF("Interrupted by a signal\n");
+	} else if (ret == -ERESTARTSYS) {
+		LOG_INF("Interrupted by a signal\n");
 		pda_data->Status = -3;
 		for (i = 0; i < hw_trigger_num; i++) {
 			pda_reset(i);
@@ -1567,7 +1567,7 @@ static int PDAProcessFunction(unsigned int nUserROINumber,
 
 		if (nirqRet < 0) {
 			LOG_INF("pda_wait_irq Fail (%d)\n", nirqRet);
-			return -1;
+			break;
 		}
 
 		// update roi count which needed to process
@@ -1660,6 +1660,8 @@ static long PDA_Ioctl(struct file *a_pstFile,
 			nRet = -EFAULT;
 			break;
 		}
+		/* Protect the Multi Process */
+		mutex_lock(&pda_mutex);
 
 		ret = g_pda_Pdadata.ROInumber == 0 && g_pda_Pdadata.nNumerousROI == 0;
 		if (g_pda_Pdadata.ROInumber > PDAROIARRAYMAX || ret) {
@@ -1813,6 +1815,7 @@ EXIT_WITHOUT_FREE_IOVA:
 #ifdef FOR_DEBUG
 		LOG_INF("Exit\n");
 #endif
+		mutex_unlock(&pda_mutex);
 
 		// reset flow
 		for (i = 0; i < g_PDA_quantity; i++) {

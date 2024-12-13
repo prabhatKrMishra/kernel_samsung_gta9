@@ -373,6 +373,7 @@ struct venc_enc_param {
  */
 struct venc_frm_buf {
 	struct mtk_vcodec_mem fb_addr[MTK_VCODEC_MAX_PLANES];
+	u32 index;
 	unsigned int num_planes;
 	u64 timestamp;
 	bool has_meta;
@@ -469,6 +470,8 @@ struct mtk_vcodec_ctx {
 	const struct vdec_common_if *dec_if;
 	const struct venc_common_if *enc_if;
 	unsigned long drv_handle;
+	uintptr_t bs_list[VB2_MAX_FRAME+1];
+	uintptr_t fb_list[VB2_MAX_FRAME+1];
 
 	struct vdec_pic_info picinfo;
 	int dpb_size;
@@ -499,7 +502,6 @@ struct mtk_vcodec_ctx {
 	enum vdec_input_driven_mode input_driven;
 
 	/* for user lock HW case release check */
-	int user_lock_hw;
 	struct mutex hw_status;
 	int hw_locked[MTK_VDEC_HW_NUM];
 	int core_locked[MTK_VENC_HW_NUM];
@@ -658,6 +660,7 @@ struct mtk_vcodec_dev {
 	int venc_port_cnt;
 	int vdec_port_idx[MTK_VDEC_HW_NUM];
 	int venc_port_idx[MTK_VENC_HW_NUM];
+	struct mtk_tf_info *tf_info;
 	struct vcodec_perf *vdec_tput;
 	struct vcodec_perf *venc_tput;
 	//struct vcodec_config *vdec_cfg;
@@ -681,7 +684,6 @@ struct mtk_vcodec_dev {
 	enum venc_lock enc_hw_locked[MTK_VENC_HW_NUM];
 
 	unsigned int svp_mtee;
-	unsigned int unique_domain;
 };
 
 static inline struct mtk_vcodec_ctx *fh_to_ctx(struct v4l2_fh *fh)

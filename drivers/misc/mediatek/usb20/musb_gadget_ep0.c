@@ -24,6 +24,12 @@
  * needs to be dropped to allow reentering this driver ... like upcalls to
  * the gadget driver, or adjusting endpoint halt status.
  */
+/*Tab A9 code for SR-AX6739A-01-453 by lina at 20230601 start*/
+#ifndef CONFIG_ODM_CUSTOM_FACTORY_BUILD
+int g_usb_connected_unconfigured = 0;
+EXPORT_SYMBOL(g_usb_connected_unconfigured);
+#endif //!CONFIG_ODM_CUSTOM_FACTORY_BUILD
+/*Tab A9 code for SR-AX6739A-01-453 by lina at 20230601 end*/
 
 static char *decode_ep0stage(u8 stage)
 {
@@ -665,14 +671,22 @@ __acquires(musb->lock)
 	if (musb->async_callbacks) {
 		spin_unlock(&musb->lock);
 		retval = musb->gadget_driver->setup(&musb->g, ctrlrequest);
-
+		/*Tab A9 code for SR-AX6739A-01-453 by lina at 20230601 start*/
 		if (ctrlrequest->bRequest == USB_REQ_SET_CONFIGURATION) {
-			if (ctrlrequest->wValue & 0xff)
+			if (ctrlrequest->wValue & 0xff) {
 				usb_state = USB_CONFIGURED;
-			else
+				#ifndef CONFIG_ODM_CUSTOM_FACTORY_BUILD
+				g_usb_connected_unconfigured = 0;
+				#endif //!CONFIG_ODM_CUSTOM_FACTORY_BUILD
+			} else {
 				usb_state = USB_UNCONFIGURED;
+				#ifndef CONFIG_ODM_CUSTOM_FACTORY_BUILD
+				g_usb_connected_unconfigured = 1;
+				#endif //!CONFIG_ODM_CUSTOM_FACTORY_BUILD
+			}
 			musb_sync_with_bat(musb, usb_state);
 		}
+		/*Tab A9 code for SR-AX6739A-01-453 by lina at 20230601 end*/
 		spin_lock(&musb->lock);
 	}
 
@@ -998,9 +1012,9 @@ musb_g_ep0_queue(struct usb_ep *e, struct usb_request *r, gfp_t gfp_flags)
 	spin_lock_irqsave(&musb->lock, lockflags);
 
 	if (!musb->is_active) {
-		DBG(0, "ep0 request queued when usb not active\n");
-		status = -EINVAL;
-		goto cleanup;
+		DBG(0, "ep0 request queued when usb not active, still queued.\n");
+		/* status = -EINVAL; */
+		/* goto cleanup; */
 	}
 
 	if (!list_empty(&ep->req_list)) {

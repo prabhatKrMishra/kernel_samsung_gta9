@@ -34,4 +34,15 @@
 //#define GET_HEADER_OFFSET_FROM_PIT
 /* AMMS DRDI bank4 share memory size */
 #define BANK4_DRDI_SMEM_SIZE (64*1024)
+
+/* for customer feature */
+#define ENABLE_MD_SEC_SMEM
+//#define ENABLE_SECURITY_SHARE_MEMORY //no used
+#define CUST_FT_DUMP_BUF_FROM_DT
+#define CUST_FT_CARKIT_ENABLE
+#define CUST_FT_BIGDATA
+#define CUST_FT_EE_TRIGGER_REBOOT
+#define CUST_FT_SEND_TX_POWER
+//#define CUST_FT_EMI_DUMP_EN //no used
+//#define CUST_FT_DEVAPC_MD_DEBUG  //no used
 #endif

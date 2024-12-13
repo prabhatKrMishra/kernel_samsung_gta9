@@ -247,6 +247,13 @@
 #define PD_REV20	1
 #define PD_REV30	2
 
+/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 start */
+#define PD_REV_MAJOR	3
+#define PD_REV_MINOR	1
+#define PD_VER_MAJOR	1
+#define PD_VER_MINOR	8
+/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 end */
+
 #define MAX_EXTENDED_MSG_CHUNK_LEN	26
 #define MAX_EXTENDED_MSG_LEGACY_LEN	26
 
@@ -321,11 +328,17 @@
 	(VDO_SVDM_VERS(ver) | VDO_CMDT(cmd_type) \
 	| ((request_vdo) & (~0x60C0)))
 
-#define SVDM_REV10	0
-#define SVDM_REV20	1
+/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 start */
+// #define SVDM_REV10	0
+// #define SVDM_REV20	1
+#define SVDM_VER(major, minor)	(((major) << 2) | (minor))
+#define SVDM_VER10	SVDM_VER(0, 0)
+#define SVDM_VER20	SVDM_VER(1, 0)
+#define SVDM_VER21	SVDM_VER(1, 1)
 
 #define VDO_SVDM_TYPE     (1 << 15)
-#define VDO_SVDM_VERS(x)  (x << 13)
+//#define VDO_SVDM_VERS(x)  (x << 13)
+#define VDO_SVDM_VERS(x)  (x << 11)
 #define VDO_OPOS(x)       (x << 8)
 #define VDO_CMDT(x)       (x << 6)
 
@@ -345,9 +358,11 @@
 
 #define PD_VDO_VID(vdo)  ((vdo) >> 16)
 #define PD_VDO_SVDM(vdo) (((vdo) >> 15) & 1)
+#define PD_VDO_VER(vdo) (((vdo) >> 11) & 0xf)
 #define PD_VDO_OPOS(vdo) (((vdo) >> 8) & 0x7)
 #define PD_VDO_CMD(vdo)  ((vdo) & 0x1f)
 #define PD_VDO_CMDT(vdo) (((vdo) >> 6) & 0x3)
+/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 end */
 
 /*
  * SVDM Identity request -> response
@@ -867,6 +882,9 @@ struct pd_port {
 	uint8_t data_role;
 	uint8_t power_role;
 	uint8_t vconn_role;
+	/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 start */
+	uint8_t last_sop_type;
+	/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 end */
 
 	struct pe_data pe_data;
 
@@ -894,6 +912,12 @@ struct pd_port {
 	uint32_t id_vdos[VDO_MAX_NR];
 
 	uint32_t id_header;
+
+    /* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 start */
+	#if CONFIG_USB_PD_REV30_SYNC_SVDM_VER
+		uint8_t svdm_version[2];
+	#endif	/* CONFIG_USB_PD_REV30_SYNC_SVDM_VER */
+	/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 end */
 
 	uint8_t svid_data_cnt;
 	struct svdm_svid_data *svid_data;
@@ -998,6 +1022,12 @@ struct pd_port {
 #if CONFIG_USB_PD_REV30_SRC_CAP_EXT_LOCAL
 	struct pd_source_cap_ext src_cap_ext;
 #endif	/* CONFIG_USB_PD_REV30_SRC_CAP_EXT_LOCAL */
+
+/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 start */
+#if CONFIG_USB_PD_REV30_SNK_CAP_EXT_LOCAL
+	struct pd_sink_cap_ext snk_cap_ext;
+#endif	/* CONFIG_USB_PD_REV30_SNK_CAP_EXT_LOCAL */
+/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 end */
 
 #if CONFIG_USB_PD_REV30_MFRS_INFO_LOCAL
 	struct pd_manufacturer_info mfrs_info;

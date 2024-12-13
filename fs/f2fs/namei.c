@@ -91,8 +91,6 @@ static struct inode *f2fs_new_inode(struct inode *dir, umode_t mode)
 	if (test_opt(sbi, INLINE_XATTR))
 		set_inode_flag(inode, FI_INLINE_XATTR);
 
-	if (test_opt(sbi, INLINE_DATA) && f2fs_may_inline_data(inode))
-		set_inode_flag(inode, FI_INLINE_DATA);
 	if (f2fs_may_inline_dentry(inode))
 		set_inode_flag(inode, FI_INLINE_DENTRY);
 
@@ -106,12 +104,6 @@ static struct inode *f2fs_new_inode(struct inode *dir, umode_t mode)
 		xattr_size = DEFAULT_INLINE_XATTR_ADDRS;
 	}
 	F2FS_I(inode)->i_inline_xattr_size = xattr_size;
-
-	f2fs_init_extent_tree(inode, NULL);
-
-	stat_inc_inline_xattr(inode);
-	stat_inc_inline_inode(inode);
-	stat_inc_inline_dir(inode);
 
 	F2FS_I(inode)->i_flags =
 		f2fs_mask_flags(mode, F2FS_I(dir)->i_flags & F2FS_FL_INHERITED);
@@ -129,7 +121,17 @@ static struct inode *f2fs_new_inode(struct inode *dir, umode_t mode)
 			set_compress_context(inode);
 	}
 
+	/* Should enable inline_data after compression set */
+	if (test_opt(sbi, INLINE_DATA) && f2fs_may_inline_data(inode))
+		set_inode_flag(inode, FI_INLINE_DATA);
+
+	stat_inc_inline_xattr(inode);
+	stat_inc_inline_inode(inode);
+	stat_inc_inline_dir(inode);
+
 	f2fs_set_inode_flags(inode);
+
+	f2fs_init_extent_tree(inode);
 
 	trace_f2fs_new_inode(inode, 0);
 	return inode;
@@ -317,10 +319,44 @@ static void set_compress_inode(struct f2fs_sb_info *sbi, struct inode *inode,
 		if (!is_extension_exist(name, ext[i], false))
 			continue;
 
+		/* Do not use inline_data with compression */
+		stat_dec_inline_inode(inode);
+		clear_inode_flag(inode, FI_INLINE_DATA);
 		set_compress_context(inode);
 		return;
 	}
 }
+
+#ifdef CONFIG_F2FS_ML_BASED_STREAM_SEPARATION
+static void update_ml_stream_info(struct inode *inode, struct inode *dir,
+			struct dentry *dentry)
+{
+#ifdef CONFIG_F2FS_ML_STREAMID_FORCE_COLD
+	if (S_ISREG(inode->i_mode)) {
+		if (is_extension_exist(dentry->d_name.name, "exo", true))
+			F2FS_I(inode)->is_force_cold = 1;
+	}
+#endif
+	if (F2FS_I(dir)->is_cache == 1) {
+		F2FS_I(inode)->is_cache = 1;
+		return;
+	}
+	if (strlen("cache") == dentry->d_parent->d_name.len) {
+		if (!strcmp(dentry->d_parent->d_name.name, "cache")) {
+			F2FS_I(inode)->is_cache = 1;
+			F2FS_I(dir)->is_cache = 1;
+			return;
+		}
+	}
+	if (S_ISDIR(inode->i_mode)) {
+		if (strlen("cache") == dentry->d_name.len && !strcmp(dentry->d_name.name, "cache")) {
+			F2FS_I(inode)->is_cache = 1;
+			return;
+		}
+	}
+	F2FS_I(inode)->is_cache = 0;
+}
+#endif
 
 static int f2fs_create(struct inode *dir, struct dentry *dentry, umode_t mode,
 						bool excl)
@@ -343,6 +379,9 @@ static int f2fs_create(struct inode *dir, struct dentry *dentry, umode_t mode,
 	if (IS_ERR(inode))
 		return PTR_ERR(inode);
 
+#ifdef CONFIG_F2FS_ML_BASED_STREAM_SEPARATION
+	update_ml_stream_info(inode, dir, dentry);
+#endif
 	if (!test_opt(sbi, DISABLE_EXT_IDENTIFY))
 		set_file_temperature(sbi, inode, dentry->d_name.name);
 
@@ -524,13 +563,23 @@ static struct dentry *f2fs_lookup(struct inode *dir, struct dentry *dentry,
 	}
 
 	ino = le32_to_cpu(de->ino);
-	f2fs_put_page(page, 0);
 
 	inode = f2fs_iget(dir->i_sb, ino);
 	if (IS_ERR(inode)) {
+		if (PTR_ERR(inode) != -ENOMEM) {
+			struct f2fs_sb_info *sbi = F2FS_I_SB(dir);
+
+			printk_ratelimited(KERN_ERR "F2FS-fs: Invalid inode referenced: %u, "
+					"at parent inode: %lu, err: %ld\n", ino, dir->i_ino, PTR_ERR(inode));
+			print_block_data(sbi->sb, page->index,
+					page_address(page), 0, F2FS_BLKSIZE);
+			f2fs_bug_on(sbi, 1);
+		}
+		f2fs_put_page(page, 0);
 		err = PTR_ERR(inode);
 		goto out;
 	}
+	f2fs_put_page(page, 0);
 
 	if ((dir->i_ino == root_ino) && f2fs_has_inline_dots(dir)) {
 		err = __recover_dot_dentries(dir, root_ino);
@@ -551,6 +600,9 @@ static struct dentry *f2fs_lookup(struct inode *dir, struct dentry *dentry,
 		err = -EPERM;
 		goto out_iput;
 	}
+#ifdef CONFIG_F2FS_ML_BASED_STREAM_SEPARATION
+	update_ml_stream_info(inode, dir, dentry);
+#endif
 out_splice:
 #ifdef CONFIG_UNICODE
 	if (!inode && IS_CASEFOLDED(dir)) {
@@ -613,6 +665,8 @@ static int f2fs_unlink(struct inode *dir, struct dentry *dentry)
 		goto fail;
 	}
 	f2fs_delete_entry(de, page, dir, inode);
+	f2fs_unlock_op(sbi);
+
 #ifdef CONFIG_UNICODE
 	/* VFS negative dentries are incompatible with Encoding and
 	 * Case-insensitiveness. Eventually we'll want avoid
@@ -623,8 +677,6 @@ static int f2fs_unlink(struct inode *dir, struct dentry *dentry)
 	if (IS_CASEFOLDED(dir))
 		d_invalidate(dentry);
 #endif
-	f2fs_unlock_op(sbi);
-
 	if (IS_DIRSYNC(dir))
 		f2fs_sync_fs(sbi->sb, 1);
 fail:
@@ -744,6 +796,9 @@ static int f2fs_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode)
 	if (IS_ERR(inode))
 		return PTR_ERR(inode);
 
+#ifdef CONFIG_F2FS_ML_BASED_STREAM_SEPARATION
+	update_ml_stream_info(inode, dir, dentry);
+#endif
 	inode->i_op = &f2fs_dir_inode_operations;
 	inode->i_fop = &f2fs_dir_operations;
 	inode->i_mapping->a_ops = &f2fs_dblock_aops;

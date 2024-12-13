@@ -37,6 +37,11 @@
 #include <lpm_call_type.h>
 #include <lpm_dbg_common_v1.h>
 #include <mtk_cpuidle_status.h>
+/*Tab A9 code for AX6739A-218 by liuqingxuan at 20230524 start*/
+#include <linux/timer.h>
+#include <linux/timex.h>
+#include <linux/rtc.h>
+/*Tab A9 code for AX6739A-218 by liuqingxuan at 20230524 end*/
 
 #include "lpm_plat.h"
 #include "lpm_plat_comm.h"
@@ -249,17 +254,30 @@ void lpm_suspend_system_reflect(int cpu,
 					cpu, issuer);
 }
 
+/*Tab A9 code for AX6739A-370 by shengzhong at 20230606 start*/
+extern void gpio_dump_regs(void);
+/*Tab A9 code for AX6739A-370 by shengzhong at 20230606 end*/
 int lpm_suspend_s2idle_prompt(int cpu,
 					const struct lpm_issuer *issuer)
 {
 	int ret = 0;
-
+	/*Tab A9 code for AX6739A-218 by liuqingxuan at 20230524 start*/
+	struct timespec64 ts;
+	struct rtc_time tm;
+	/*Tab A9 code for AX6739A-218 by liuqingxuan at 20230524 end*/
 	cpumask_set_cpu(cpu, &s2idle_cpumask);
 	if (cpumask_weight(&s2idle_cpumask) == num_online_cpus()) {
 
 		pr_info("[name:spm&][%s:%d] - suspend enter\n",
 			__func__, __LINE__);
-
+		/*Tab A9 code for AX6739A-218 by liuqingxuan at 20230524 start*/
+		ktime_get_real_ts64(&ts);
+		rtc_time64_to_tm(ts.tv_sec, &tm);
+		/*Tab A9 code for AX6739A-370 by shengzhong at 20230606 start*/
+		pr_info("PM:suspend enter UTC time :%d-%d-%d %d:%d:%d \n",tm.tm_year+1900,tm.tm_mon+1, tm.tm_mday,tm.tm_hour,tm.tm_min,tm.tm_sec);
+		gpio_dump_regs();
+		/*Tab A9 code for AX6739A-370 by shengzhong at 20230606 end*/
+		/*Tab A9 code for AX6739A-218 by liuqingxuan at 20230524 end*/
 #if IS_ENABLED(CONFIG_MTK_ECCCI_DRIVER)
 		/* Record md sleep status*/
 		get_md_sleep_time(&before_md_sleep_status);
@@ -273,12 +291,21 @@ int lpm_suspend_s2idle_prompt(int cpu,
 void lpm_suspend_s2idle_reflect(int cpu,
 					const struct lpm_issuer *issuer)
 {
+	/*Tab A9 code for AX6739A-218 by liuqingxuan at 20230524 start*/
+	struct timespec64 ts;
+	struct rtc_time tm;
+	/*Tab A9 code for AX6739A-218 by liuqingxuan at 20230524 end*/
 	if (cpumask_weight(&s2idle_cpumask) == num_online_cpus()) {
 
 		__lpm_suspend_reflect(LPM_SUSPEND_S2IDLE,
 					 cpu, issuer);
 	pr_info("[name:spm&][%s:%d] - resume\n",
 			__func__, __LINE__);
+	/*Tab A9 code for AX6739A-218 by liuqingxuan at 20230524 start*/
+	ktime_get_real_ts64(&ts);
+	rtc_time64_to_tm(ts.tv_sec, &tm);
+	pr_info("PM:suspend resume UTC time :%d-%d-%d %d:%d:%d \n",tm.tm_year+1900,tm.tm_mon+1, tm.tm_mday,tm.tm_hour+8,tm.tm_min,tm.tm_sec);
+	/*Tab A9 code for AX6739A-218 by liuqingxuan at 20230524 end*/
 
 #if IS_ENABLED(CONFIG_MTK_ECCCI_DRIVER)
 	/* show md sleep status */

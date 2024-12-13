@@ -445,7 +445,7 @@ static unsigned int mt6358_map_mode(unsigned int mode)
 
 static int mt6358_get_buck_voltage_sel(struct regulator_dev *rdev)
 {
-	int ret, regval = 0;
+	int ret, regval;
 	struct mt6358_regulator_info *info = rdev_get_drvdata(rdev);
 
 	ret = regmap_read(rdev->regmap, info->da_vsel_reg, &regval);
@@ -464,7 +464,7 @@ static int mt6358_get_buck_voltage_sel(struct regulator_dev *rdev)
 static int mt6358_get_status(struct regulator_dev *rdev)
 {
 	int ret;
-	u32 regval = 0;
+	u32 regval;
 	struct mt6358_regulator_info *info = rdev_get_drvdata(rdev);
 
 	ret = regmap_read(rdev->regmap, info->status_reg, &regval);
@@ -927,16 +927,7 @@ static struct platform_driver mt6358_regulator_driver = {
 	.probe = mt6358_regulator_probe,
 	.id_table = mt6358_platform_ids,
 };
-
-#if IS_BUILTIN(CONFIG_REGULATOR_MT6358)
-static int __init mt6358_regulator_init(void)
-{
-	return platform_driver_register(&mt6358_regulator_driver);
-}
-subsys_initcall(mt6358_regulator_init);
-#else
 module_platform_driver(mt6358_regulator_driver);
-#endif
 
 MODULE_AUTHOR("Hsin-Hsiung Wang <hsin-hsiung.wang@mediatek.com>");
 MODULE_DESCRIPTION("Regulator Driver for MediaTek MT6358 PMIC");

@@ -807,6 +807,7 @@ struct readahead_control {
 	}
 
 #define VM_READAHEAD_PAGES	(SZ_128K / PAGE_SIZE)
+extern unsigned int mmap_readaround_limit;
 
 void page_cache_ra_unbounded(struct readahead_control *,
 		unsigned long nr_to_read, unsigned long lookahead_count);

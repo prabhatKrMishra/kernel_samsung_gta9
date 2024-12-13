@@ -45,7 +45,6 @@ struct rsp_t {
 	uint32_t            len;
 };
 
-
 /*
  * Alternative access flow to improve performance. (this is customization)
  */
@@ -53,13 +52,14 @@ struct rsp_t {
 
 #if RPMB_MULTI_BLOCK_ACCESS
 /* 16 blocks per request. */
-#define MAX_RPMB_TRANSFER_BLK (16U)
+#define MAX_RPMB_TRANSFER_BLK (32U)
 #define MAX_RPMB_REQUEST_SIZE (512U*MAX_RPMB_TRANSFER_BLK) /* 8KB */
 #else
 /* 1 block per request. */
 #define MAX_RPMB_TRANSFER_BLK (1U)
 #define MAX_RPMB_REQUEST_SIZE (512U*MAX_RPMB_TRANSFER_BLK) /* 512byte */
 #endif
+
 
 struct rpmb_req_t {
 	uint8_t frame[MAX_RPMB_REQUEST_SIZE];

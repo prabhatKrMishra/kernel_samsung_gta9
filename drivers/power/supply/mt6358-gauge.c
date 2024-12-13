@@ -2532,6 +2532,9 @@ static int zcv_get(struct mtk_gauge *gauge_dev,
 {
 	signed int adc_result_reg = 0;
 	signed int adc_result = 0;
+	/*Tab A9 code for SR-AX6739A-01-518 by hualei at 20230530 start*/
+	static int old_zcv = 0;
+	/*Tab A9 code for SR-AX6739A-01-518 by hualei at 20230530 end*/
 
 	regmap_read(gauge_dev->regmap,
 		RG_AUXADC_ADC_OUT_FGADC_PCHR, &adc_result_reg);
@@ -2543,7 +2546,15 @@ static int zcv_get(struct mtk_gauge *gauge_dev,
 	adc_result = reg_to_mv_value(adc_result_reg);
 	bm_err("[oam] %s BATSNS  (pchr):adc_result_reg=%d, adc_result=%d\n",
 		 __func__, adc_result_reg, adc_result);
+	/*Tab A9 code for SR-AX6739A-01-518 by hualei at 20230530 start*/
+	if (adc_result != 0) {
+		*zcv = adc_result;
+		old_zcv = adc_result;
+	} else {
+		*zcv = old_zcv;
+	}
 	*zcv = adc_result;
+	/*Tab A9 code for SR-AX6739A-01-518 by hualei at 20230530 end*/
 
 	return 0;
 }

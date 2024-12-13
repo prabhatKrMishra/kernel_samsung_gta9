@@ -16,6 +16,15 @@
 #define PD_VBUS_LOW_BOUND		5000000	/* uv */
 #define PD_FAIL_CURRENT			500000	/* 500mA */
 
+/*Tab A9 code for SR-AX6739A-01-503 by qiaodan at 20230510 start*/
+#if defined(CONFIG_CUSTOM_PROJECT_OT11)
+#define PD_VOLTAGE_THR			8000
+#define PD_IBUS_LOW_BOUND			1600000
+#define PD_IBUS_FIXED_VALUE			1650000
+#define PD_IBUS_HIGH_BOUND			1700000
+#endif
+/*Tab A9 code for SR-AX6739A-01-503 by qiaodan at 20230510 end*/
+
 #define PD_SC_INPUT_CURRENT		3000000	/* 3000mA */
 #define PD_SC_CHARGER_CURRENT	3000000	/* 3000mA */
 

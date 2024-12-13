@@ -114,7 +114,6 @@ struct vcp_control {
 	struct workqueue_struct *vcp_wq;
 	atomic_t		vcp_usage;
 	atomic_t		vcp_power;
-	struct notifier_block vcp_notify;
 	void __iomem	*mminfra_base;
 };
 struct vcp_control vcp;
@@ -288,11 +287,6 @@ static void cmdq_vcp_off_work(struct work_struct *work_item)
 		cmdq_msg("[VCP] power off VCP");
 #if IS_ENABLED(CONFIG_MTK_TINYSYS_VCP_SUPPORT)
 		vcp_deregister_feature_ex(GCE_FEATURE_ID);
-		if (vcp.vcp_notify.notifier_call) {
-			vcp_A_unregister_notify_ex(&vcp.vcp_notify);
-			vcp.vcp_notify.notifier_call = NULL;
-			cmdq_log("[VCP] vcp_A_unregister_notify_ex");
-		}
 #endif
 		atomic_dec(&vcp.vcp_power);
 	}
@@ -303,20 +297,6 @@ static void cmdq_vcp_off(struct timer_list *t)
 {
 	if (!work_pending(&vcp.vcp_work))
 		queue_work(vcp.vcp_wq, &vcp.vcp_work);
-}
-
-static dma_addr_t cmdq_get_vcp_dummy(enum CMDQ_VCP_ENG_ENUM engine)
-{
-	const dma_addr_t offset[VCP_USER_CNT] = {
-		MMINFRA_MBIST_DELSEL12, MMINFRA_MBIST_DELSEL13,
-		MMINFRA_MBIST_DELSEL14, MMINFRA_MBIST_DELSEL15,
-		MMINFRA_MBIST_DELSEL16, MMINFRA_MBIST_DELSEL17,
-		MMINFRA_MBIST_DELSEL18, MMINFRA_MBIST_DELSEL19,};
-
-	if (engine >= VCP_USER_CNT)
-		return 0;
-
-	return MMINFRA_BASE + offset[engine];
 }
 
 #if IS_ENABLED(CONFIG_MTK_TINYSYS_VCP_SUPPORT)
@@ -336,51 +316,6 @@ static void cmdq_vcp_is_ready(void)
 	}
 
 }
-
-
-static int cmdq_vcp_notify_irq_cb(struct notifier_block *this,
-	unsigned long event, void *ptr)
-{
-	dma_addr_t addr;
-	u32 i, val;
-	void __iomem *vcp_irq;
-	struct cmdq_vcp_inst *vcp_inst = (struct cmdq_vcp_inst *)&val;
-	struct vcp_control *vcp_ptr = container_of(this, struct vcp_control, vcp_notify);
-
-	if (!vcp_ptr->mminfra_base) {
-		cmdq_err("[VCP] not support vcp but register vcp notify callback.");
-		return NOTIFY_STOP_MASK;
-	}
-	if (atomic_read(&vcp.vcp_power) <= 0) {
-		cmdq_msg("[VCP] not power on VCP");
-		return NOTIFY_DONE;
-	}
-
-	vcp_irq = ioremap((dma_addr_t)VCP_TO_SPM_REG_PA, 0x08);
-
-	switch (event) {
-	case VCP_EVENT_READY:
-		for (i = 0; i < VCP_USER_CNT; i++) {
-			addr = cmdq_get_vcp_dummy(i);
-			val = readl(vcp_ptr->mminfra_base + (addr - MMINFRA_BASE));
-			cmdq_log("[VCP] addr[%pa]=%#x enable:%d enter:%d error:%d",
-					&addr, val, vcp_inst->enable, vcp_inst->enter,
-					vcp_inst->error);
-			if (vcp_inst->enable) {
-				writel(readl(vcp_irq) | B_GIPC2_SETCLR_0, vcp_irq);
-				cmdq_msg("[VCP] ready from exception, retry trigger irq");
-				break;
-			}
-		}
-		break;
-	default:
-		cmdq_log("[VCP] nothing to do, event:%lu", event);
-	}
-
-	iounmap(vcp_irq);
-
-	return NOTIFY_DONE;
-}
 #endif
 
 void cmdq_vcp_enable(bool en)
@@ -393,29 +328,18 @@ void cmdq_vcp_enable(bool en)
 	if (en) {
 		if (atomic_inc_return(&vcp.vcp_usage) == 1)
 			del_timer(&vcp.vcp_timer);
-#if IS_ENABLED(CONFIG_MTK_TINYSYS_VCP_SUPPORT)
-		if (!is_vcp_ready_ex(VCP_A_ID) && (atomic_read(&vcp.vcp_power) > 0)) {
-			vcp_deregister_feature_ex(GCE_FEATURE_ID);
-			atomic_dec(&vcp.vcp_power);
-			cmdq_msg("[VCP] checking vcp is not ready, retry power on vcp");
-		}
-#endif
 		if (atomic_read(&vcp.vcp_power) <= 0) {
 #if IS_ENABLED(CONFIG_MTK_TINYSYS_VCP_SUPPORT)
 			dma_addr_t buf_pa = vcp_get_reserve_mem_phys_ex(GCE_MEM_ID);
 
 			vcp_register_feature_ex(GCE_FEATURE_ID);
-			cmdq_vcp_is_ready();
-			cmdq_msg("[VCP] power on VCP");
-
-			if (!vcp.vcp_notify.notifier_call) {
-				vcp.vcp_notify.notifier_call = cmdq_vcp_notify_irq_cb;
-				vcp_A_register_notify_ex(&vcp.vcp_notify);
-				cmdq_log("[VCP] vcp_A_register_notify_ex");
-			}
 			atomic_inc(&vcp.vcp_power);
+			mutex_unlock(&vcp.vcp_mutex);
+			cmdq_msg("[VCP] power on VCP");
+			cmdq_vcp_is_ready();
 			writel(CMDQ_PACK_IOVA(buf_pa), vcp.mminfra_base + MMINFRA_MBIST_DELSEL10);
 #endif
+			return;
 		}
 	} else {
 		if (atomic_dec_return(&vcp.vcp_usage) == 0)
@@ -447,6 +371,20 @@ void *cmdq_get_vcp_buf(enum CMDQ_VCP_ENG_ENUM engine, dma_addr_t *pa_out)
 	return va;
 }
 EXPORT_SYMBOL(cmdq_get_vcp_buf);
+
+static dma_addr_t cmdq_get_vcp_dummy(enum CMDQ_VCP_ENG_ENUM engine)
+{
+	const dma_addr_t offset[VCP_USER_CNT] = {
+		MMINFRA_MBIST_DELSEL12, MMINFRA_MBIST_DELSEL13,
+		MMINFRA_MBIST_DELSEL14, MMINFRA_MBIST_DELSEL15,
+		MMINFRA_MBIST_DELSEL16, MMINFRA_MBIST_DELSEL17,
+		MMINFRA_MBIST_DELSEL18, MMINFRA_MBIST_DELSEL19,};
+
+	if (engine >= VCP_USER_CNT)
+		return 0;
+
+	return MMINFRA_BASE + offset[engine];
+}
 
 u32 cmdq_pkt_vcp_reuse_val(enum CMDQ_VCP_ENG_ENUM engine, u32 buf_offset, u16 size)
 {
@@ -840,7 +778,7 @@ void cmdq_pkt_free_buf(struct cmdq_pkt *pkt)
 			cmdq_err("pkt:0x%p pa:%pa iova:%pa",
 			pkt, &buf->pa_base, &buf->iova_base);
 		if (buf->use_pool) {
-			if (pkt->cur_pool.pool && buf->va_base)
+			if (pkt->cur_pool.pool)
 				cmdq_mbox_pool_free_impl(pkt->cur_pool.pool,
 					buf->va_base,
 					CMDQ_BUF_ADDR(buf),
@@ -1334,7 +1272,7 @@ void cmdq_pkt_reuse_jump(struct cmdq_pkt *pkt, struct cmdq_reuse *reuse)
 
 void cmdq_pkt_reuse_value(struct cmdq_pkt *pkt, struct cmdq_reuse *reuse)
 {
-	*reuse->va = (*reuse->va & GENMASK_ULL(63, 32)) | reuse->val;
+	*reuse->va = (*reuse->va & GENMASK(63, 32)) | reuse->val;
 }
 
 void cmdq_pkt_reuse_buf_va(struct cmdq_pkt *pkt, struct cmdq_reuse *reuse,

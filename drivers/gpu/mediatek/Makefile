@@ -31,17 +31,12 @@ subdir-ccflags-y += -DCONFIG_GPU_MT6853
 endif
 endif
 
-ifeq ($(CONFIG_MTK_GPU_MT6768_SUPPORT)$(CONFIG_MTK_GPU_MT6765_SUPPORT),)
-    obj-y += gpu_bm/
-    obj-y += gpueb/
-endif
-
-
 ifneq ($(CONFIG_MTK_GPU_SUPPORT),)
     obj-y += ged/
     obj-y += hal/
     obj-y += gpufreq/
-
+    obj-y += gpu_bm/
+    obj-y += gpueb/
 
 ifneq ($(CONFIG_MTK_GPU_VERSION),"")
 # GPU R5P0
@@ -53,4 +48,5 @@ else
     obj-y += $(subst ",,$(CONFIG_MTK_PLATFORM))/
 endif
 endif
+
 endif

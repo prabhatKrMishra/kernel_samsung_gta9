@@ -248,7 +248,7 @@ int send_task_sharemem_to_scp(struct mtk_scp_audio_base *scp_audio, int daiid)
 		return -1;
 	}
 
-	/* send share message to scp side */
+	/* send share message to adsp side */
 	memcpy((void *)task_base->ipi_payload_buf,
 	       (void *)&task_base->msg_atod_share_buf,
 	       sizeof(struct audio_dsp_dram));
@@ -1468,7 +1468,7 @@ static snd_pcm_uframes_t mtk_scp_audio_pcm_pointer_dl
 		return 0;
 	}
 #ifdef DEBUG_VERBOSE
-	dump_rbuf_s("-mtk_scphw_pcm_pointer_dl", &task_base->ring_buf);
+	dump_rbuf_s("-mtk_dsphw_pcm_pointer_dl", &task_base->ring_buf);
 #endif
 
 	/* handle for underflow */

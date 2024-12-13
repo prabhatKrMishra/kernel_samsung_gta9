@@ -187,6 +187,30 @@ config INPUT_APMPOWER
 
 comment "Input Device Drivers"
 
+config SEC_INPUT_BOOSTER
+	tristate "SEC INPUT BOOSTER"
+	depends on INPUT_EVDEV
+	default m
+	help
+	  Say Y here if you enable input boosting for various input device
+	  such as touch.
+
+	  Say N here if you disable input boosting.
+
+	  If unsure, say Y.
+
+config SEC_INPUT_BOOSTER_MTK
+	bool "SEC INPUT BOOSTER MTK"
+	depends on SEC_INPUT_BOOSTER
+	default y
+	help
+	  Say Y here if you enable input boosting of MTK under MTK chipset
+	  such as touch.
+
+	  Say N here if you disable input boosting of MTK
+
+	  If unsure, say N.
+
 source "drivers/input/keyboard/Kconfig"
 
 source "drivers/input/mouse/Kconfig"
@@ -196,7 +220,9 @@ source "drivers/input/joystick/Kconfig"
 source "drivers/input/tablet/Kconfig"
 
 source "drivers/input/touchscreen/Kconfig"
-
+# Tab A9 code for SR-AX6739A-01-314 by xiongxiaoliang at 20230502 start
+source "drivers/input/sar/Kconfig"
+# Tab A9 code for SR-AX6739A-01-314 by xiongxiaoliang at 20230502 end
 source "drivers/input/misc/Kconfig"
 
 source "drivers/input/rmi4/Kconfig"

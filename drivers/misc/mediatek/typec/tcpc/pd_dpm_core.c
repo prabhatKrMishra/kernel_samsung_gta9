@@ -153,6 +153,78 @@ int pd_dpm_send_sink_caps(struct pd_port *pd_port)
 		snk_cap->nr, snk_cap->pdos);
 }
 
+/*Tab A9  U code for AX6739AU-114 by wenyaqi at 20231212 start*/
+enum {
+	SLATE_DISABLE = 0,
+	SLATE_ENABLE,
+	SLATE_500MA,
+	SLATE_0A,
+};
+
+static struct pd_port_power_caps gs_src_cap_5v500ma = {
+	.nr = 1,
+	.pdos[0] = 0x00019032,
+};
+
+static struct pd_port_power_caps gs_src_cap_5v0a = {
+	.nr = 1,
+	.pdos[0] = 0x00019000,
+};
+
+int gxy_send_src_caps(int slate_mode)
+{
+	uint8_t i;
+	uint32_t cable_curr = 3000;
+	struct tcpc_device *tcpc = NULL;
+	struct pd_port *pd_port = NULL;
+	struct pd_port_power_caps *src_cap1 = NULL;
+	struct pd_port_power_caps *src_cap_slate = NULL;
+
+	tcpc = tcpc_dev_get_by_name("type_c_port0");
+	if (tcpc == NULL) {
+		pr_notice("%s get tcpc device type_c_port0 fail\n", __func__);
+		return -ENODEV;
+	}
+	pd_port = &tcpc->pd_port;
+	src_cap1 = &pd_port->local_src_cap;
+
+	if (pd_port->pe_data.power_cable_present) {
+		cable_curr = pd_get_cable_current_limit(pd_port);
+		DPM_DBG("cable_limit: %dmA\n", cable_curr);
+	}
+
+	/*Tab A9  U code for P240510-06955 by wenyaqi at 20240515 start*/
+	if (pd_port->pe_pd_state != PE_SRC_READY) {
+		pr_err("%s::pe_pd_state=%d, skip set\n", __func__, pd_port->pe_pd_state);
+		return -ENODEV;
+	}
+	/*Tab A9  U code for P240510-06955 by wenyaqi at 20240515 end*/
+
+	switch(slate_mode) {
+		case SLATE_500MA:
+			src_cap_slate = &gs_src_cap_5v500ma;
+			break;
+		case SLATE_0A:
+			src_cap_slate = &gs_src_cap_5v0a;
+			break;
+		case SLATE_DISABLE:
+		case SLATE_ENABLE:
+		default:
+			src_cap_slate = &pd_port->local_src_cap_default;
+			break;
+	}
+	src_cap1->nr = src_cap_slate->nr;
+	for (i = 0; i < src_cap_slate->nr; i++) {
+		src_cap1->pdos[i] =
+			pd_reset_pdo_power(tcpc, src_cap_slate->pdos[i], cable_curr);
+	}
+
+	return pd_send_sop_data_msg(pd_port, PD_DATA_SOURCE_CAP,
+		src_cap1->nr, src_cap1->pdos);
+}
+EXPORT_SYMBOL(gxy_send_src_caps);
+/*Tab A9  U code for AX6739AU-114 by wenyaqi at 20231212 end*/
+
 int pd_dpm_send_source_caps(struct pd_port *pd_port)
 {
 	uint8_t i;
@@ -695,6 +767,9 @@ void pd_dpm_snk_standby_power(struct pd_port *pd_port)
 	} else if (pd_port->request_i_new < pd_port->request_i) {
 		/* Case6 Decreasing the Current, t1 i = new */
 		ma = pd_port->request_i_new;
+		type = TCP_VBUS_CTRL_STANDBY;
+	} else if (pd_port->request_v_new == pd_port->request_v) {
+		ma = standby_curr;
 		type = TCP_VBUS_CTRL_STANDBY;
 	}
 
@@ -1757,11 +1832,21 @@ int pd_dpm_send_source_cap_ext(struct pd_port *pd_port)
 }
 #endif	/* CONFIG_USB_PD_REV30_SRC_CAP_EXT_LOCAL */
 
+/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 start */
+#if CONFIG_USB_PD_REV30_SNK_CAP_EXT_LOCAL
+int pd_dpm_send_sink_cap_ext(struct pd_port *pd_port)
+{
+	return pd_send_sop_ext_msg(pd_port, PD_EXT_SINK_CAP_EXT,
+		PD_SKEDB_SIZE, &pd_port->snk_cap_ext);
+}
+#endif	/* CONFIG_USB_PD_REV30_SNK_CAP_EXT_LOCAL */
+
 #if CONFIG_USB_PD_REV30_BAT_CAP_LOCAL
 
 static const struct pd_battery_capabilities c_invalid_bcdb = {
-	0, 0, 0, 0, PD_BCDB_BAT_TYPE_INVALID
+	0xffff, 0, 0, 0, PD_BCDB_BAT_TYPE_INVALID
 };
+/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 end */
 
 int pd_dpm_send_battery_cap(struct pd_port *pd_port)
 {
@@ -1970,6 +2055,22 @@ int pd_dpm_send_country_info(struct pd_port *pd_port)
 		 cidb_size, &cidb);
 }
 #endif	/* CONFIG_USB_PD_REV30_COUNTRY_INFO_LOCAL */
+
+/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 start */
+#if CONFIG_USB_PD_REV30_REVISION_LOCAL
+int pd_dpm_send_revision(struct pd_port *pd_port)
+{
+	uint32_t rmdo;
+	struct tcpc_device __maybe_unused *tcpc = pd_port->tcpc;
+
+	rmdo = RMDO(PD_REV_MAJOR, PD_REV_MINOR, PD_VER_MAJOR, PD_VER_MINOR);
+	DPM_INFO("send_revision:0x%08x\n", rmdo);
+
+	return pd_send_sop_data_msg(pd_port, PD_DATA_REVISION,
+		PD_RMDO_SIZE, &rmdo);
+}
+#endif	/* CONFIG_USB_PD_REV30_REVISION_LOCAL */
+/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 end */
 
 #if CONFIG_USB_PD_REV30_ALERT_REMOTE
 void pd_dpm_inform_alert(struct pd_port *pd_port)
@@ -2328,7 +2429,7 @@ int pd_dpm_core_init(struct pd_port *pd_port)
 #if CONFIG_USB_PD_REV30
 #if CONFIG_USB_PD_REV30_PPS_SINK
 	pd_port->pps_request_wake_lock =
-		wakeup_source_register(NULL, "pd_pps_request_wake_lock");
+		wakeup_source_register(&tcpc->dev, "pd_pps_request_wake_lock");
 	init_waitqueue_head(&pd_port->pps_request_wait_que);
 	atomic_set(&pd_port->pps_request, false);
 	pd_port->pps_request_task = kthread_run(pps_request_thread_fn, tcpc,

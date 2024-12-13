@@ -18,9 +18,9 @@
 
 /* commanad buffer & metadata */
 #define CMDQ_IWC_MAX_CMD_LENGTH		(5 << 12)
-
-#define CMDQ_IWC_MAX_ADDR_LIST_LENGTH (30)
-
+/*Tab A9 code for  SR-AX6739A-01-364 by tangxiaoxing at 20230606 start*/
+#define CMDQ_IWC_MAX_ADDR_LIST_LENGTH (90)
+/*Tab A9 code for  SR-AX6739A-01-364 by tangxiaoxing at 20230606 end*/
 #define CMDQ_IWC_CLIENT_NAME (16)
 
 #define CMDQ_SEC_MESSAGE_INST_LEN (8)

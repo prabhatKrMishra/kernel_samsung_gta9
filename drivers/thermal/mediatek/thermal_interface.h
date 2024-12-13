@@ -23,8 +23,6 @@
 #define MIN_THROTTLE_FREQ_OFFSET    (0x14C)
 #define GPU_TEMP_OFFSET            (0x180)
 #define APU_TEMP_OFFSET            (0x190)
-#define APU_LIMIT_OPP_OFFSET       (0x194)
-#define APU_CUR_OPP_OFFSET         (0x198)
 #define EMUL_TEMP_OFFSET           (0x1B0)
 #define CPU_LIMIT_FREQ_OFFSET      (0x200)
 #define CPU_CUR_FREQ_OFFSET        (0x210)
@@ -133,8 +131,8 @@ extern void __iomem *thermal_csram_base;
 extern void __iomem *thermal_apu_mbox_base;
 extern struct frs_info frs_data;
 #else
-static void __iomem *thermal_csram_base;
-static void __iomem *thermal_apu_mbox_base;
-static struct frs_info frs_data;
+void __iomem *thermal_csram_base;
+void __iomem *thermal_apu_mbox_base;
+struct frs_info frs_data;
 #endif
 #endif

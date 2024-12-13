@@ -1118,6 +1118,8 @@ static void custom10_setting(struct subdrv_ctx *ctx)
 			addr_data_pair_custom10,
 			sizeof(addr_data_pair_custom10));
 		_size_to_write += _length;
+		_i2c_data[_size_to_write++] = 0x5001;
+		_i2c_data[_size_to_write++] = 0x3;
 	}
 
 
@@ -1145,6 +1147,8 @@ static void custom11_setting(struct subdrv_ctx *ctx)
 			addr_data_pair_custom11,
 			sizeof(addr_data_pair_custom11));
 		_size_to_write += _length;
+		_i2c_data[_size_to_write++] = 0x5001;
+		_i2c_data[_size_to_write++] = 0x3;
 	}
 
 
@@ -1172,6 +1176,8 @@ static void custom12_setting(struct subdrv_ctx *ctx)
 			addr_data_pair_custom12,
 			sizeof(addr_data_pair_custom12));
 		_size_to_write += _length;
+		_i2c_data[_size_to_write++] = 0x5001;
+		_i2c_data[_size_to_write++] = 0x3;
 	}
 
 
@@ -1179,7 +1185,7 @@ static void custom12_setting(struct subdrv_ctx *ctx)
 /* ITD: Modify Dualcam By Jesse 190924 End */
 static kal_uint16 read_cmos_eeprom_8(struct subdrv_ctx *ctx, kal_uint16 addr)
 {
-	u8 data = 0;
+	u8 data;
 
 	adaptor_i2c_rd_u8(ctx->i2c_client, 0xA0 >> 1, addr, &data);
 
@@ -1608,8 +1614,7 @@ static int get_resolution(struct subdrv_ctx *ctx,
 	int i = 0;
 
 	for (i = SENSOR_SCENARIO_ID_MIN; i < SENSOR_SCENARIO_ID_MAX; i++) {
-		if (i < imgsensor_info.sensor_mode_num &&
-			i < ARRAY_SIZE(imgsensor_winsize_info)) {
+		if (i < imgsensor_info.sensor_mode_num) {
 			sensor_resolution->SensorWidth[i] = imgsensor_winsize_info[i].w2_tg_size;
 			sensor_resolution->SensorHeight[i] = imgsensor_winsize_info[i].h2_tg_size;
 		} else {

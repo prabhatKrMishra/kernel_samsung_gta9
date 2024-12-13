@@ -37,7 +37,6 @@
 
 #include <mt-plat/fpsgo_common.h>
 
-#include "fpsgo_usedext.h"
 #include "fpsgo_base.h"
 #include "fpsgo_sysfs.h"
 #include "fbt_usedext.h"
@@ -254,7 +253,6 @@ static int gcc_enq_bound_quota;
 static int gcc_deq_bound_thrs;
 static int gcc_deq_bound_quota;
 static int gcc_positive_clamp;
-static int gcc_chk_avg_deq;
 static int boost_LR;
 static int aa_retarget;
 static int sbe_rescue_enable;
@@ -326,7 +324,6 @@ module_param(gcc_enq_bound_quota, int, 0644);
 module_param(gcc_deq_bound_thrs, int, 0644);
 module_param(gcc_deq_bound_quota, int, 0644);
 module_param(gcc_positive_clamp, int, 0644);
-module_param(gcc_chk_avg_deq, int, 0644);
 module_param(boost_LR, int, 0644);
 module_param(aa_retarget, int, 0644);
 module_param(loading_ignore_enable, int, 0644);
@@ -1211,78 +1208,31 @@ static int fbt_get_dep_list(struct render_info *thr)
 	int pid;
 	int count = 0;
 	int ret_size;
-	int i;
-	int temp_size_only_old = 0, temp_size_old_need_reset = 0;
-#if IS_ENABLED(CONFIG_ARM64)
 	struct fpsgo_loading dep_new[MAX_DEP_NUM],
 		dep_only_old[MAX_DEP_NUM], dep_old_need_reset[MAX_DEP_NUM];
-#else
-	struct fpsgo_loading *dep_new = NULL;
-	struct fpsgo_loading *dep_only_old = NULL;
-	struct fpsgo_loading *dep_old_need_reset = NULL;
-
-	dep_new = kmalloc(sizeof(struct fpsgo_loading)
-				* MAX_DEP_NUM, GFP_KERNEL);
-	if (!dep_new)
-		return -1;
-	dep_only_old  = kmalloc(sizeof(struct fpsgo_loading)
-				* MAX_DEP_NUM, GFP_KERNEL);
-	if (!dep_only_old) {
-		kfree(dep_new);
-		return -1;
-	}
-	dep_old_need_reset = kmalloc(sizeof(struct fpsgo_loading)
-				* MAX_DEP_NUM, GFP_KERNEL);
-	if (!dep_old_need_reset) {
-		kfree(dep_new);
-		kfree(dep_only_old);
-		return -1;
-	}
-#endif
+	int i;
+	int temp_size_only_old = 0, temp_size_old_need_reset = 0;
 
 	memset(dep_new, 0,
 		MAX_DEP_NUM * sizeof(struct fpsgo_loading));
 
-	if (!thr) {
-#if !IS_ENABLED(CONFIG_ARM64)
-		kfree(dep_new);
-		kfree(dep_only_old);
-		kfree(dep_old_need_reset);
-#endif
+	if (!thr)
 		return 1;
-	}
 
 	pid = thr->pid;
-	if (!pid) {
-#if !IS_ENABLED(CONFIG_ARM64)
-		kfree(dep_new);
-		kfree(dep_only_old);
-		kfree(dep_old_need_reset);
-#endif
+	if (!pid)
 		return 2;
-	}
+
 	count = fpsgo_fbt2xgf_get_dep_list_num(pid, thr->buffer_id);
-	if (count <= 0) {
-#if !IS_ENABLED(CONFIG_ARM64)
-		kfree(dep_new);
-		kfree(dep_only_old);
-		kfree(dep_old_need_reset);
-#endif
+	if (count <= 0)
 		return 3;
-	}
 	count = clamp(count, 1, MAX_DEP_NUM);
 
 	ret_size = fpsgo_fbt2xgf_get_dep_list(pid, count,
 		dep_new, thr->buffer_id);
 
-	if (ret_size == 0 || ret_size != count) {
-#if !IS_ENABLED(CONFIG_ARM64)
-		kfree(dep_new);
-		kfree(dep_only_old);
-		kfree(dep_old_need_reset);
-#endif
+	if (ret_size == 0 || ret_size != count)
 		return 4;
-	}
 
 	fbt_dep_list_filter(dep_new, count);
 	sort(dep_new, count, sizeof(struct fpsgo_loading), __cmp1, NULL);
@@ -1324,11 +1274,6 @@ static int fbt_get_dep_list(struct render_info *thr)
 				sizeof(struct fpsgo_loading));
 		if (thr->dep_arr == NULL) {
 			thr->dep_valid_size = 0;
-#if !IS_ENABLED(CONFIG_ARM64)
-			kfree(dep_new);
-			kfree(dep_only_old);
-			kfree(dep_old_need_reset);
-#endif
 			return 5;
 		}
 	}
@@ -1338,11 +1283,7 @@ static int fbt_get_dep_list(struct render_info *thr)
 		MAX_DEP_NUM * sizeof(struct fpsgo_loading));
 	memcpy(thr->dep_arr, dep_new,
 		thr->dep_valid_size * sizeof(struct fpsgo_loading));
-#if !IS_ENABLED(CONFIG_ARM64)
-	kfree(dep_new);
-	kfree(dep_only_old);
-	kfree(dep_old_need_reset);
-#endif
+
 	return 0;
 }
 
@@ -1356,21 +1297,11 @@ static void fbt_clear_dep_list(struct fpsgo_loading *pdep)
 static void fbt_clear_min_cap(struct render_info *thr)
 {
 	int i;
-	int temp_size_need_set = 0;
-#if IS_ENABLED(CONFIG_ARM64)
 	struct fpsgo_loading dep_need_set[MAX_DEP_NUM];
-#else
-	struct fpsgo_loading *dep_need_set = kmalloc(sizeof(struct fpsgo_loading)
-					* MAX_DEP_NUM, GFP_KERNEL);
-	if (!dep_need_set)
+	int temp_size_need_set = 0;
+
+	if (!thr || !thr->dep_arr)
 		return;
-#endif
-	if (!thr || !thr->dep_arr) {
-#if !IS_ENABLED(CONFIG_ARM64)
-		kfree(dep_need_set);
-#endif
-		return;
-	}
 
 	if ((thr->pid == max_blc_pid && thr->buffer_id == max_blc_buffer_id))
 		for (i = 0; i < thr->dep_valid_size; i++)
@@ -1391,9 +1322,6 @@ static void fbt_clear_min_cap(struct render_info *thr)
 		for (i = 0; i < temp_size_need_set; i++)
 			fbt_reset_task_setting(&dep_need_set[i], 1);
 	}
-#if !IS_ENABLED(CONFIG_ARM64)
-	kfree(dep_need_set);
-#endif
 }
 
 static int fbt_is_light_loading(int loading)
@@ -1469,30 +1397,15 @@ static void fbt_set_min_cap_locked(struct render_info *thr, int min_cap,
 	int bhr_local;
 	int cluster = 0;
 	int max_cap = 100;
-	int temp_size_need_set = 0;
-#if IS_ENABLED(CONFIG_ARM64)
 	struct fpsgo_loading dep_need_set[MAX_DEP_NUM];
-#else
-	struct fpsgo_loading *dep_need_set = kmalloc(sizeof(struct fpsgo_loading)
-					* MAX_DEP_NUM, GFP_KERNEL);
-	if (!dep_need_set)
-		return;
-#endif
+	int temp_size_need_set = 0;
 
 
-	if (!uclamp_boost_enable) {
-#if !IS_ENABLED(CONFIG_ARM64)
-		kfree(dep_need_set);
-#endif
+	if (!uclamp_boost_enable)
 		return;
-	}
 
-	if (!thr) {
-#if !IS_ENABLED(CONFIG_ARM64)
-		kfree(dep_need_set);
-#endif
+	if (!thr)
 		return;
-	}
 
 	if (!min_cap) {
 		fbt_clear_min_cap(thr);
@@ -1500,9 +1413,6 @@ static void fbt_set_min_cap_locked(struct render_info *thr, int min_cap,
 			0,	"perf idx");
 		fpsgo_systrace_c_fbt(thr->pid, thr->buffer_id,
 			100,	"perf_idx_max");
-#if !IS_ENABLED(CONFIG_ARM64)
-		kfree(dep_need_set);
-#endif
 		return;
 	}
 
@@ -1513,9 +1423,6 @@ static void fbt_set_min_cap_locked(struct render_info *thr, int min_cap,
 				ret, "fail dep-list");
 			fpsgo_systrace_c_fbt(thr->pid, thr->buffer_id,
 				0, "fail dep-list");
-#if !IS_ENABLED(CONFIG_ARM64)
-			kfree(dep_need_set);
-#endif
 			return;
 		}
 		bhr_opp_local = bhr_opp;
@@ -1529,20 +1436,13 @@ static void fbt_set_min_cap_locked(struct render_info *thr, int min_cap,
 	}
 
 	size = thr->dep_valid_size;
-	if (!size || !thr->dep_arr) {
-#if !IS_ENABLED(CONFIG_ARM64)
-		kfree(dep_need_set);
-#endif
+	if (!size || !thr->dep_arr)
 		return;
-	}
 
 	clus_opp =
 		kcalloc(cluster_num, sizeof(int), GFP_KERNEL);
 	if (!clus_opp) {
 		FPSGO_LOGE("ERROR OOM %d\n", __LINE__);
-#if !IS_ENABLED(CONFIG_ARM64)
-		kfree(dep_need_set);
-#endif
 		return;
 	}
 
@@ -1551,9 +1451,6 @@ static void fbt_set_min_cap_locked(struct render_info *thr, int min_cap,
 	if (!clus_floor_freq) {
 		kfree(clus_opp);
 		FPSGO_LOGE("ERROR OOM %d\n", __LINE__);
-#if !IS_ENABLED(CONFIG_ARM64)
-		kfree(dep_need_set);
-#endif
 		return;
 	}
 
@@ -1595,12 +1492,8 @@ static void fbt_set_min_cap_locked(struct render_info *thr, int min_cap,
 
 	dep_str = kcalloc(size + 1, MAX_PID_DIGIT * sizeof(char),
 				GFP_KERNEL);
-	if (!dep_str) {
-#if !IS_ENABLED(CONFIG_ARM64)
-		kfree(dep_need_set);
-#endif
+	if (!dep_str)
 		return;
-	}
 
 	if (thr->pid == max_blc_pid && thr->buffer_id == max_blc_buffer_id)
 		size_final = size;
@@ -1693,9 +1586,7 @@ static void fbt_set_min_cap_locked(struct render_info *thr, int min_cap,
 		min_cap,	"perf idx");
 	fpsgo_systrace_c_fbt(thr->pid, thr->buffer_id,
 		max_cap,	"perf_idx_max");
-#if !IS_ENABLED(CONFIG_ARM64)
-	kfree(dep_need_set);
-#endif
+
 }
 
 static int fbt_get_target_cluster(unsigned int blc_wt)
@@ -2723,21 +2614,11 @@ static void fbt_set_limit(int cur_pid, unsigned int blc_wt,
 	int final_blc_pid = pid;
 	unsigned long long final_blc_buffer_id = buffer_id;
 	int final_blc_dep_num = dep_num;
-#if IS_ENABLED(CONFIG_ARM64)
 	struct fpsgo_loading final_blc_dep[MAX_DEP_NUM];
-#else
-	struct fpsgo_loading *final_blc_dep = kmalloc(sizeof(struct fpsgo_loading)
-							* MAX_DEP_NUM, GFP_KERNEL);
-	if (!final_blc_dep)
-		return;
-#endif
 
 	if (!(blc_wt > max_blc ||
 		(pid == max_blc_pid && buffer_id == max_blc_buffer_id))) {
 		fbt_clear_state(thread_info);
-#if !IS_ENABLED(CONFIG_ARM64)
-	kfree(final_blc_dep);
-#endif
 		return;
 	}
 
@@ -2757,14 +2638,7 @@ static void fbt_set_limit(int cur_pid, unsigned int blc_wt,
 		int temp_blc_pid = 0;
 		unsigned long long temp_blc_buffer_id = 0;
 		int temp_blc_dep_num = 0;
-#if IS_ENABLED(CONFIG_ARM64)
 		struct fpsgo_loading temp_blc_dep[MAX_DEP_NUM];
-#else
-		struct fpsgo_loading *temp_blc_dep = kmalloc(sizeof(struct fpsgo_loading)
-							* MAX_DEP_NUM, GFP_KERNEL);
-		if (!temp_blc_dep)
-			return;
-#endif
 
 		fbt_find_ex_max_blc(pid, buffer_id, &temp_blc,
 				&temp_blc_pid, &temp_blc_buffer_id,
@@ -2781,14 +2655,9 @@ static void fbt_set_limit(int cur_pid, unsigned int blc_wt,
 			final_blc_dep_num = temp_blc_dep_num;
 			memcpy(final_blc_dep, temp_blc_dep,
 				temp_blc_dep_num * sizeof(struct fpsgo_loading));
-#if !IS_ENABLED(CONFIG_ARM64)
-			kfree(temp_blc_dep);
-#endif
+
 			goto EXIT;
 		}
-#if !IS_ENABLED(CONFIG_ARM64)
-		kfree(temp_blc_dep);
-#endif
 	}
 
 	fbt_check_cm_limit(thread_info, runtime);
@@ -2839,9 +2708,6 @@ EXIT2:
 
 	if (jatm_notify_fp)
 		jatm_notify_fp(0);
-#if !IS_ENABLED(CONFIG_ARM64)
-	kfree(final_blc_dep);
-#endif
 }
 
 static unsigned int fbt_get_max_userlimit_freq(void)
@@ -2995,19 +2861,12 @@ static int update_quota(struct fbt_boost_info *boost_info, int target_fps,
 {
 	int rm_idx, new_idx, first_idx;
 	long long target_time = div64_s64(1000000000, target_fpks + gcc_fps_margin * 10);
-#if IS_ENABLED(CONFIG_ARM64)
 	int window_cnt;
-	long long std_square = 0;
-#else
-	unsigned long long window_cnt;
-	unsigned long long std_square = 0;
-	unsigned long long temp_quota_raw, temp_quota_rem;
-#endif
 	int s32_t_Q2Q = nsec_to_usec(t_Q2Q_ns);
 	int s32_t_enq_len = nsec_to_usec(t_enq_len_ns);
 	int s32_t_deq_len = nsec_to_usec(t_deq_len_ns);
-	int s32_tmp_deq_len;
 	int avg = 0, i, quota_adj = 0, qr_quota = 0;
+	long long std_square = 0;
 	int s32_target_time;
 
 	if (!gcc_fps_margin && target_fps == 60)
@@ -3029,19 +2888,14 @@ static int update_quota(struct fbt_boost_info *boost_info, int target_fps,
 		boost_info->quota = 0;
 		boost_info->quota_fps = target_fps;
 		boost_info->enq_sum = 0;
-		boost_info->deq_sum = 0;
 	}
 
-	/* use average deq time to check GCC reset */
-	s32_tmp_deq_len = gcc_chk_avg_deq ? boost_info->deq_avg : s32_t_deq_len;
-
 	if (boost_info->enq_avg * 100 > s32_target_time * gcc_enq_bound_thrs ||
-		s32_tmp_deq_len * 100 > s32_target_time * gcc_deq_bound_thrs) {
+		s32_t_deq_len * 100 > s32_target_time * gcc_deq_bound_thrs) {
 		boost_info->quota_cur_idx = -1;
 		boost_info->quota_cnt = 0;
 		boost_info->quota = 0;
 		boost_info->enq_sum = 0;
-		boost_info->deq_sum = 0;
 	}
 
 	new_idx = boost_info->quota_cur_idx + 1;
@@ -3049,23 +2903,10 @@ static int update_quota(struct fbt_boost_info *boost_info, int target_fps,
 	if (new_idx >= QUOTA_MAX_SIZE)
 		new_idx -= QUOTA_MAX_SIZE;
 
-	if (boost_info->enq_avg * 100 > s32_target_time * gcc_enq_bound_thrs) {
-#if IS_ENABLED(CONFIG_ARM64)
+	if (boost_info->enq_avg * 100 > s32_target_time * gcc_enq_bound_thrs)
 		boost_info->quota_raw[new_idx] = target_time * gcc_enq_bound_quota / 100;
-#else
-		temp_quota_raw = target_time * gcc_enq_bound_quota;
-		do_div(temp_quota_raw, 100);
-		boost_info->quota_raw[new_idx] = temp_quota_raw;
-#endif
-	} else if (s32_tmp_deq_len * 100 > s32_target_time * gcc_deq_bound_thrs) {
-#if IS_ENABLED(CONFIG_ARM64)
+	else if (s32_t_deq_len * 100 > s32_target_time * gcc_deq_bound_thrs)
 		boost_info->quota_raw[new_idx] = target_time * gcc_deq_bound_quota / 100;
-#else
-		temp_quota_raw = target_time * gcc_deq_bound_quota;
-		do_div(temp_quota_raw, 100);
-		boost_info->quota_raw[new_idx] = temp_quota_raw;
-#endif
-	}
 	else
 		boost_info->quota_raw[new_idx] = target_time - s32_t_Q2Q;
 
@@ -3073,8 +2914,6 @@ static int update_quota(struct fbt_boost_info *boost_info, int target_fps,
 
 	boost_info->enq_raw[new_idx] = s32_t_enq_len;
 	boost_info->enq_sum += boost_info->enq_raw[new_idx];
-	boost_info->deq_raw[new_idx] = s32_t_deq_len;
-	boost_info->deq_sum += boost_info->deq_raw[new_idx];
 
 	if (boost_info->quota_cnt >= window_cnt) {
 		rm_idx = new_idx - window_cnt;
@@ -3087,7 +2926,6 @@ static int update_quota(struct fbt_boost_info *boost_info, int target_fps,
 
 		boost_info->quota -= boost_info->quota_raw[rm_idx];
 		boost_info->enq_sum -= boost_info->enq_raw[rm_idx];
-		boost_info->deq_sum -= boost_info->deq_raw[rm_idx];
 	} else {
 		first_idx = new_idx - boost_info->quota_cnt;
 		if (first_idx < 0)
@@ -3100,7 +2938,7 @@ static int update_quota(struct fbt_boost_info *boost_info, int target_fps,
 	/* remove outlier */
 	avg = boost_info->quota / boost_info->quota_cnt;
 	boost_info->enq_avg = boost_info->enq_sum / boost_info->quota_cnt;
-	boost_info->deq_avg = boost_info->deq_sum / boost_info->quota_cnt;
+
 
 	if (first_idx <= new_idx)
 		for (i = first_idx; i <= new_idx; i++)
@@ -3123,16 +2961,10 @@ static int update_quota(struct fbt_boost_info *boost_info, int target_fps,
 				(long long)gcc_std_filter * (long long)gcc_std_filter * std_square
 				|| boost_info->quota_raw[i] > -s32_target_time)
 				quota_adj += boost_info->quota_raw[i];
-#if IS_ENABLED(CONFIG_ARM64)
+
 			qr_quota += (boost_info->quota_raw[i] < -s32_target_time) ?
 				boost_info->quota_raw[i] % s32_target_time :
 				boost_info->quota_raw[i];
-#else
-			temp_quota_raw = boost_info->quota_raw[i];
-			temp_quota_rem = do_div(temp_quota_raw, s32_target_time);
-			qr_quota += (boost_info->quota_raw[i] < -s32_target_time) ?
-					temp_quota_rem : boost_info->quota_raw[i];
-#endif
 		}
 	} else {
 		for (i = first_idx; i < QUOTA_MAX_SIZE ; i++) {
@@ -3141,16 +2973,10 @@ static int update_quota(struct fbt_boost_info *boost_info, int target_fps,
 				(long long)gcc_std_filter * (long long)gcc_std_filter * std_square
 				|| boost_info->quota_raw[i] > -s32_target_time)
 				quota_adj += boost_info->quota_raw[i];
-#if IS_ENABLED(CONFIG_ARM64)
+
 			qr_quota += (boost_info->quota_raw[i] < -s32_target_time) ?
 				boost_info->quota_raw[i] % s32_target_time :
 				boost_info->quota_raw[i];
-#else
-			temp_quota_raw = boost_info->quota_raw[i];
-			temp_quota_rem = do_div(temp_quota_raw, s32_target_time);
-			qr_quota += (boost_info->quota_raw[i] < -s32_target_time) ?
-					temp_quota_rem : boost_info->quota_raw[i];
-#endif
 		}
 		for (i = 0; i <= new_idx ; i++) {
 			if ((boost_info->quota_raw[i] - (long long)avg) *
@@ -3158,16 +2984,10 @@ static int update_quota(struct fbt_boost_info *boost_info, int target_fps,
 				(long long)gcc_std_filter * (long long)gcc_std_filter * std_square
 				|| boost_info->quota_raw[i] > -s32_target_time)
 				quota_adj += boost_info->quota_raw[i];
-#if IS_ENABLED(CONFIG_ARM64)
+
 			qr_quota += (boost_info->quota_raw[i] < -s32_target_time) ?
 				boost_info->quota_raw[i] % s32_target_time :
 				boost_info->quota_raw[i];
-#else
-			temp_quota_raw = boost_info->quota_raw[i];
-			temp_quota_rem = do_div(temp_quota_raw, s32_target_time);
-			qr_quota += (boost_info->quota_raw[i] < -s32_target_time) ?
-				temp_quota_rem : boost_info->quota_raw[i];
-#endif
 		}
 	}
 
@@ -3186,12 +3006,11 @@ static int update_quota(struct fbt_boost_info *boost_info, int target_fps,
 		boost_info->quota_mod = -s32_target_time;
 
 	fpsgo_main_trace(
-		"%s raw[%d]:%d raw[%d]:%d window_cnt:%d target_fpks:%d cnt:%d sum:%d avg:%d std_sqr:%lld quota:%d mod:%d enq:%d enq_avg:%d deq:%d deq_avg:%d",
+		"%s raw[%d]:%d raw[%d]:%d window_cnt:%d target_fpks:%d cnt:%d sum:%d avg:%d std_sqr:%lld quota:%d mod:%d enq:%d enq_avg:%d",
 		__func__, first_idx, boost_info->quota_raw[first_idx],
 		new_idx, boost_info->quota_raw[new_idx], window_cnt, target_fpks,
 		boost_info->quota_cnt, boost_info->quota, avg, std_square, quota_adj,
-		boost_info->quota_mod, s32_t_enq_len, boost_info->enq_avg,
-		s32_t_deq_len, boost_info->deq_avg);
+		boost_info->quota_mod, s32_t_enq_len, boost_info->enq_avg);
 
 	return s32_target_time;
 }
@@ -3203,13 +3022,7 @@ int fbt_eva_gcc(struct fbt_boost_info *boost_info,
 		long long t_cpu, int target_fpks, int max_iso_cap, int cooler_on, int pid)
 {
 	long long target_time = div64_s64(1000000000, target_fpks + gcc_fps_margin * 10);
-#if IS_ENABLED(CONFIG_ARM64)
 	int gcc_down_window, gcc_up_window;
-#else
-	unsigned long long gcc_down_window, gcc_up_window;
-	unsigned long long temp_gcc_count_up, temp_gcc_count_down;
-	unsigned long long temp_rem_up, temp_rem_down;
-#endif
 	int quota = INT_MAX;
 	int weight_t_gpu = boost_info->quantile_gpu_time > 0 ?
 		nsec_to_usec(boost_info->quantile_gpu_time) : -1;
@@ -3250,16 +3063,10 @@ int fbt_eva_gcc(struct fbt_boost_info *boost_info,
 	} else {
 		boost_info->gcc_count++;
 	}
-#if IS_ENABLED(CONFIG_ARM64)
+
 	if ((boost_info->gcc_count) % gcc_up_window == 0 &&
 		(boost_info->gcc_count) % gcc_down_window == 0) {
-#else
-	temp_gcc_count_up = boost_info->gcc_count;
-	temp_gcc_count_down = boost_info->gcc_count;
-	temp_rem_up = do_div(temp_gcc_count_up, gcc_up_window);
-	temp_rem_down = do_div(temp_gcc_count_down, gcc_down_window);
-	if (temp_rem_up == 0 && temp_rem_down == 0) {
-#endif
+
 		ret = 100;
 
 		quota = boost_info->quota_adj;
@@ -3273,13 +3080,7 @@ int fbt_eva_gcc(struct fbt_boost_info *boost_info,
 	}
 
 check_deboost:
-#if IS_ENABLED(CONFIG_ARM64)
 	if ((boost_info->gcc_count) % gcc_down_window == 0) {
-#else
-	temp_gcc_count_down = boost_info->gcc_count;
-	temp_rem_down = do_div(temp_gcc_count_down, gcc_down_window);
-	if (temp_rem_down == 0) {
-#endif
 		ret += 10;
 
 		quota = boost_info->quota_adj;
@@ -3306,13 +3107,7 @@ check_deboost:
 	}
 
 check_boost:
-#if IS_ENABLED(CONFIG_ARM64)
 	if ((boost_info->gcc_count) % gcc_up_window == 0) {
-#else
-	temp_gcc_count_up = boost_info->gcc_count;
-	temp_rem_up = do_div(temp_gcc_count_up, gcc_up_window);
-	if (temp_rem_up == 0) {
-#endif
 		ret += 20;
 
 		quota = boost_info->quota_adj;
@@ -3355,6 +3150,7 @@ check_boost:
 
 		boost_info->correction += gcc_up_step;
 	}
+
 done:
 
 	if (quota != INT_MAX)
@@ -3456,12 +3252,10 @@ static int fbt_boost_policy(
 		new_aa = div64_s64(new_aa, t_Q2Q);
 		aa = new_aa;
 		temp_blc = new_aa;
-
 		if (t2 > t_Q2Q && aa_retarget)
 			do_div(temp_blc, (unsigned int)t_Q2Q);
 		else
 			do_div(temp_blc, (unsigned int)t2);
-
 		blc_wt = (unsigned int)temp_blc;
 	} else {
 		temp_blc = aa;
@@ -3683,14 +3477,7 @@ static void fbt_check_max_blc_locked(int pid)
 	int temp_blc_pid = 0;
 	unsigned long long temp_blc_buffer_id = 0;
 	int temp_blc_dep_num = 0;
-#if IS_ENABLED(CONFIG_ARM64)
 	struct fpsgo_loading temp_blc_dep[MAX_DEP_NUM];
-#else
-	struct fpsgo_loading *temp_blc_dep = kmalloc(sizeof(struct fpsgo_loading)
-						* MAX_DEP_NUM, GFP_KERNEL);
-	if (!temp_blc_dep)
-		return;
-#endif
 
 	fbt_find_max_blc(&temp_blc, &temp_blc_pid,
 		&temp_blc_buffer_id, &temp_blc_dep_num, temp_blc_dep);
@@ -3732,9 +3519,6 @@ static void fbt_check_max_blc_locked(int pid)
 	} else
 		fbt_set_limit(pid, max_blc, max_blc_pid, max_blc_buffer_id,
 			max_blc_dep_num, max_blc_dep, NULL, 0);
-#if !IS_ENABLED(CONFIG_ARM64)
-	kfree(temp_blc_dep);
-#endif
 }
 
 static int fbt_overest_loading(int blc_wt, unsigned long long running_time,
@@ -5379,19 +5163,6 @@ void fbt_xgff_list_loading_del(struct fbt_thread_loading *ploading)
 	kfree(ploading);
 }
 
-static void fbt_xgff_set_min_cap(unsigned int min_cap)
-{
-	int tgt_opp, tgt_freq, fbt_min_cap;
-
-	if (min_cap > 1024)
-		min_cap = 1024;
-
-	fbt_min_cap = (min_cap * 100 / 1024) + 1;
-	tgt_opp = fbt_get_opp_by_normalized_cap(fbt_min_cap, 0);
-	tgt_freq = cpu_dvfs[0].power[tgt_opp];
-	fbt_cpu_L_ceiling_min(tgt_freq);
-}
-
 static ssize_t light_loading_policy_show(struct kobject *kobj,
 		struct kobj_attribute *attr,
 		char *buf)
@@ -6503,7 +6274,6 @@ int __init fbt_cpu_init(void)
 	gcc_enq_bound_quota = DEFAULT_GCC_ENQ_BOUND_QUOTA;
 	gcc_deq_bound_thrs = DEFAULT_GCC_DEQ_BOUND_THRS;
 	gcc_deq_bound_quota = DEFAULT_GCC_DEQ_BOUND_QUOTA;
-	gcc_chk_avg_deq = fbt_get_default_gcc_chk_avg_deq();
 
 	sbe_rescue_enable = fbt_get_default_sbe_rescue_enable();
 
@@ -6529,8 +6299,6 @@ int __init fbt_cpu_init(void)
 
 	limit_clus_ceil =
 		kcalloc(cluster_num, sizeof(struct fbt_syslimit), GFP_KERNEL);
-
-	xgff_frame_min_cap_fp = fbt_xgff_set_min_cap;
 
 	fbt_init_sjerk();
 

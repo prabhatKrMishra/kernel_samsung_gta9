@@ -402,7 +402,12 @@ struct tcpc_device *tcpc_device_register(struct device *parent,
 	for (i = 0; i < TCP_NOTIFY_IDX_NR; i++)
 		srcu_init_notifier_head(&tcpc->evt_nh[i]);
 
+/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 start */
+#ifdef CONFIG_USB_PD_CHECK_RX_PENDING_IF_SRTOUT
 	init_completion(&tcpc->alert_done);
+	tcpc->is_rx_event = false;
+#endif /* CONFIG_USB_PD_CHECK_RX_PENDING_IF_SRTOUT */
+/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 end */
 	mutex_init(&tcpc->access_lock);
 	mutex_init(&tcpc->typec_lock);
 	mutex_init(&tcpc->timer_lock);
@@ -440,9 +445,9 @@ struct tcpc_device *tcpc_device_register(struct device *parent,
 	 * please use it instead of "WAKE_LOCK_SUSPEND"
 	 */
 	tcpc->attach_wake_lock =
-		wakeup_source_register(NULL, "tcpc_attach_wake_lock");
+		wakeup_source_register(&tcpc->dev, "tcpc_attach_wake_lock");
 	tcpc->detach_wake_lock =
-		wakeup_source_register(NULL, "tcpc_detach_wake_lock");
+		wakeup_source_register(&tcpc->dev, "tcpc_detach_wake_lock");
 
 	tcpci_timer_init(tcpc);
 #if IS_ENABLED(CONFIG_USB_POWER_DELIVERY)

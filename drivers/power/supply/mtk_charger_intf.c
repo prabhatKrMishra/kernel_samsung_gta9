@@ -215,7 +215,17 @@ int get_vbus(struct mtk_charger *info)
 
 	return vchr;
 }
+/*Tab A9 code for SR-AX6739A-01-494 by qiaodan at 20230502 start*/
+#if defined(CONFIG_CUSTOM_PROJECT_OT11)
+int get_ibat(struct mtk_charger *info)
+{
+	if (info == NULL) {
+		return -EINVAL;
+	}
 
+	return get_battery_current(info);
+}
+#else
 int get_ibat(struct mtk_charger *info)
 {
 	int ret = 0;
@@ -229,7 +239,8 @@ int get_ibat(struct mtk_charger *info)
 
 	return ibat / 1000;
 }
-
+#endif
+/*Tab A9 code for SR-AX6739A-01-494 by qiaodan at 20230502 end*/
 int get_ibus(struct mtk_charger *info)
 {
 	int ret = 0;
@@ -314,7 +325,13 @@ int get_charger_type(struct mtk_charger *info)
 
 	if (chg_psy == NULL || IS_ERR(chg_psy)) {
 		chr_err("%s retry to get chg_psy\n", __func__);
+/*Tab A9 code for SR-AX6739A-01-494 by qiaodan at 20230502 start*/
+#if defined(CONFIG_CUSTOM_PROJECT_OT11)
+		chg_psy = power_supply_get_by_name("charger");
+#else
 		chg_psy = devm_power_supply_get_by_phandle(&info->pdev->dev, "charger");
+#endif
+/*Tab A9 code for SR-AX6739A-01-494 by qiaodan at 20230502 end*/
 		info->chg_psy = chg_psy;
 	}
 
@@ -329,11 +346,33 @@ int get_charger_type(struct mtk_charger *info)
 
 		ret = power_supply_get_property(chg_psy,
 			POWER_SUPPLY_PROP_USB_TYPE, &prop3);
-
+		/*Tab A9 code for SR-AX6739A-01-488 | SR-AX6739A-01-482 by qiaodan at 20230516 start*/
+		#if defined(CONFIG_CUSTOM_PROJECT_OT11)
+		if (prop.intval == 0 ||
+		    (prop2.intval == POWER_SUPPLY_TYPE_USB &&
+		    prop3.intval == POWER_SUPPLY_USB_TYPE_UNKNOWN) ||
+			prop2.intval == POWER_SUPPLY_TYPE_UNKNOWN) {
+			prop2.intval = POWER_SUPPLY_TYPE_UNKNOWN;
+			info->ac_online = 0;
+			info->usb_online = 0;
+		} else if (gxy_usb_get_pdhub_flag()) { /*add for pdhub identify*/
+			info->ac_online = 1;
+			info->usb_online = 0;
+		} else if (prop3.intval == POWER_SUPPLY_USB_TYPE_SDP ||
+			prop3.intval == POWER_SUPPLY_USB_TYPE_CDP) {
+			info->ac_online = 0;
+			info->usb_online = 1;
+		} else {
+			info->ac_online = 1;
+			info->usb_online = 0;
+		}
+		#else /*platform code*/
 		if (prop.intval == 0 ||
 		    (prop2.intval == POWER_SUPPLY_TYPE_USB &&
 		    prop3.intval == POWER_SUPPLY_USB_TYPE_UNKNOWN))
 			prop2.intval = POWER_SUPPLY_TYPE_UNKNOWN;
+		#endif
+		/*Tab A9 code for SR-AX6739A-01-488 | SR-AX6739A-01-482 by qiaodan at 20230516 end*/
 	}
 
 	chr_debug("%s online:%d type:%d usb_type:%d\n", __func__,

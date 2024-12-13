@@ -1965,4 +1965,12 @@ config RTC_DRV_WILCO_EC
 	  This can also be built as a module. If so, the module will
 	  be named "rtc_wilco_ec".
 
+# Tab A9 code for SR-AX6739A-01-452 by gaozhengwei at 20230612 start
+config GXY_PWRON_ALARM
+	tristate "gxy RTC Auto Power on PMICs"
+	help
+	  Support for the auto power on alarm on the PMIC.
+	  Say Y if you want to enable this feature.
+# Tab A9 code for SR-AX6739A-01-452 by gaozhengwei at 20230612 end
+
 endif # RTC_CLASS

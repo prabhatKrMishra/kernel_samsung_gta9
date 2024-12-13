@@ -494,7 +494,17 @@ source "drivers/misc/genwqe/Kconfig"
 source "drivers/misc/echo/Kconfig"
 source "drivers/misc/cxl/Kconfig"
 source "drivers/misc/ocxl/Kconfig"
+# Tab A9 code for SR-AX6739A-01-392 by gaochao at 20230426 start
+source "drivers/misc/grdm/Kconfig"
+# Tab A9 code for SR-AX6739A-01-392 by gaochao at 20230426 end
 source "drivers/misc/cardreader/Kconfig"
 source "drivers/misc/habanalabs/Kconfig"
 source "drivers/misc/uacce/Kconfig"
+# Tab A9 code for SR-AX6739A-01-348 by Niebingling at 20230506 start
+source "drivers/misc/huaqin/Kconfig"
+# Tab A9 code for SR-AX6739A-01-348 by Niebingling at 20230506 end
+# Tab A9 code for SR-AX6739A-01-371 by tangyuhang at 20230526 start
+source "drivers/misc/combine_key/Kconfig"
+# Tab A9 code for SR-AX6739A-01-371 by tangyuhang at 20230526 end
+source "drivers/misc/tzdev/Kconfig"
 endmenu

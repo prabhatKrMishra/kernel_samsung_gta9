@@ -39,7 +39,8 @@
 static DEFINE_MUTEX(tee_lock);
 
 #if IS_ENABLED(CONFIG_TRUSTONIC_TEE_SUPPORT) || \
-	IS_ENABLED(CONFIG_MICROTRUST_TEE_SUPPORT)
+	IS_ENABLED(CONFIG_MICROTRUST_TEE_SUPPORT) || \
+	IS_ENABLED(CONFIG_TEEGRIS_TEE_SUPPORT)
 static struct trusted_driver_operations *tee_ops;
 static void *tee_session_data;
 
@@ -94,7 +95,8 @@ int tee_directly_invoke_cmd(struct trusted_driver_cmd_params *invoke_params)
 }
 
 #if IS_ENABLED(CONFIG_TRUSTONIC_TEE_SUPPORT) || \
-	IS_ENABLED(CONFIG_MICROTRUST_TEE_SUPPORT)
+	IS_ENABLED(CONFIG_MICROTRUST_TEE_SUPPORT) || \
+	IS_ENABLED(CONFIG_TEEGRIS_TEE_SUPPORT)
 int secmem_fr_set_svp_region(u64 pa, u32 size, int remote_region_type)
 {
 	int ret = 0;

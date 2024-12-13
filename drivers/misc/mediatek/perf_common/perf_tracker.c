@@ -23,10 +23,6 @@
 #include <dvfsrc-exp.h>
 #endif
 
-#if IS_ENABLED(CONFIG_MEDIATEK_CPU_DVFS)
-#include <mtk_cpufreq_api.h>
-#endif
-
 #include <perf_tracker.h>
 #include <perf_tracker_internal.h>
 
@@ -61,12 +57,8 @@ static unsigned int cpudvfs_get_cur_freq(int cluster_id, bool is_mcupm)
 	u32 idx = 0;
 	struct ppm_data *p = &cluster_ppm_info[cluster_id];
 
-	if (IS_ERR_OR_NULL((void *)csram_base)) {
-#if IS_ENABLED(CONFIG_MEDIATEK_CPU_DVFS)
-	return mt_cpufreq_get_cur_freq(cluster_id);
-#endif
+	if (IS_ERR_OR_NULL((void *)csram_base))
 		return 0;
-	}
 
 	if (is_mcupm)
 		idx = __raw_readl(csram_base +

@@ -5,9 +5,6 @@
 
 ccflags-$(CONFIG_RTC_DEBUG)	:= -DDEBUG
 
-# common include path
-ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/
-
 obj-$(CONFIG_RTC_LIB)		+= lib.o
 obj-$(CONFIG_RTC_SYSTOHC)	+= systohc.o
 obj-$(CONFIG_RTC_CLASS)		+= rtc-core.o
@@ -187,3 +184,6 @@ obj-$(CONFIG_RTC_DRV_WM8350)	+= rtc-wm8350.o
 obj-$(CONFIG_RTC_DRV_X1205)	+= rtc-x1205.o
 obj-$(CONFIG_RTC_DRV_XGENE)	+= rtc-xgene.o
 obj-$(CONFIG_RTC_DRV_ZYNQMP)	+= rtc-zynqmp.o
+# Tab A9 code for SR-AX6739A-01-452 by gaozhengwei at 20230612 start
+obj-$(CONFIG_GXY_PWRON_ALARM)	+= gxy-power-on-alarm.o
+# Tab A9 code for SR-AX6739A-01-452 by gaozhengwei at 20230612 end

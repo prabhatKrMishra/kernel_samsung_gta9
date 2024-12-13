@@ -62,6 +62,35 @@
 #include "reg.h"
 #include "rdev-ops.h"
 #include "nl80211.h"
+/* Tab A9 code for SR-AX6739A-01-508 by gaozhengwei at 20230613 start */
+#if !defined(CONFIG_ODM_CUSTOM_FACTORY_BUILD)
+#include <linux/of.h>
+#include <linux/of_fdt.h>
+#include <linux/of_platform.h>
+
+struct gxy_reg_tag_bootmode {
+	u32 size;
+	u32 tag;
+	u32 bootmode;
+	u32 boottype;
+};
+
+enum gxy_reg_boot_mode_t {
+	NORMAL_BOOT = 0,
+	META_BOOT = 1,
+	RECOVERY_BOOT = 2,
+	SW_REBOOT = 3,
+	FACTORY_BOOT = 4,
+	ADVMETA_BOOT = 5,
+	ATE_FACTORY_BOOT = 6,
+	ALARM_BOOT = 7,
+	KERNEL_POWER_OFF_CHARGING_BOOT = 8,
+	LOW_POWER_OFF_CHARGING_BOOT = 9,
+	DONGLE_BOOT = 10,
+	UNKNOWN_BOOT
+};
+#endif //!CONFIG_ODM_CUSTOM_FACTORY_BUILD
+/* Tab A9 code for SR-AX6739A-01-508 by gaozhengwei at 20230613 end */
 
 /*
  * Grace period we give before making sure all current interfaces reside on
@@ -787,6 +816,8 @@ static int __init load_builtin_regdb_keys(void)
 	return 0;
 }
 
+MODULE_FIRMWARE("regulatory.db.p7s");
+
 static bool regdb_has_valid_signature(const u8 *data, unsigned int size)
 {
 	const struct firmware *sig;
@@ -1058,8 +1089,47 @@ static void regdb_fw_cb(const struct firmware *fw, void *context)
 	release_firmware(fw);
 }
 
+MODULE_FIRMWARE("regulatory.db");
+
+/* Tab A9 code for SR-AX6739A-01-508 by gaozhengwei at 20230613 start */
+#if !defined(CONFIG_ODM_CUSTOM_FACTORY_BUILD)
+enum gxy_reg_boot_mode_t gxy_reg_get_boot_mode(void) {
+	struct device_node *np_chosen = NULL;
+	struct gxy_reg_tag_bootmode *tag = NULL;
+	enum gxy_reg_boot_mode_t boot_mode = UNKNOWN_BOOT;
+
+	np_chosen = of_find_node_by_path("/chosen");
+	if (!np_chosen) {
+		np_chosen = of_find_node_by_path("/chosen@0");
+	}
+
+	if (np_chosen) {
+		tag = (struct gxy_reg_tag_bootmode *)of_get_property(
+			np_chosen, "atag,boot", NULL);
+		if (!tag) {
+			pr_err("%s: failed to get atag,boot\n", __func__);
+		} else {
+			pr_info("%s, bootmode:%d\n", __func__, tag->bootmode);
+			boot_mode = tag->bootmode;
+		}
+	} else {
+		pr_err("%s: failed to get /chosen and /chosen@0\n", __func__);
+	}
+
+	return boot_mode;
+}
+#endif //!CONFIG_ODM_CUSTOM_FACTORY_BUILD
+/* Tab A9 code for SR-AX6739A-01-508 by gaozhengwei at 20230613 end */
+
 static int query_regdb_file(const char *alpha2)
 {
+	int err;
+	/* Tab A9 code for SR-AX6739A-01-508 by gaozhengwei at 20230613 start */
+	#if !defined(CONFIG_ODM_CUSTOM_FACTORY_BUILD)
+	enum gxy_reg_boot_mode_t boot_mode = gxy_reg_get_boot_mode();
+	#endif //!CONFIG_ODM_CUSTOM_FACTORY_BUILD
+	/* Tab A9 code for SR-AX6739A-01-508 by gaozhengwei at 20230613 end */
+
 	ASSERT_RTNL();
 
 	if (regdb)
@@ -1068,10 +1138,28 @@ static int query_regdb_file(const char *alpha2)
 	alpha2 = kmemdup(alpha2, 2, GFP_KERNEL);
 	if (!alpha2)
 		return -ENOMEM;
+	/* Tab A9 code for SR-AX6739A-01-508 by gaozhengwei at 20230613 start */
+	#if !defined(CONFIG_ODM_CUSTOM_FACTORY_BUILD)
+	if (boot_mode == KERNEL_POWER_OFF_CHARGING_BOOT ||
+		boot_mode == LOW_POWER_OFF_CHARGING_BOOT) {
+		pr_err("This is lpm, dont load regulatory.db\n");
+		err = -ENOENT;
+	} else {
+		err = request_firmware_nowait(THIS_MODULE, true, "regulatory.db",
+						&reg_pdev->dev, GFP_KERNEL,
+						(void *)alpha2, regdb_fw_cb);
+	}
+	#else
+	err = request_firmware_nowait(THIS_MODULE, true, "regulatory.db",
+					&reg_pdev->dev, GFP_KERNEL,
+					(void *)alpha2, regdb_fw_cb);
+	#endif //!CONFIG_ODM_CUSTOM_FACTORY_BUILD
+	/* Tab A9 code for SR-AX6739A-01-508 by gaozhengwei at 20230613 end */
 
-	return request_firmware_nowait(THIS_MODULE, true, "regulatory.db",
-				       &reg_pdev->dev, GFP_KERNEL,
-				       (void *)alpha2, regdb_fw_cb);
+	if (err)
+		kfree(alpha2);
+
+	return err;
 }
 
 int reg_reload_regdb(void)
@@ -4001,6 +4089,7 @@ void wiphy_regulatory_register(struct wiphy *wiphy)
 
 	wiphy_update_regulatory(wiphy, lr->initiator);
 	wiphy_all_share_dfs_chan_state(wiphy);
+	reg_process_self_managed_hints();
 }
 
 void wiphy_regulatory_deregister(struct wiphy *wiphy)
@@ -4174,8 +4263,10 @@ static int __init regulatory_init_db(void)
 		return -EINVAL;
 
 	err = load_builtin_regdb_keys();
-	if (err)
+	if (err) {
+		platform_device_unregister(reg_pdev);
 		return err;
+	}
 
 	/* We always try to get an update for the static regdomain */
 	err = regulatory_hint_core(cfg80211_world_regdom->alpha2);

@@ -19,13 +19,67 @@
 #include <linux/usb/role.h>
 #include <linux/workqueue.h>
 #include <linux/proc_fs.h>
-
+#if IS_ENABLED(CONFIG_USB_NOTIFY_LAYER)
+#include <linux/usb_notify.h>
+#endif
 #include "extcon-mtk-usb.h"
 
+/*Tab A9 code for AX6739A-1679 by wenghailong at 20230704 start*/
+int g_tp_detect_typec_flag = 0;
+EXPORT_SYMBOL(g_tp_detect_typec_flag);
+bool g_tp_typec_earphone_in = false;
+EXPORT_SYMBOL(g_tp_typec_earphone_in);
+bool g_tp_round_earphone_in = false;
+EXPORT_SYMBOL(g_tp_round_earphone_in);
+static BLOCKING_NOTIFIER_HEAD(earphone_notifier);
+/**
+ *
+ * @Param[]: nb: < Pointer to head of earphone_notifier >
+ * @Return: < int execute result >
+ */
+int earphone_notifier_register(struct notifier_block *nb)
+{
+		return blocking_notifier_chain_register(&earphone_notifier, nb);
+}
+EXPORT_SYMBOL(earphone_notifier_register);
+
+/**
+ *
+ * @Param[]: nb: < Pointer to head of earphone_notifier >
+ * @Return: < int execute result >
+ */
+
+int earphone_notifier_unregister(struct notifier_block *nb)
+{
+		return blocking_notifier_chain_unregister(&earphone_notifier, nb);
+}
+EXPORT_SYMBOL(earphone_notifier_unregister);
+
+/**
+ *
+ * @Param[]: val: < event of headphone insertion and removal >
+ * @Return: < int execute result >
+ * @Purpose:	< Notification of headphone insertion and removal >
+ */
+
+int	earphone_notifier_call_chain(unsigned long val, void *v)
+{
+		return blocking_notifier_call_chain(&earphone_notifier, val, v);
+}
+EXPORT_SYMBOL(earphone_notifier_call_chain);
+/*Tab A9 code for AX6739A-1679 by wenghailong at 20230704 end*/
 #if IS_ENABLED(CONFIG_TCPC_CLASS)
 #include "tcpm.h"
 #endif
-
+/*Tab A9 code for SR-AX6739A-01-478 by lina at 20230603 start*/
+#if defined(CONFIG_CUSTOM_PROJECT_OT11)
+#include <linux/delay.h>
+static struct mtk_extcon_info *g_extcon = NULL;
+bool g_usb_data_enabled = true;
+EXPORT_SYMBOL(g_usb_data_enabled);
+static int s_p_role = 0;
+#endif //CONFIG_CUSTOM_PROJECT_OT11
+/*Tab A9 code for SR-AX6739A-01-478 by lina at 20230603 end*/
 static const unsigned int usb_extcon_cable[] = {
 	EXTCON_USB,
 	EXTCON_USB_HOST,
@@ -41,13 +95,24 @@ static void mtk_usb_extcon_update_role(struct work_struct *work)
 
 	cur_dr = extcon->c_role;
 	new_dr = role->d_role;
-
+	/*Tab A9 code for SR-AX6739A-01-478 by lina at 20230603 start*/
+	#if defined(CONFIG_CUSTOM_PROJECT_OT11)
+	s_p_role = extcon->c_role;
 	dev_info(extcon->dev, "cur_dr(%d) new_dr(%d)\n", cur_dr, new_dr);
-
+	if(g_usb_data_enabled == false && new_dr != USB_ROLE_NONE) {
+		return;
+	/* none -> device */
+	} else if (cur_dr == USB_ROLE_NONE &&
+		new_dr == USB_ROLE_DEVICE) {
+		extcon_set_state_sync(extcon->edev, EXTCON_USB, true);
+	#else
+	dev_info(extcon->dev, "cur_dr(%d) new_dr(%d)\n", cur_dr, new_dr);
 	/* none -> device */
 	if (cur_dr == USB_ROLE_NONE &&
 			new_dr == USB_ROLE_DEVICE) {
 		extcon_set_state_sync(extcon->edev, EXTCON_USB, true);
+	#endif //CONFIG_CUSTOM_PROJECT_OT11
+	/*Tab A9 code for SR-AX6739A-01-478 by lina at 20230603 end*/
 	/* none -> host */
 	} else if (cur_dr == USB_ROLE_NONE &&
 			new_dr == USB_ROLE_HOST) {
@@ -84,6 +149,47 @@ static int mtk_usb_extcon_set_role(struct mtk_extcon_info *extcon,
 						unsigned int role)
 {
 	struct usb_role_info *role_info;
+
+#if IS_ENABLED(CONFIG_USB_NOTIFY_LAYER)
+	struct otg_notify *o_notify = get_otg_notify();
+	unsigned int cur_dr = extcon->c_role;
+	
+	dev_info(extcon->dev, "curent role (%d)\n", cur_dr);
+	if (o_notify){
+#if defined(CONFIG_CUSTOM_PROJECT_OT11)
+		if (g_usb_data_enabled == false && role != USB_ROLE_NONE) {
+			return 0;
+		}
+#endif
+		if (cur_dr == USB_ROLE_NONE &&
+			role == USB_ROLE_DEVICE) {
+			send_otg_notify(o_notify, NOTIFY_EVENT_VBUS, 1);
+		/* none -> host */
+		} else if (cur_dr == USB_ROLE_NONE &&
+				role == USB_ROLE_HOST) {
+			send_otg_notify(o_notify, NOTIFY_EVENT_HOST, 1);
+		/* device -> none */
+		} else if (cur_dr == USB_ROLE_DEVICE &&
+				role == USB_ROLE_NONE) {
+			send_otg_notify(o_notify, NOTIFY_EVENT_VBUS, 0);
+		/* host -> none */
+		} else if (cur_dr == USB_ROLE_HOST &&
+				role == USB_ROLE_NONE) {
+			send_otg_notify(o_notify, NOTIFY_EVENT_HOST, 0);
+		/* device -> host */
+		} else if (cur_dr == USB_ROLE_DEVICE &&
+				role == USB_ROLE_HOST) {
+			send_otg_notify(o_notify, NOTIFY_EVENT_VBUS, 0);
+			send_otg_notify(o_notify, NOTIFY_EVENT_HOST, 1);
+		/* host -> device */
+		} else if (cur_dr == USB_ROLE_HOST &&
+				role == USB_ROLE_DEVICE) {
+			send_otg_notify(o_notify, NOTIFY_EVENT_HOST, 0);
+			send_otg_notify(o_notify, NOTIFY_EVENT_VBUS, 1);
+		}
+		return 0;
+	}
+#endif
 
 	/* create and prepare worker */
 	role_info = kzalloc(sizeof(*role_info), GFP_ATOMIC);
@@ -168,7 +274,14 @@ static int mtk_usb_extcon_psy_init(struct mtk_extcon_info *extcon)
 	int ret = 0;
 	struct device *dev = extcon->dev;
 
+/*Tab A9 code for SR-AX6739A-01-494 by qiaodan at 20230502 start*/
+#if defined(CONFIG_CUSTOM_PROJECT_OT11)
+	extcon->usb_psy = power_supply_get_by_name("charger");
+#else
 	extcon->usb_psy = devm_power_supply_get_by_phandle(dev, "charger");
+#endif
+/*Tab A9 code for SR-AX6739A-01-494 by qiaodan at 20230502 end*/
+
 	if (IS_ERR_OR_NULL(extcon->usb_psy)) {
 		dev_err(dev, "fail to get usb_psy\n");
 		return -EINVAL;
@@ -195,6 +308,15 @@ static int mtk_usb_extcon_set_vbus(struct mtk_extcon_info *extcon,
 	struct regulator *vbus = extcon->vbus;
 	struct device *dev = extcon->dev;
 	int ret;
+	/*Tab A9 code for SR-AX6739A-01-473 by hualei at 20230525 start*/
+	struct power_supply *otg_psy = NULL;
+	union power_supply_propval prop = {0};
+
+	otg_psy = power_supply_get_by_name("otg");
+	if (otg_psy == NULL) {
+		return -ENODEV;
+	}
+	/*Tab A9 code for SR-AX6739A-01-473 by hualei at 20230525 end*/
 
 	/* vbus is optional */
 	if (!vbus || extcon->vbus_on == is_on)
@@ -222,12 +344,34 @@ static int mtk_usb_extcon_set_vbus(struct mtk_extcon_info *extcon,
 		}
 
 		ret = regulator_enable(vbus);
+		/*Tab A9 code for SR-AX6739A-01-473 by hualei at 20230525 start*/
+		prop.intval = 1;
+		power_supply_set_property(otg_psy,
+			POWER_SUPPLY_PROP_ONLINE, &prop);
+		/*Tab A9 code for SR-AX6739A-01-473 by hualei at 20230525 end*/
+		/*Tab A9 code for AX6739A-1679 by wenghailong at 20230704 start*/
+		if (g_tp_detect_typec_flag) {
+			g_tp_typec_earphone_in = true;
+			earphone_notifier_call_chain(EARPHONE_PLUGIN_STATE, NULL);
+		}
+		/*Tab A9 code for AX6739A-1679 by wenghailong at 20230704 end*/
 		if (ret) {
 			dev_err(dev, "vbus regulator enable failed\n");
 			return ret;
 		}
 	} else {
 		regulator_disable(vbus);
+		/*Tab A9 code for SR-AX6739A-01-473 by hualei at 20230525 start*/
+		prop.intval = 0;
+		power_supply_set_property(otg_psy,
+			POWER_SUPPLY_PROP_ONLINE, &prop);
+		/*Tab A9 code for SR-AX6739A-01-473 by hualei at 20230525 end*/
+		/*Tab A9 code for AX6739A-1679 by wenghailong at 20230704 start*/
+		if (g_tp_detect_typec_flag) {
+			g_tp_typec_earphone_in = false;
+			earphone_notifier_call_chain(EARPHONE_PLUGOUT_STATE, NULL);
+		}
+		/*Tab A9 code for AX6739A-1679 by wenghailong at 20230704 end*/
 	}
 
 	extcon->vbus_on = is_on;
@@ -279,7 +423,8 @@ static int mtk_extcon_tcpc_notifier(struct notifier_block *nb,
 		}
 		break;
 	case TCP_NOTIFY_DR_SWAP:
-		dev_info(dev, "%s dr_swap, new role=%d\n",
+		/*Tab A9 code for AX6739A-1314 by qiaodan at 20230620 start*/
+		dev_info(dev, "%s dr_swap v2, new role=%d\n",
 				__func__, noti->swap_state.new_role);
 		if (noti->swap_state.new_role == PD_ROLE_UFP &&
 				extcon->c_role != USB_ROLE_DEVICE) {
@@ -293,6 +438,7 @@ static int mtk_extcon_tcpc_notifier(struct notifier_block *nb,
 			mtk_usb_extcon_set_role(extcon, USB_ROLE_HOST);
 		}
 		break;
+		/*Tab A9 code for AX6739A-1314 by qiaodan at 20230620 end*/
 	}
 
 	return NOTIFY_OK;
@@ -461,6 +607,60 @@ static int mtk_usb_extcon_procfs_init(struct mtk_extcon_info *extcon)
 	return 0;
 }
 #endif
+/*Tab A9 code for SR-AX6739A-01-478 by lina at 20230603 start*/
+#if defined(CONFIG_CUSTOM_PROJECT_OT11)
+void set_extcon_otg_vbus(struct mtk_extcon_info *extcon, bool val)
+{
+	if (val) {
+		mtk_usb_extcon_set_vbus(extcon, true);
+	} else {
+		mtk_usb_extcon_set_vbus(extcon, false);
+	}
+}
+
+void usb_notify_control(bool data_enabled)
+{
+	static bool s_prev_mode = true;
+
+	if (!g_extcon) {
+		pr_err("g_extcon = NULL\n");
+		return;
+	}
+
+	g_usb_data_enabled = data_enabled;
+	if (s_prev_mode != g_usb_data_enabled) {
+		s_prev_mode = g_usb_data_enabled;
+
+		pr_err("input g_usb_data_enabled : %d\n", data_enabled);
+
+		if (g_usb_data_enabled == false) {
+			mtk_usb_extcon_set_role(g_extcon, USB_ROLE_NONE);//close USB
+			set_extcon_otg_vbus(g_extcon, g_usb_data_enabled);
+			msleep(50);
+		} else {
+			mtk_usb_extcon_set_role(g_extcon, s_p_role);//open USB
+			set_extcon_otg_vbus(g_extcon, g_usb_data_enabled);
+		}
+	} else {
+		pr_info("g_usb_data_enabled : %d same mode exit!\n", data_enabled);
+	}
+}
+EXPORT_SYMBOL(usb_notify_control);
+
+void update_usb_role(void *pextcon, unsigned int new_role)
+{
+	struct mtk_extcon_info *extcon = pextcon;
+
+	if (!extcon) {
+		pr_err("extcon = NULL\n");
+		return;
+	}
+	extcon->c_role = new_role;
+	dev_info(extcon->dev, "update_usb_role new role (%d)\n", new_role);
+}
+EXPORT_SYMBOL(update_usb_role);
+#endif //CONFIG_CUSTOM_PROJECT_OT11
+/*Tab A9 code for SR-AX6739A-01-478 by lina at 20230603 end*/
 
 static int mtk_usb_extcon_probe(struct platform_device *pdev)
 {
@@ -500,7 +700,14 @@ static int mtk_usb_extcon_probe(struct platform_device *pdev)
 		extcon->c_role = USB_ROLE_NONE;
 
 	/* vbus */
+/*Tab A9 code for SR-AX6739A-01-494 by qiaodan at 20230502 start*/
+#if defined(CONFIG_CUSTOM_PROJECT_OT11)
+	extcon->vbus = regulator_get(dev, "usb-otg-vbus");
+#else
 	extcon->vbus = devm_regulator_get(dev, "vbus");
+#endif
+/*Tab A9 code for SR-AX6739A-01-494 by qiaodan at 20230502 end*/
+
 	if (IS_ERR(extcon->vbus)) {
 		dev_err(dev, "failed to get vbus\n");
 		return PTR_ERR(extcon->vbus);
@@ -553,7 +760,11 @@ static int mtk_usb_extcon_probe(struct platform_device *pdev)
 	if (ret < 0)
 		dev_err(dev, "failed to init tcpc\n");
 #endif
-
+	/*Tab A9 code for SR-AX6739A-01-478 by lina at 20230603 start*/
+	#if defined(CONFIG_CUSTOM_PROJECT_OT11)
+	g_extcon = extcon;
+	#endif //CONFIG_CUSTOM_PROJECT_OT11
+	/*Tab A9 code for SR-AX6739A-01-478 by lina at 20230603 start*/
 	platform_set_drvdata(pdev, extcon);
 
 	return 0;

@@ -968,6 +968,15 @@ static int ccif_rx_collect(struct md_ccif_queue *queue, int budget,
 			goto OUT;
 		}
 		ccci_h = (struct ccci_header *)skb->data;
+
+#ifdef CONFIG_MTK_SRIL_SUPPORT
+		if (ccci_h->channel == CCCI_RIL_IPC0_RX
+			|| ccci_h->channel == CCCI_RIL_IPC1_RX) {
+			print_hex_dump(KERN_INFO, "1. mif: RX: ",
+					DUMP_PREFIX_NONE, 32, 1, skb->data, 32, 0);
+		}
+#endif
+
 		if (md_ctrl->md_id == MD_SYS3) {
 			/* md3(c2k) logical channel number is not
 			 * the same as other modems,
@@ -1516,6 +1525,13 @@ static int md_ccif_op_send_skb(unsigned char hif_id, int qno,
 			CCCI_ERROR_LOG(md_ctrl->md_id, TAG,
 				"TX:ERR rbf write: ret(%d)!=req(%d)\n",
 				ret, skb->len);
+#ifdef CONFIG_MTK_SRIL_SUPPORT
+		if (ccci_h->channel == CCCI_RIL_IPC0_TX
+			|| ccci_h->channel == CCCI_RIL_IPC1_TX) {
+			print_hex_dump(KERN_INFO, "1. mif: TX: ",
+					DUMP_PREFIX_NONE, 32, 1, skb->data, 32, 0);
+		}
+#endif
 		ccci_md_add_log_history(&md_ctrl->traffic_info, OUT,
 			(int)queue->index, ccci_h, 0);
 		/* free request */
@@ -1525,6 +1541,13 @@ static int md_ccif_op_send_skb(unsigned char hif_id, int qno,
 		md_ccif_send(hif_id, queue->ccif_ch);
 		spin_unlock_irqrestore(&queue->tx_lock, flags);
 	} else {
+#ifdef CONFIG_MTK_SRIL_SUPPORT
+		if (ccci_h->channel == CCCI_RIL_IPC0_TX
+			|| ccci_h->channel == CCCI_RIL_IPC1_TX) {
+			print_hex_dump(KERN_INFO, "2. mif: TX: ",
+					DUMP_PREFIX_NONE, 32, 1, skb->data, 32, 0);
+		}
+#endif
 		md_flow_ctrl = ccif_is_md_flow_ctrl_supported(md_ctrl);
 		if (likely(md_cap & MODEM_CAP_TXBUSY_STOP)
 			&& md_flow_ctrl > 0) {
@@ -2034,7 +2057,7 @@ static void ccif_set_clk_on(unsigned char hif_id)
 
 /*
  * for ccif4,5 power off action different:
- * gen97: 0x1000330C [31:0] write 0x0
+ * gen97: 0x1000330C [31:0] write 0x0, except mt6855 used 98 flow
  * gen98: 0x10001BF0 [15:0] write 0xF7FF
  * gen95: 0x10001C10 [31:0] write 0x0
  */
@@ -2044,22 +2067,15 @@ static void ccif_set_clk_off(unsigned char hif_id)
 		(struct md_ccif_ctrl *)ccci_hif_get_by_id(hif_id);
 	int idx;
 	unsigned long flags;
+	unsigned int ap_plat_info;
 
 	CCCI_NORMAL_LOG(ccif_ctrl->md_id, TAG, "%s start\n", __func__);
-
-	if ((ccif_ctrl->plat_val.md_gen >= 6298) ||
+	ap_plat_info = ccci_get_ap_plat_info();
+	if ((ap_plat_info == 6855) || (ccif_ctrl->plat_val.md_gen >= 6298) ||
 	    (ccif_ctrl->ccif_hw_reset_ver == 1)) {
 		/* write 1 clear register */
 		regmap_write(ccif_ctrl->plat_val.infra_ao_base,
 			0xBF0, 0xF7FF);
-		spin_lock_irqsave(&devapc_flag_lock, flags);
-		devapc_check_flag = 0;
-		spin_unlock_irqrestore(&devapc_flag_lock, flags);
-		for (idx = 0; idx < ARRAY_SIZE(ccif_clk_table); idx++) {
-			if (ccif_clk_table[idx].clk_ref == NULL)
-				continue;
-			clk_disable_unprepare(ccif_clk_table[idx].clk_ref);
-		}
 	} else if (ccif_ctrl->plat_val.md_gen <= 6297) {
 		/* Clean MD_PCCIF4_SW_READY and MD_PCCIF4_PWR_ON */
 		if (ccif_ctrl->plat_val.md_gen == 6297) {
@@ -2074,37 +2090,30 @@ static void ccif_set_clk_off(unsigned char hif_id)
 				__func__, ccif_ctrl->plat_val.infra_ao_base);
 			regmap_write(ccif_ctrl->plat_val.infra_ao_base, 0xC10, 0x0);
 		}
-
-		for (idx = 0; idx < ARRAY_SIZE(ccif_clk_table); idx++) {
-			if (ccif_clk_table[idx].clk_ref == NULL)
-				continue;
-			if (strcmp(ccif_clk_table[idx].clk_name,
-				"infra-ccif4-md") == 0
-				&& ccif_ctrl->md_ccif4_base) {
-				udelay(1000);
-				CCCI_NORMAL_LOG(ccif_ctrl->md_id, TAG,
-					"ccif4 %s: after 1ms, set 0x%llx + 0x14 = 0xFF\n",
-					__func__,
-					(u64)ccif_ctrl->md_ccif4_base);
-				ccci_write32(ccif_ctrl->md_ccif4_base, 0x14,
-					0xFF); /* special use ccci_write32 */
-			}
-			if (strcmp(ccif_clk_table[idx].clk_name,
-				"infra-ccif5-md") == 0
-				&& ccif_ctrl->md_ccif5_base) {
-				udelay(1000);
-				CCCI_NORMAL_LOG(ccif_ctrl->md_id, TAG,
-					"ccif5 %s: after 1ms, set 0x%llx + 0x14 = 0xFF\n",
-					__func__,
-					(u64)ccif_ctrl->md_ccif5_base);
-				ccci_write32(ccif_ctrl->md_ccif5_base, 0x14,
-					0xFF); /* special use ccci_write32 */
-			}
-			spin_lock_irqsave(&devapc_flag_lock, flags);
-			devapc_check_flag = 0;
-			spin_unlock_irqrestore(&devapc_flag_lock, flags);
-			clk_disable_unprepare(ccif_clk_table[idx].clk_ref);
+	}
+	for (idx = 0; idx < ARRAY_SIZE(ccif_clk_table); idx++) {
+		if (ccif_clk_table[idx].clk_ref == NULL)
+			continue;
+		if (strcmp(ccif_clk_table[idx].clk_name, "infra-ccif4-md") == 0
+			&& ccif_ctrl->md_ccif4_base) {
+			udelay(1000);
+			CCCI_NORMAL_LOG(ccif_ctrl->md_id, TAG,
+				"%s: after 1ms, set md_ccif4_base + 0x14 = 0xFF\n", __func__);
+			/* special use ccci_write32 */
+			ccci_write32(ccif_ctrl->md_ccif4_base, 0x14, 0xFF);
 		}
+		if (strcmp(ccif_clk_table[idx].clk_name, "infra-ccif5-md") == 0
+			&& ccif_ctrl->md_ccif5_base) {
+			udelay(1000);
+			CCCI_NORMAL_LOG(ccif_ctrl->md_id, TAG,
+				"%s: after 1ms, set md_ccif5_base + 0x14 = 0xFF\n", __func__);
+			/* special use ccci_write32 */
+			ccci_write32(ccif_ctrl->md_ccif5_base, 0x14, 0xFF);
+		}
+		spin_lock_irqsave(&devapc_flag_lock, flags);
+		devapc_check_flag = 0;
+		spin_unlock_irqrestore(&devapc_flag_lock, flags);
+		clk_disable_unprepare(ccif_clk_table[idx].clk_ref);
 	}
 
 	CCCI_NORMAL_LOG(ccif_ctrl->md_id, TAG, "%s end\n", __func__);

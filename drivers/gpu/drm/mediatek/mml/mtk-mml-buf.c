@@ -15,7 +15,7 @@
 #include "mtk-mml-buf.h"
 #include "mtk-mml-core.h"
 
-s32 mml_buf_get_fd(struct mml_file_buf *buf, int32_t *fd, u32 cnt, const char *name)
+void mml_buf_get_fd(struct mml_file_buf *buf, int32_t *fd, u32 cnt, const char *name)
 {
 	u32 i;
 	struct dma_buf *dmabuf;
@@ -28,13 +28,12 @@ s32 mml_buf_get_fd(struct mml_file_buf *buf, int32_t *fd, u32 cnt, const char *n
 		if (IS_ERR_OR_NULL(dmabuf)) {
 			mml_err("%s fail to get dma_buf %u by fd %d err %ld",
 				__func__, i, fd[i], PTR_ERR(dmabuf));
-			return -ENOMEM;
+			continue;
 		}
 
 		buf->dma[i].dmabuf = dmabuf;
 		mtk_dma_buf_set_name(dmabuf, name);
 	}
-	return 0;
 }
 
 void mml_buf_get(struct mml_file_buf *buf, void **dmabufs, u32 cnt, const char *name)

@@ -18,6 +18,7 @@
 #include "mtk_drm_session.h"
 #include "mtk_drm_helper.h"
 #include "../mml/mtk-mml-drm-adaptor.h"
+#include "mtk_notify.h"
 
 #define MAX_CONNECTOR 3
 
@@ -60,7 +61,6 @@ struct mtk_mmsys_driver_data {
 	const struct mtk_crtc_path_data *ext_path_data;
 	const struct mtk_crtc_path_data *ext_alter_path_data;
 	const struct mtk_crtc_path_data *third_path_data;
-	const struct mtk_crtc_path_data *fourth_path_data;
 	enum mtk_mmsys_id mmsys_id;
 	bool shadow_register;
 	const struct mtk_session_mode_tb *mode_tb;
@@ -183,6 +183,8 @@ struct mtk_drm_private {
 	wait_queue_head_t signal_mml_job_done_wq;
 
 	unsigned int seg_id;
+
+	struct mtk_uevent_dev uevent_data;
 };
 
 struct mtk_drm_property {
@@ -350,5 +352,5 @@ void mtk_free_mml_submit(struct mml_submit *temp);
 int copy_mml_submit(struct mml_submit *src, struct mml_submit *dst);
 void **mtk_drm_disp_sec_cb_init(void);
 void **mtk_drm_disp_mtee_cb_init(void);
-
+extern int mtk_notifier_call_chain(unsigned long val, void *v);
 #endif /* MTK_DRM_DRV_H */

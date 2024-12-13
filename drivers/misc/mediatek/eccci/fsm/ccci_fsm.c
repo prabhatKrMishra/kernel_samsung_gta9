@@ -32,7 +32,7 @@ static void fsm_finish_event(struct ccci_fsm_ctl *ctl,
 	struct ccci_fsm_event *event);
 
 static int needforcestop;
-static int hs2_done;
+
 static int s_is_normal_mdee;
 static int s_devapc_dump_counter;
 
@@ -415,7 +415,7 @@ static void fsm_routine_start(struct ccci_fsm_ctl *ctl,
 				spin_lock_irqsave(&ctl->event_lock, flags);
 			} else if (event->event_id == CCCI_EVENT_HS2) {
 				hs2_got = 1;
-				hs2_done = 1;
+
 				fsm_broadcast_state(ctl, READY);
 
 				fsm_finish_event(ctl, event);
@@ -475,7 +475,9 @@ static void fsm_routine_stop(struct ccci_fsm_ctl *ctl,
 	struct ccci_fsm_command *ee_cmd = NULL;
 	struct port_t *port = NULL;
 	struct sk_buff *skb = NULL;
+	struct ccci_modem *md = ccci_md_get_modem_by_id(ctl->md_id);
 	unsigned long flags;
+	int ret;
 
 	/* 1. state sanity check */
 	if (ctl->curr_state == CCCI_FSM_GATED)
@@ -541,6 +543,17 @@ success:
 			ccci_free_skb(skb);
 		spin_unlock_irqrestore(&port->rx_skb_list.lock, flags);
 	}
+
+	/* Cleare MD WDT pending bit */
+	ret = irq_set_irqchip_state(md->md_wdt_irq_id,
+			IRQCHIP_STATE_PENDING, false);
+	if (ret)
+		CCCI_ERROR_LOG(ctl->md_id, FSM,
+			"clear md wdt pending irq fail %d\n", ret);
+	else
+		CCCI_NORMAL_LOG(ctl->md_id, FSM,
+			"clear md wdt irq(%d) success\n", md->md_wdt_irq_id);
+
 	ctl->last_state = ctl->curr_state;
 	ctl->curr_state = CCCI_FSM_GATED;
 	fsm_broadcast_state(ctl, GATED);
@@ -1040,15 +1053,5 @@ unsigned long ccci_get_md_boot_count(int md_id)
 		return ctl->boot_count;
 	else
 		return 0;
-}
-
-unsigned int ccci_get_hs2_done_status(void)
-{
-	return hs2_done;
-}
-
-void reset_modem_hs2_status(void)
-{
-	hs2_done = 0;
 }
 

@@ -163,6 +163,7 @@ static void ccci_notify_atf_set_scpmem(void)
 	CCCI_NORMAL_LOG(MD_SYS1, FSM, "%s [done]\n", __func__);
 }
 
+
 static void ccci_scp_md_state_sync_work(struct work_struct *work)
 {
 	struct ccci_fsm_scp *scp_ctl = container_of(work,

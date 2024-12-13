@@ -341,7 +341,10 @@ static void mtk_dp_intf_mask(struct mtk_dp_intf *dp_intf, u32 offset,
 
 static void mtk_dp_intf_destroy_conn_enc(struct mtk_dp_intf *dp_intf)
 {
-	DDPFUNC();
+	drm_encoder_cleanup(&dp_intf->encoder);
+	/* Skip connector cleanup if creation was delegated to the bridge */
+	if (dp_intf->conn.dev)
+		drm_connector_cleanup(&dp_intf->conn);
 }
 
 static void mtk_dp_intf_start(struct mtk_ddp_comp *comp,
@@ -452,6 +455,7 @@ void mtk_dp_inf_video_clock(struct mtk_dp_intf *dp_intf)
 	unsigned int con1_reg;
 	int ret = 0;
 	struct device_node *node;
+
 	if (dp_intf == NULL) {
 		DDPPR_ERR("%s:input error\n", __func__);
 		return;
@@ -493,7 +497,7 @@ void mtk_dp_inf_video_clock(struct mtk_dp_intf *dp_intf)
 	}
 
 	DDPMSG("clk_apmixed_base clk_apmixed_base 0x%lx!!!,res %d\n",
-		(unsigned long)clk_apmixed_base, dp_intf->res);
+		clk_apmixed_base, dp_intf->res);
 	ret = clk_prepare_enable(dp_intf->pclk);
 	ret = clk_set_parent(dp_intf->pclk, dp_intf->pclk_src[clksrc]);
 
@@ -831,9 +835,8 @@ static int mtk_dp_intf_probe(struct platform_device *pdev)
 	of_id = of_match_device(mtk_dp_intf_driver_dt_match, &pdev->dev);
 	if (!of_id) {
 		dev_err(dev, "DP_intf device match failed\n");
-		return -EPROBE_DEFER;
+		return -ENODEV;
 	}
-
 	dp_intf->driver_data = (struct mtk_dp_intf_driver_data *)of_id->data;
 	DDPMSG("%s:%d\n", __func__, __LINE__);
 
@@ -879,7 +882,7 @@ static int mtk_dp_intf_probe(struct platform_device *pdev)
 			DDPPR_ERR("[CLK_APMIXED] io map failed\n");
 
 		DDPPR_ERR("clk_apmixed_base clk_apmixed_base 0x%lx!!!\n",
-			(unsigned long)clk_apmixed_base);
+			clk_apmixed_base);
 	}
 
 	if (IS_ERR(dp_intf->pclk)

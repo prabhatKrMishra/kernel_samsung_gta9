@@ -12,7 +12,7 @@
 #include <linux/extdev_io_class.h>
 
 #define PREALLOC_RBUFFER_SIZE	(32)
-#define PREALLOC_WBUFFER_SIZE	(512)
+#define PREALLOC_WBUFFER_SIZE	(1000)
 
 static struct class *extdev_io_class;
 
@@ -70,23 +70,13 @@ static int extdev_io_read(struct extdev_io_device *extdev, char *buf)
 		return ret;
 	data = extdev->data_buffer;
 	cnt = snprintf(buf + cnt, 256, "0x");
-	if (cnt >= 256)
-		goto err;
-	for (i = 0; i < extdev->size; i++) {
+	for (i = 0; i < extdev->size; i++)
 		cnt += snprintf(buf + cnt, 256, "%02x,", *(data + i));
-		if (cnt >= 256)
-			goto err;
-	}
-	cnt += snprintf(buf + cnt, 256, "\n");
-	if (cnt >= 256)
-		goto err;
+	cnt = snprintf(buf + cnt, 256, "\n");
 	return ret;
-err:
-	pr_notice("%s: the string is been truncated\n", __func__);
-	return -EINVAL;
 }
 
-static int extdev_io_write(struct extdev_io_device *extdev, const char *buf_internal, size_t cnt)
+static int extdev_io_write(struct extdev_io_device *extdev, const char *buf_internal, ssize_t cnt)
 {
 	void *buffer;
 	u8 *pdata;
@@ -138,27 +128,19 @@ static ssize_t extdev_io_show(struct device *dev,
 	mutex_lock(&extdev->io_lock);
 	switch (offset) {
 	case EXTDEV_IO_DESC_REG:
-		ret = snprintf(buf, 256, "0x%04x\n", extdev->reg);
-		if (ret >= 256)
-			pr_notice("%s: the string is been truncated\n", __func__);
+		snprintf(buf, 256, "0x%04x\n", extdev->reg);
 		break;
 	case EXTDEV_IO_DESC_SIZE:
-		ret = snprintf(buf, 256, "%d\n", extdev->size);
-		if (ret >= 256)
-			pr_notice("%s: the string is been truncated\n", __func__);
+		snprintf(buf, 256, "%d\n", extdev->size);
 		break;
 	case EXTDEV_IO_DESC_DATA:
 		ret = extdev_io_read(extdev, buf);
 		break;
 	case EXTDEV_IO_DESC_TYPE:
-		ret = snprintf(buf, 256, "%s\n", extdev->desc->typestr);
-		if (ret >= 256)
-			pr_notice("%s: the string is been truncated\n", __func__);
+		snprintf(buf, 256, "%s\n", extdev->desc->typestr);
 		break;
 	case EXTDEV_IO_DESC_LOCK:
-		ret = snprintf(buf, 256, "%d\n", extdev->access_lock);
-		if (ret >= 256)
-			pr_notice("%s: the string is been truncated\n", __func__);
+		snprintf(buf, 256, "%d\n", extdev->access_lock);
 		break;
 	default:
 		ret = -EINVAL;
@@ -199,30 +181,24 @@ static ssize_t extdev_io_store(struct device *dev,
 {
 	struct extdev_io_device *extdev = dev_get_drvdata(dev);
 	const ptrdiff_t offset = attr - extdev_io_device_attributes;
-	long val = 0;
+	long int val;
 	int ret = 0;
 
 	mutex_lock(&extdev->io_lock);
 	switch (offset) {
 	case EXTDEV_IO_DESC_REG:
-		ret = get_parameters((char *)buf, &val, 1);
-		if (ret < 0)
-			break;
+		get_parameters((char *)buf, &val, 1);
 		extdev->reg = val;
 		break;
 	case EXTDEV_IO_DESC_SIZE:
-		ret = get_parameters((char *)buf, &val, 1);
-		if (ret < 0)
-			break;
+		get_parameters((char *)buf, &val, 1);
 		extdev->size = val;
 		break;
 	case EXTDEV_IO_DESC_DATA:
 		ret = extdev_io_write(extdev, buf, count);
 		break;
 	case EXTDEV_IO_DESC_LOCK:
-		ret = get_parameters((char *)buf, &val, 1);
-		if (ret < 0)
-			break;
+		get_parameters((char *)buf, &val, 1);
 		if (!!val == extdev->access_lock)
 			ret = -EFAULT;
 		else

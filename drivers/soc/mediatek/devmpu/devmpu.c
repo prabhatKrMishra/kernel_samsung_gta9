@@ -347,33 +347,11 @@ static int devmpu_check_violation(void)
 	if (prop_addr && prop_size) {
 		pr_info("Check if DevMPU violation is at 0x%x\n", prop_addr);
 		reg_base = ioremap((phys_addr_t)prop_addr, prop_size);
-		if (!reg_base)
-			return -EIO;
-
 		pr_info("Read from 0x%pK\n", reg_base);
-
-		prop_value = readq(reg_base);
-		pr_info("%s:%d value 0x%llx\n", __func__, __LINE__, prop_value);
-
-		if (prop_value) {
-			pr_info("%s:%d EMI didn't protect READ and check HP mode\n",
-				__func__, __LINE__);
-			BUG();
-		}
-
+		prop_value = *(uint64_t *)reg_base;
+		pr_info("value 0x%llx\n", prop_value);
 		pr_info("Write to 0x%pK\n", reg_base);
-		writeq(prop_value | 0x5AA5AA55, reg_base);
-
-		prop_value = readq(reg_base);
-		pr_info("%s:%d value 0x%llx\n", __func__, __LINE__, prop_value);
-
-		if (prop_value) {
-			pr_info("%s:%d EMI didn't protect WRITE and check HP mode\n",
-				__func__, __LINE__);
-			BUG();
-		}
-
-		iounmap(reg_base);
+		*(uint64_t *)reg_base = prop_value;
 	}
 
 	return 0;
@@ -522,29 +500,7 @@ static struct platform_driver devmpu_drv = {
 	},
 };
 
-static int __init devmpu_init(void)
-{
-	int ret = 0;
-
-	ret = platform_driver_register(&devmpu_drv);
-	if (ret) {
-		pr_err("%s:%d failed to register devmpu driver, ret=%d\n",
-				__func__, __LINE__, ret);
-	}
-
-#if IS_ENABLED(CONFIG_MTK_DEVMPU_DEBUG)
-	ret = driver_create_file(&devmpu_drv.driver,
-			&driver_attr_devmpu_config);
-	if (ret) {
-		pr_err("%s:%d failed to create driver sysfs file, ret=%d\n",
-				__func__, __LINE__, ret);
-	}
-#endif
-
-	return ret;
-}
-
-postcore_initcall(devmpu_init);
+module_platform_driver(devmpu_drv);
 
 MODULE_DESCRIPTION("Mediatek Device MPU Driver");
 MODULE_AUTHOR("Calvin Liao <calvin.liao@mediatek.com>");

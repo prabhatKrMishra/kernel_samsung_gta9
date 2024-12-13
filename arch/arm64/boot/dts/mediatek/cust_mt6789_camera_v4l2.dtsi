@@ -1,15 +1,17 @@
 // SPDX-License-Identifier: GPL-2.0
 /* Copyright (c) 2020 MediaTek Inc. */
-
+// Tab A9 code for SR-AX6739A-01-246 by majunfeng at 20230506 start
 &i2c6 {
 	lm3643:lm3643@63 {
 		compatible = "mediatek,lm3643";
 		reg = <0x63>;
 		#cooling-cells = <2>;
-		pinctrl-names = "default", "hwen_high", "hwen_low";
+		pinctrl-names = "default";
 		pinctrl-0 = <&lm3643_pins_default>;
+		/*
 		pinctrl-1 = <&lm3643_pins_hwen_high>;
 		pinctrl-2 = <&lm3643_pins_hwen_low>;
+		*/
 		status = "okay";
 		flash@0{
 			reg = <0>;
@@ -39,7 +41,7 @@
 &pio {
 	lm3643_pins_default: default {
 	};
-
+/*
 	lm3643_pins_hwen_high: hwen_high {
 		pins_cmd_dat {
 			pinmux = <PINMUX_GPIO157__FUNC_GPIO157>;
@@ -55,8 +57,9 @@
 			output-low;
 		};
 	};
+*/
 };
-
+// Tab A9 code for SR-AX6739A-01-246 by majunfeng at 20230506 end
 &mtk_composite_v4l2_1 {
 	port@0 {
 		flashlight_0: endpoint {
