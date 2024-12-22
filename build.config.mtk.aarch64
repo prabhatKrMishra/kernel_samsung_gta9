@@ -23,3 +23,38 @@ KMI_SYMBOL_LIST=android/abi_gki_aarch64_mtk
 GKI_MODULES_LIST=android/gki_aarch64_modules
 ABI_DEFINITION=android/abi_gki_aarch64.xml
 SKIP_CP_KERNEL_HDR=1
+
+# Strip kernel modules
+DO_NOT_STRIP_MODULES=0
+
+MAKE_GOALS="${MAKE_GOALS} Image.gz dtbs"
+
+EXT_MODULES="
+${EXT_MODULES}
+../vendor/mediatek/kernel_modules/gpu
+../vendor/mediatek/kernel_modules/connectivity/common
+../vendor/mediatek/kernel_modules/connectivity/wlan/adaptor
+../vendor/mediatek/kernel_modules/connectivity/wlan/core/gen4m
+../vendor/mediatek/kernel_modules/connectivity/bt/mt66xx/wmt
+../vendor/mediatek/kernel_modules/connectivity/fmradio
+"
+
+# Wlan driver build environnement
+export MODULE_NAME="wlan_drv_gen4m_6789"
+export MTK_ANDROID_EMI="y"
+export WIFI_IP_SET="1"
+export MTK_ANDROID_WMT="y"
+export WLAN_CHIP_ID="6789"
+export MTK_COMBO_CHIP="SOC2_1X1"
+export CONFIG_MTK_COMBO_WIFI_HIF="axi"
+export MTK_WLAN_SERVICE="yes"
+
+# Adaptor
+export ADAPTOR_MODULE_NAME="wmt_chrdev_wifi"
+
+# Bluetooth configuration
+export BT_PLATFORM="connac1x"
+
+# FMRadio
+export CFG_FM_PLAT="mt6631_6635"
+export CFG_FM_CHIP_ID="${CFG_FM_PLAT}"
