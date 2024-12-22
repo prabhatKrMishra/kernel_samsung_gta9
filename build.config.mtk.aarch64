@@ -27,6 +27,9 @@ SKIP_CP_KERNEL_HDR=1
 # Strip kernel modules
 DO_NOT_STRIP_MODULES=0
 
+# Build flavour
+TARGET_BUILD_VARIANT=user
+
 MAKE_GOALS="${MAKE_GOALS} Image.gz dtbs"
 
 # Wlan driver build environnement
