@@ -19,6 +19,7 @@
 #include <linux/rbtree.h>
 #include <linux/slab.h>
 #include <linux/workqueue.h>
+#include <linux/sched.h>
 
 #include "power.h"
 
@@ -133,10 +134,27 @@ static void __wakelocks_gc(struct work_struct *work)
 
 static void wakelocks_gc(void)
 {
-	if (++wakelocks_gc_count <= WL_GC_COUNT_MAX)
-		return;
+    bool expedite = false;
+    int cpu = get_cpu();
 
-	schedule_work(&wakelock_work);
+    /*
+     * Only check CPU idle state if we're not in the middle of a busy task.
+     * If the CPU is idle, we should expedite GC to clean up unused wakelocks.
+     */
+    if (idle_cpu(cpu)) {
+        expedite = true;
+    }
+
+    /*
+     * Always release the CPU after checking idle state.
+     */
+    put_cpu();
+
+    /* If CPU is idle, expedite GC, otherwise check if we've exceeded the max count. */
+    if (expedite || ++wakelocks_gc_count > WL_GC_COUNT_MAX) {
+        schedule_work(&wakelock_work);
+        wakelocks_gc_count = 0;  // Reset the GC count after scheduling
+    }
 }
 #else /* !CONFIG_PM_WAKELOCKS_GC */
 static inline void wakelocks_lru_add(struct wakelock *wl) {}
