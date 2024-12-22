@@ -9,8 +9,8 @@
 #include <linux/cpufreq.h>
 #include <linux/pm_qos.h>
 
-#include "precomp.h"
-#include "wmt_exp.h"
+#include <precomp.h>
+#include <wmt_exp.h>
 
 #ifdef CONFIG_WLAN_MTK_EMI
 #include <soc/mediatek/emi.h>

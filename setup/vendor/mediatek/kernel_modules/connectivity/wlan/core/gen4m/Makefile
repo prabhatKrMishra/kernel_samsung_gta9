@@ -4,6 +4,8 @@ CONFIG_MTK_PLATFORM := mt$(WLAN_CHIP_ID)
 endif
 MTK_PLATFORM := $(subst $(quote),,$(CONFIG_MTK_PLATFORM))
 
+DRIVER_ROOT := $(KERNEL_SRC)/../vendor/mediatek/kernel_modules/connectivity/wlan/core/gen4m
+
 # ---------------------------------------------------
 # OS option
 # ---------------------------------------------------
@@ -325,28 +327,28 @@ endif
 ifeq ($(CONFIG_MTK_WIFI_CONNINFRA_SUPPORT), y)
     ccflags-y += -DCFG_SUPPORT_CONNINFRA=1
     ccflags-y += -DCFG_SUPPORT_PRE_ON_PHY_ACTION=1
-    ccflags-y += -I$(TOP)/vendor/mediatek/kernel_modules/connectivity/conninfra/include
+    ccflags-y += -I$(KERNEL_SRC)/../vendor/mediatek/kernel_modules/connectivity/conninfra/include
     ccflags-y += -I$(srctree)/drivers/misc/mediatek/connectivity/power_throttling
     ccflags-y += -DCFG_ANDORID_CONNINFRA_COREDUMP_SUPPORT=1
     ifneq ($(CONFIG_MTK_CONNSYS_DEDICATED_LOG_PATH),)
-        ccflags-y += -I$(TOP)/vendor/mediatek/kernel_modules/connectivity/conninfra/include
-        ccflags-y += -I$(TOP)/vendor/mediatek/kernel_modules/connectivity/conninfra/platform/include
-        ccflags-y += -I$(TOP)/vendor/mediatek/kernel_modules/connectivity/conninfra/base/include
-        ccflags-y += -I$(TOP)/vendor/mediatek/kernel_modules/connectivity/conninfra/debug_utility
-        ccflags-y += -I$(TOP)/vendor/mediatek/kernel_modules/connectivity/conninfra/debug_utility/include
-        ccflags-y += -I$(TOP)/vendor/mediatek/kernel_modules/connectivity/conninfra/debug_utility/connsyslog
-        ccflags-y += -I$(TOP)/vendor/mediatek/kernel_modules/connectivity/conninfra/debug_utility/coredump
-        ccflags-y += -I$(TOP)/vendor/mediatek/kernel_modules/connectivity/conninfra/debug_utility/coredump/platform/include
-        ccflags-y += -I$(TOP)/vendor/mediatek/kernel_modules/connectivity/conninfra/debug_utility/metlog
-        ccflags-y += -I$(TOP)/vendor/mediatek/kernel_modules/connectivity/wlan/adaptor
+        ccflags-y += -I$(KERNEL_SRC)/../vendor/mediatek/kernel_modules/connectivity/conninfra/include
+        ccflags-y += -I$(KERNEL_SRC)/../vendor/mediatek/kernel_modules/connectivity/conninfra/platform/include
+        ccflags-y += -I$(KERNEL_SRC)/../vendor/mediatek/kernel_modules/connectivity/conninfra/base/include
+        ccflags-y += -I$(KERNEL_SRC)/../vendor/mediatek/kernel_modules/connectivity/conninfra/debug_utility
+        ccflags-y += -I$(KERNEL_SRC)/../vendor/mediatek/kernel_modules/connectivity/conninfra/debug_utility/include
+        ccflags-y += -I$(KERNEL_SRC)/../vendor/mediatek/kernel_modules/connectivity/conninfra/debug_utility/connsyslog
+        ccflags-y += -I$(KERNEL_SRC)/../vendor/mediatek/kernel_modules/connectivity/conninfra/debug_utility/coredump
+        ccflags-y += -I$(KERNEL_SRC)/../vendor/mediatek/kernel_modules/connectivity/conninfra/debug_utility/coredump/platform/include
+        ccflags-y += -I$(KERNEL_SRC)/../vendor/mediatek/kernel_modules/connectivity/conninfra/debug_utility/metlog
+        ccflags-y += -I$(KERNEL_SRC)/../vendor/mediatek/kernel_modules/connectivity/wlan/adaptor
     endif
 else
     ccflags-y += -DCFG_SUPPORT_CONNINFRA=0
     ccflags-y += -DCFG_ANDORID_CONNINFRA_COREDUMP_SUPPORT=0
     ccflags-y += -DCFG_SUPPORT_PRE_ON_PHY_ACTION=0
     ifeq ($(WMT_SUPPORT), y)
-        ccflags-y += -I$(TOP)/vendor/mediatek/kernel_modules/connectivity/common/common_main/include
-        ccflags-y += -I$(TOP)/vendor/mediatek/kernel_modules/connectivity/common/common_main/linux/include
+        ccflags-y += -I$(KERNEL_SRC)/../vendor/mediatek/kernel_modules/connectivity/common/common_main/include
+        ccflags-y += -I$(KERNEL_SRC)/../vendor/mediatek/kernel_modules/connectivity/common/common_main/linux/include
         ifeq ($(CONFIG_MTK_CONN_LTE_IDC_SUPPORT),y)
             ccflags-y += -DWMT_IDC_SUPPORT=1
         else
@@ -501,13 +503,13 @@ MODULE_NAME := wlan_$(shell echo $(strip $(WLAN_CHIP_ID)) | tr A-Z a-z)_$(CONFIG
 endif
 
 ccflags-y += -DDBG=0
-ccflags-y += -I$(src)/os -I$(src)/os/$(os)/include
-ccflags-y += -I$(src)/include -I$(src)/include/nic -I$(src)/include/mgmt -I$(src)/include/chips
+ccflags-y += -I$(DRIVER_ROOT)/os -I$(DRIVER_ROOT)/os/$(os)/include
+ccflags-y += -I$(DRIVER_ROOT)/include -I$(DRIVER_ROOT)/include/nic -I$(DRIVER_ROOT)/include/mgmt -I$(DRIVER_ROOT)/include/chips
 ifeq ($(CONFIG_MTK_WIFI_NAN), y)
-ccflags-y += -I$(src)/include/nan -I$(src)/include/nan/wpa_supp
+ccflags-y += -I$(DRIVER_ROOT)/include/nan -I$(DRIVER_ROOT)/include/nan/wpa_supp
 endif
 ifeq ($(CFG_SUPPORT_WIFI_SYSDVT), 1)
-ccflags-y += -I$(src)/include/dvt
+ccflags-y += -I$(DRIVER_ROOT)/include/dvt
 endif
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/base/power/include/
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat/
@@ -519,7 +521,7 @@ ccflags-y += -I$(srctree)/drivers/misc/mediatek/power_throttling/
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/connectivity/common
 ccflags-y += -I$(srctree)/drivers/devfreq/
 ccflags-y += -I$(srctree)/net
-ccflags-y += -I$(TOP)/vendor/mediatek/kernel_modules/connectivity/connfem/include/
+ccflags-y += -I$(KERNEL_SRC)/../vendor/mediatek/kernel_modules/connectivity/connfem/include/
 
 ifneq ($(CONFIG_MTK_MDDP_SUPPORT),)
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/mddp/include/
@@ -529,22 +531,22 @@ ccflags-y += -DCFG_MTK_MDDP_SUPPORT=0
 endif
 
 ifeq ($(CONFIG_MTK_COMBO_WIFI_HIF), sdio)
-ccflags-y += -I$(src)/os/$(os)/hif/sdio/include
+ccflags-y += -I$(DRIVER_ROOT)/os/$(os)/hif/sdio/include
 else ifeq ($(CONFIG_MTK_COMBO_WIFI_HIF), pcie)
-ccflags-y += -I$(src)/os/$(os)/hif/common/include
-ccflags-y += -I$(src)/os/$(os)/hif/pcie/include
+ccflags-y += -I$(DRIVER_ROOT)/os/$(os)/hif/common/include
+ccflags-y += -I$(DRIVER_ROOT)/os/$(os)/hif/pcie/include
 ifneq ($(findstring 3_0,$(MTK_COMBO_CHIP)),)
-ccflags-y += -I$(src)/include/chips/coda/soc3_0
+ccflags-y += -I$(DRIVER_ROOT)/include/chips/coda/soc3_0
 endif
 else ifeq ($(CONFIG_MTK_COMBO_WIFI_HIF), axi)
-ccflags-y += -I$(src)/os/$(os)/hif/common/include
-ccflags-y += -I$(src)/os/$(os)/hif/axi/include
+ccflags-y += -I$(DRIVER_ROOT)/os/$(os)/hif/common/include
+ccflags-y += -I$(DRIVER_ROOT)/os/$(os)/hif/axi/include
 else ifeq ($(CONFIG_MTK_COMBO_WIFI_HIF), usb)
-ccflags-y += -I$(src)/os/$(os)/hif/usb/include
+ccflags-y += -I$(DRIVER_ROOT)/os/$(os)/hif/usb/include
 else ifeq ($(CONFIG_MTK_COMBO_WIFI_HIF), ut)
-ccflags-y += -I$(src)/test -I$(src)/test/lib/include -I$(src)/test/testcases -I$(src)/test/lib/hif
+ccflags-y += -I$(DRIVER_ROOT)/test -I$(DRIVER_ROOT)/test/lib/include -I$(DRIVER_ROOT)/test/testcases -I$(DRIVER_ROOT)/test/lib/hif
 else ifeq ($(CONFIG_MTK_COMBO_WIFI_HIF), none)
-ccflags-y += -I$(src)/os/$(os)/hif/none/include
+ccflags-y += -I$(DRIVER_ROOT)/os/$(os)/hif/none/include
 endif
 
 ifneq ($(PLATFORM_FLAGS), )
@@ -897,7 +899,7 @@ endif
 # ---------------------------------------------------
 ifneq ($(PLAT_DIR),)
 
-PLAT_PRIV_C = $(src)/$(PLAT_DIR)plat_priv.c
+PLAT_PRIV_C = $(DRIVER_ROOT)/$(PLAT_DIR)plat_priv.c
 
 # search path (out of kernel tree)
 IS_EXIST_PLAT_PRIV_C := $(wildcard $(PLAT_PRIV_C))
@@ -935,10 +937,10 @@ endif
 ifeq ($(MTK_WLAN_SERVICE), yes)
 ccflags-y += -DCONFIG_WLAN_SERVICE=1
 ccflags-y += -DCONFIG_TEST_ENGINE_OFFLOAD=1
-ccflags-y += -I$(src)/$(SERVICE_DIR)include
-ccflags-y += -I$(src)/$(SERVICE_DIR)service/include
-ccflags-y += -I$(src)/$(SERVICE_DIR)glue/osal/include
-ccflags-y += -I$(src)/$(SERVICE_DIR)glue/hal/include
+ccflags-y += -I$(DRIVER_ROOT)/$(SERVICE_DIR)include
+ccflags-y += -I$(DRIVER_ROOT)/$(SERVICE_DIR)service/include
+ccflags-y += -I$(DRIVER_ROOT)/$(SERVICE_DIR)glue/osal/include
+ccflags-y += -I$(DRIVER_ROOT)/$(SERVICE_DIR)glue/hal/include
 $(info $$CCFLAG is [{$(ccflags-y)}])
 SERVICE_OBJS := $(SERVICE_DIR)agent/agent.o \
                 $(SERVICE_DIR)service/service_test.o \
@@ -964,5 +966,17 @@ $(MODULE_NAME)-objs  += $(NAN_OBJS)
 $(MODULE_NAME)-objs  += $(NAN_SEC_OBJS)
 
 ifneq ($(findstring UT_TEST_MODE,$(MTK_COMBO_CHIP)),)
-include $(src)/test/ut.make
+include $(DRIVER_ROOT)/test/ut.make
 endif
+
+extra_symbols := $(abspath $(O)/../vendor/mediatek/kernel_modules)/connectivity/common/Module.symvers
+extra_symbols += $(abspath $(O)/../vendor/mediatek/kernel_modules)/connectivity/wlan/adaptor/Module.symvers
+
+all:
+	$(MAKE) -C $(KERNEL_SRC) M=$(M) modules $(KBUILD_OPTIONS) KBUILD_EXTRA_SYMBOLS="$(extra_symbols)"
+
+modules_install:
+	$(MAKE) M=$(M) -C $(KERNEL_SRC) modules_install KBUILD_EXTRA_SYMBOLS="$(extra_symbols)"
+
+clean:
+	$(MAKE) -C $(KERNEL_SRC) M=$(M) clean
