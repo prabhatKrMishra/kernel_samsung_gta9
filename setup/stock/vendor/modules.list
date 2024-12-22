@@ -74,11 +74,6 @@ mkp.ko
 mmprofile.ko
 mmqos-common.ko
 mmqos-mt6789.ko
-modules.alias
-modules.dep
-modules.load
-modules.load.recovery
-modules.softdep
 monitor_hang.ko
 mrdump.ko
 mt6358_battery.ko
