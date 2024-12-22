@@ -1,5 +1,5 @@
 # Apply network parameters for high data performance
-echo "bbr" > /proc/sys/net/ipv4/tcp_congestion_control
+echo "bbr2" > /proc/sys/net/ipv4/tcp_congestion_control
 
 # Adjust TCP buffer sizes
 echo 1310720 > /proc/sys/net/core/rmem_default
