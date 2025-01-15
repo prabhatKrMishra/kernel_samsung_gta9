@@ -202,6 +202,26 @@ struct tmpmasks {
 	cpumask_var_t new_cpus;		/* For update_cpumasks_hier() */
 };
 
+bool task_is_booster(struct task_struct *tsk) {
+    const char *booster_tasks[] = {
+        "init", "NodeLooperThrea", "power@1.2-servi", "power@1.3-servi",
+        "perf@1.0-servic", "perf@2.0-servic", "perf@2.1-servic",
+        "perf@2.2-servic", "power@2.0-servi", "iop@", "init.qcom.post_"
+    };
+    char comm[sizeof(tsk->comm)];
+    size_t i;
+
+    get_task_comm(comm, tsk);
+
+    for (i = 0; i < sizeof(booster_tasks) / sizeof(booster_tasks[0]); i++) {
+        if (!strcmp(comm, booster_tasks[i])) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 static inline struct cpuset *css_cs(struct cgroup_subsys_state *css)
 {
 	return css ? container_of(css, struct cpuset, css) : NULL;
