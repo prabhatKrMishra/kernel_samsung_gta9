@@ -8,7 +8,6 @@
 
 TOP_DIRECTORY="../.."
 
-cp -r vendor $TOP_DIRECTORY/vendor
 cp -r kernel $TOP_DIRECTORY/kernel
 cp build_kernel.sh $TOP_DIRECTORY/build_kernel.sh
 mkdir $TOP_DIRECTORY/out
