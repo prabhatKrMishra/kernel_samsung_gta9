@@ -4,7 +4,6 @@ MTK_CUSTOM_PATH  := $(srctree)/drivers/misc/mediatek
 MTKCAM_FDVT_VERSION := 5.1
 MTKCAM_FDVT_PATH := $(MTK_CUSTOM_PATH)/cameraisp/fdvt/5.1
 subdir-ccflags-y += -I$(MTK_CUSTOM_PATH)/cameraisp/fdvt/5.1/inc
-$(info fdvt tina)
 
 #ifdef CONFIG_MTK_M4U
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/m4u/$(MTK_PLATFORM)/
@@ -20,7 +19,6 @@ ccflags-y += -I$(srctree)/drivers/dma-buf/heaps/
 ccflags-y += -I$(srctree)/drivers/staging/android/ion \
 	     -I$(srctree)/drivers/staging/android/ion/mtk
 
-$(info Tina add dma: $(CONFIG_MTK_CAM_SECURE_FD_SUPPORT))
 ifeq ($(strip $(CONFIG_MTK_CAM_SECURE_FD_SUPPORT)),y)
 ccflags-y += -DCMDQ_MTEE
 endif
