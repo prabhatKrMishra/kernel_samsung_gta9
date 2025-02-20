@@ -61,10 +61,13 @@ echo 0 > /proc/sys/vm/dirty_background_ratio
 echo 500 > /proc/sys/vm/dirty_writeback_centisecs
 echo 200 > /proc/sys/vm/dirty_expire_centisecs
 
-# Touch improvements
+# Ultra-Low-Latency
 echo 2000000 > /proc/sys/kernel/sched_latency_ns
-echo 200000 > /proc/sys/kernel/sched_min_granularity_ns
-echo 0 > /proc/sys/kernel/sched_util_clamp_min_rt_default
+echo 250000 > /proc/sys/kernel/sched_migration_cost_ns
+echo 0 > /proc/sys/kernel/sched_wakeup_granularity_ns
+echo 500000 > /proc/sys/kernel/sched_min_granularity_ns
+echo 100 > /proc/sys/kernel/sched_util_clamp_min_rt_default
+echo 0 > /proc/sys/kernel/sched_schedstats
 
 # Runtime fs tuning
 echo 128 > /sys/block/sda/queue/nr_requests
