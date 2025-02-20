@@ -23,6 +23,8 @@ KO_CODE_PATH := $(if $(filter /%,$(src)),,$(srctree)/)$(src)
 ccflags-y = -I$(KO_CODE_PATH)/../../../gpu/arm/midgard/include
 subdir-ccflags-y += $(ccflags-y)
 
+MTK_PLATFORM_VERSION := $(CONFIG_MTK_PLATFORM:"%"=%)
+
 ifeq ($(CONFIG_MALI_PROTECTED_MEMORY_ALLOCATOR), y)
 #obj-m := protected_memory_allocator.o
 obj-m += mali_prot_alloc.o
