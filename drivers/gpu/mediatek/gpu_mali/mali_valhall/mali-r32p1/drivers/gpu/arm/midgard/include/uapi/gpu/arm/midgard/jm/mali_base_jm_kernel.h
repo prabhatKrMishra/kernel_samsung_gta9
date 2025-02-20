@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 /*
  *
- * (C) COPYRIGHT 2019-2021 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2019-2022 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -23,6 +23,10 @@
 #define _UAPI_BASE_JM_KERNEL_H_
 
 #include <linux/types.h>
+
+#if defined(CONFIG_GPU_MT6833)
+#define CONFIG_MALI_MTK_GPU_BM_JM
+#endif
 
 /* Memory allocation, access/hint flags.
  *
@@ -828,7 +832,7 @@ struct base_jd_atom_v2 {
 	base_jd_core_req core_req;
 	__u8 renderpass_id;
 	__u8 padding[7];
-#if defined(CONFIG_MALI_MTK_GPU_BM_2)
+#if defined(CONFIG_MALI_MTK_GPU_BM_JM)
 	u32 frame_nr;  /* frame number to the atom */
 #endif
 };
@@ -879,7 +883,7 @@ typedef struct base_jd_atom {
 	base_jd_core_req core_req;
 	__u8 renderpass_id;
 	__u8 padding[7];
-#if defined(CONFIG_MALI_MTK_GPU_BM_2)
+#if defined(CONFIG_MALI_MTK_GPU_BM_JM)
 	u32 frame_nr;  /* frame number to the atom */
 #endif
 } base_jd_atom;
@@ -1159,8 +1163,9 @@ enum base_jd_event_code {
 /**
  * struct base_jd_event_v2 - Event reporting structure
  *
- * @event_code:  event code.
+ * @event_code:  event code of type @ref base_jd_event_code.
  * @atom_number: the atom number that has completed.
+ * @padding:     padding.
  * @udata:       user data.
  *
  * This structure is used by the kernel driver to report information
@@ -1171,8 +1176,9 @@ enum base_jd_event_code {
  * by ANDing with BASE_JD_SW_EVENT_TYPE_MASK.
  */
 struct base_jd_event_v2 {
-	enum base_jd_event_code event_code;
+	__u32 event_code;
 	base_atom_id atom_number;
+	__u8 padding[3];
 	struct base_jd_udata udata;
 };
 
@@ -1202,5 +1208,9 @@ struct base_dump_cpu_gpu_counters {
 	__u32 usec;
 	__u8 padding[36];
 };
+
+#if defined(CONFIG_GPU_MT6833)
+#undef CONFIG_MALI_MTK_GPU_BM_JM
+#endif
 
 #endif /* _UAPI_BASE_JM_KERNEL_H_ */

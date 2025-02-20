@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-2.0 */
+/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
  * (C) COPYRIGHT 2010-2018, 2020-2021 ARM Limited. All rights reserved.
@@ -270,6 +270,16 @@ bool kbase_fence_free_callbacks(struct kbase_jd_atom *katom);
 #define kbase_fence_out_get(katom) dma_fence_get((katom)->dma_fence.fence)
 
 #endif /* !MALI_USE_CSF */
+
+/**
+ * kbase_fence_get() - Retrieve fence for a KCPUQ fence command.
+ * @fence_info: KCPUQ fence command
+ *
+ * A ref will be taken for the fence, so use @kbase_fence_put() to release it
+ *
+ * Return: The fence, or NULL if there is no fence for KCPUQ fence command
+ */
+#define kbase_fence_get(fence_info) dma_fence_get((fence_info)->fence)
 
 /**
  * kbase_fence_put() - Releases a reference to a fence

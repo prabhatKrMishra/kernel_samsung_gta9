@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-2.0 */
+/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
  * (C) COPYRIGHT 2018-2021 ARM Limited. All rights reserved.
@@ -47,9 +47,9 @@ struct kbase_kcpu_command_import_info {
  * struct kbase_kcpu_command_fence_info - Structure which holds information
  *		about the fence object enqueued in the kcpu command queue
  *
- * @fence_cb:   Fence callback
- * @fence:      Fence
- * @kcpu_queue: kcpu command queue
+ * @fence_cb:      Fence callback
+ * @fence:         Fence
+ * @kcpu_queue:    kcpu command queue
  */
 struct kbase_kcpu_command_fence_info {
 #if (KERNEL_VERSION(4, 10, 0) > LINUX_VERSION_CODE)
@@ -117,6 +117,8 @@ struct kbase_kcpu_command_cqs_set_operation_info {
  * @signaled:	Bit array used to report the status of the CQS wait objects.
  *              1 is signaled, 0 otherwise.
  * @nr_objs:	Number of CQS objects in the array.
+ * @inherit_err_flags: Bit-pattern for CQSs in the array who's error field is to
+ *                     be used as the source to import into the queue's error-state
  */
 struct kbase_kcpu_command_cqs_wait_operation_info {
 	struct base_cqs_wait_operation_info *objs;
@@ -277,6 +279,7 @@ struct kbase_kcpu_command {
  *				or without errors since last cleaned.
  * @jit_blocked:		Used to keep track of command queues blocked
  *				by a pending JIT allocation command.
+ * @fence_timeout:		Timer used to detect the fence wait timeout.
  */
 struct kbase_kcpu_command_queue {
 	struct kbase_context *kctx;
@@ -293,6 +296,9 @@ struct kbase_kcpu_command_queue {
 	bool command_started;
 	struct list_head jit_blocked;
 	bool has_error;
+#ifdef CONFIG_MALI_FENCE_DEBUG
+	struct timer_list fence_timeout;
+#endif /* CONFIG_MALI_FENCE_DEBUG */
 };
 
 /**

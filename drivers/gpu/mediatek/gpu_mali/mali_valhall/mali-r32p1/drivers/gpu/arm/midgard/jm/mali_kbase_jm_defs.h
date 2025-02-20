@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-2.0 */
+/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
  * (C) COPYRIGHT 2019-2021 ARM Limited. All rights reserved.
@@ -28,6 +28,10 @@
 #define _KBASE_JM_DEFS_H_
 
 #include "mali_kbase_js_defs.h"
+
+#if defined(CONFIG_GPU_MT6833)
+#define CONFIG_MALI_MTK_GPU_BM_JM
+#endif
 
 /* Dump Job slot trace on error (only active if KBASE_KTRACE_ENABLE != 0) */
 #define KBASE_KTRACE_DUMP_ON_JOB_SLOT_ERROR 1
@@ -87,8 +91,6 @@
 #define KBASE_KATOM_FLAG_FAIL_BLOCKER (1<<8)
 /* Atom is currently in the list of atoms blocked on cross-slot dependencies */
 #define KBASE_KATOM_FLAG_JSCTX_IN_X_DEP_LIST (1<<9)
-/* Atom is currently holding a context reference */
-#define KBASE_KATOM_FLAG_HOLDING_CTX_REF (1<<10)
 /* Atom requires GPU to be in protected mode */
 #define KBASE_KATOM_FLAG_PROTECTED (1<<11)
 /* Atom has been stored in runnable_tree */
@@ -602,7 +604,7 @@ struct kbase_jd_atom {
 
 	wait_queue_head_t completed;
 	enum kbase_jd_atom_state status;
-#if IS_ENABLED(CONFIG_GPU_TRACEPOINTS) || defined(CONFIG_MALI_MTK_GPU_BM_2)
+#if IS_ENABLED(CONFIG_GPU_TRACEPOINTS) || defined(CONFIG_MALI_MTK_GPU_BM_JM)
 	int work_id;
 #endif
 
@@ -646,7 +648,7 @@ struct kbase_jd_atom {
 	struct rb_node runnable_tree_node;
 
 	u32 age;
-#if defined(CONFIG_MALI_MTK_GPU_BM_2)
+#if defined(CONFIG_MALI_MTK_GPU_BM_JM)
 	/* frame number to the atom */
 	u32 frame_nr;
 #endif
@@ -809,7 +811,7 @@ struct kbase_jd_context {
 	u32 job_nr;
 	size_t tb_wrap_offset;
 
-#if IS_ENABLED(CONFIG_GPU_TRACEPOINTS) || defined(CONFIG_MALI_MTK_GPU_BM_2)
+#if IS_ENABLED(CONFIG_GPU_TRACEPOINTS) || defined(CONFIG_MALI_MTK_GPU_BM_JM)
 	atomic_t work_id;
 #endif
 
@@ -855,5 +857,9 @@ struct kbase_as {
 	struct kbase_fault bf_data;
 	struct kbase_mmu_setup current_setup;
 };
+
+#if defined(CONFIG_GPU_MT6833)
+#undef CONFIG_MALI_MTK_GPU_BM_JM
+#endif
 
 #endif /* _KBASE_JM_DEFS_H_ */
