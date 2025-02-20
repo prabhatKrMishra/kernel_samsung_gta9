@@ -192,4 +192,3 @@ wmt_chrdev_wifi.ko
 wmt_drv.ko
 zram.ko
 zsmalloc.ko
-
