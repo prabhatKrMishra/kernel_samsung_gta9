@@ -105,3 +105,4 @@ obj-$(CONFIG_TEEGRIS_TUI) += tui/
 # Tab A9 code for AX6739A-30 by qiaodan at 20230502 start
 obj-$(CONFIG_ODM_BOARD_ID_STATUS_SUPPORT) += board_id/
 # Tab A9 code for AX6739A-30 by qiaodan at 20230502 end
+obj-y += met_drv_v3/
