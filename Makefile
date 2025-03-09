@@ -803,7 +803,7 @@ KBUILD_CFLAGS += -Wno-frame-address
 endif
 
 # Enable aggressive LTO optimizations
-ifeq ($(CONFIG_LD_IS_LLD), y) && ($(CONFIG_LTO_CLANG_FULL), y)
+ifeq ($(CONFIG_LD_IS_LLD), y)
 KBUILD_LDFLAGS  += --lto-O2
 endif
 
