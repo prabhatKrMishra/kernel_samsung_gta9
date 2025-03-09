@@ -86,7 +86,7 @@ static int mcupm_run_mode = MCUPM_RUN_NORMAL;
 /*****************************************************************************
  * internal function ipmlement
  *****************************************************************************/
-void start_mcupm_ipi_recv_thread()
+void start_mcupm_ipi_recv_thread(void)
 {
 	int ret = 0;
 
@@ -146,7 +146,7 @@ void start_mcupm_ipi_recv_thread()
 }
 
 
-void stop_mcupm_ipi_recv_thread()
+void stop_mcupm_ipi_recv_thread(void)
 {
 	int ret;
 

@@ -19,7 +19,7 @@
  *   [extern for other module]
  *
  *********************************************************/
-extern gxy_usb_set_usbccflag( enum gxy_usb_orient cc_flag);
+extern int gxy_usb_set_usbccflag( enum gxy_usb_orient cc_flag);
 /*Tab A9 code for SR-AX6739A-01-467 by hualei at 20230506 end*/
 
 
@@ -2958,7 +2958,7 @@ EXPORT_SYMBOL(tcpc_typec_handle_wd);
 int tcpc_typec_handle_fod(struct tcpc_device *tcpc,
 			  enum tcpc_fod_status fod)
 {
-	int ret;
+	int __maybe_unused ret;
 	enum tcpc_fod_status fod_old = tcpc->typec_fod;
 
 	if (!(tcpc->tcpc_flags & TCPC_FLAGS_FOREIGN_OBJECT_DETECTION))

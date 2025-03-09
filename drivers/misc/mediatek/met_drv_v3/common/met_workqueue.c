@@ -45,7 +45,7 @@ static struct list_head __percpu *per_cpu_valid_list;
 static struct list_head __percpu *per_cpu_invalid_list;
 
 
-static void clean_per_cpu_var(){
+static void clean_per_cpu_var(void){
 	int cpu;
 
 	for_each_possible_cpu(cpu) {

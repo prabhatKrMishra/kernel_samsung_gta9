@@ -2647,8 +2647,8 @@ static void charger_check_status(struct mtk_charger *info)
 	/*Tab A9 U code for AX6739AU-127 by wenyaqi at 20240102 end*/
 
 	/*Tab A9 code for AX6739A-723 by qiaodan at 20230606 start*/
-	static s_aconline_old = false;
-	static s_usbonline_old = false;
+	static bool s_aconline_old = false;
+	static bool s_usbonline_old = false;
 	/*Tab A9 code for AX6739A-723 by qiaodan at 20230606 end*/
 
 	int temperature;

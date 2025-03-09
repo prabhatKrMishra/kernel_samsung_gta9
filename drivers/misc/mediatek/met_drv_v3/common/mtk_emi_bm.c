@@ -3578,7 +3578,7 @@ unsigned check_sspm_support(unsigned int module_id)
 
 
 
-unsigned int MET_GET_DRAM_TYPE()
+unsigned int MET_GET_DRAM_TYPE(void)
 {
 /*
 enum DRAM_TYPE {
