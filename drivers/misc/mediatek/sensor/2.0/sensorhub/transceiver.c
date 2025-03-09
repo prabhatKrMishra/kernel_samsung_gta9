@@ -724,7 +724,7 @@ static int transceiver_config(struct hf_device *hf_dev,
 }
 /*Tab A9 code for SR-AX6739A-01-254 by zhangziyi at 20230522 end*/
 
-static transceiver_selftest(struct hf_device *hf_dev,
+static int transceiver_selftest(struct hf_device *hf_dev,
 		int sensor_type)
 {
 	return transceiver_comm_with(sensor_type,

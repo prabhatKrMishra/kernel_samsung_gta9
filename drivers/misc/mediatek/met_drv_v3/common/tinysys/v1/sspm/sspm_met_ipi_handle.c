@@ -206,7 +206,7 @@ int scmi_tinysys_to_sspm_command( u32 feature_id,
 #endif
 
 #ifdef MET_SCMI
-void start_sspm_ipi_recv_thread()
+void start_sspm_ipi_recv_thread(void)
 {
     init_completion(&SSPM_ACK_comp);
     init_completion(&SSPM_CMD_comp);
@@ -344,7 +344,7 @@ void start_sspm_ipi_recv_thread(void)
 #endif
 
 #ifdef MET_SCMI
-void stop_sspm_ipi_recv_thread()
+void stop_sspm_ipi_recv_thread(void)
 {
 	if (_sspm_recv_task) {
 		sspm_recv_thread_comp = 1;

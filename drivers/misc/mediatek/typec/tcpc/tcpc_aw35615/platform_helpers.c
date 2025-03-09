@@ -47,7 +47,7 @@
  *   [extern for other module]
  *
  *********************************************************/
-extern gxy_usb_set_usbccflag( enum gxy_usb_orient cc_flag);
+extern int gxy_usb_set_usbccflag( enum gxy_usb_orient cc_flag);
 /*Tab A9 code for SR-AX6739A-01-468 by hualei at 20230508 end*/
 
 const char *AW_DT_INTERRUPT_INTN =    "aw_interrupt_int_n";
