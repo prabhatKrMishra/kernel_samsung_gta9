@@ -542,7 +542,7 @@ def getExecuteOptions(self, args=[]):
                       help="Checker output folder")
     parser.add_option("-k", "--kpath", nargs=1, dest="kernel_path", default=croot+"/kernel-5.10/",
                       help="Kernel path")
-    parser.add_option("-t", "--tcpath", nargs=1, dest="tool_chain", default=croot+"/kernel/prebuilts-master/clang/host/linux-x86/clang-r416183b/bin/",
+    parser.add_option("-t", "--tcpath", nargs=1, dest="tool_chain", default=croot+"/kernel/prebuilts-master/clang/host/linux-x86/clang-r547379/bin/",
                       help="Extract tool chain")
     parser.add_option("-c", "--ct", nargs=1, dest="config_tool", default=croot+"/kernel-5.10/scripts/extract-ikconfig",
                       help="Config extract script")
