@@ -50,7 +50,13 @@
 
 #define CONFIG_USB_PD_REV30_CHUNKING_BY_PE	0
 
-#define CONFIG_USB_PD_REV30_PPS_SINK		1
+/*Tab A9 code for SR-AX6739A-01-503 by qiaodan at 20230510 start*/
+#if defined(CONFIG_CUSTOM_PROJECT_OT11)
+    #define CONFIG_USB_PD_REV30_PPS_SINK		0
+#else
+    #define CONFIG_USB_PD_REV30_PPS_SINK		1
+#endif
+/*Tab A9 code for SR-AX6739A-01-503 by qiaodan at 20230510 end*/
 #define CONFIG_USB_PD_REV30_PPS_SOURCE		0
 
 #if CONFIG_USB_PD_REV30_STATUS_LOCAL

@@ -51,7 +51,8 @@ static struct tmem_device_description mtee_mchunks[] = {
 		.ssmr_feature_id = SSMR_FEAT_SVP_REGION,
 		.u_ops_data.mtee = {.mem_type = TRUSTED_MEM_SVP_REGION},
 #if IS_ENABLED(CONFIG_TRUSTONIC_TEE_SUPPORT) || \
-	IS_ENABLED(CONFIG_MICROTRUST_TEE_SUPPORT)
+	IS_ENABLED(CONFIG_MICROTRUST_TEE_SUPPORT) || \
+	IS_ENABLED(CONFIG_TEEGRIS_TEE_SUPPORT)
 		.notify_remote = true,
 		.notify_remote_fn = secmem_fr_set_svp_region,
 #else
@@ -70,7 +71,8 @@ static struct tmem_device_description mtee_mchunks[] = {
 		.ssmr_feature_id = SSMR_FEAT_PROT_REGION,
 		.u_ops_data.mtee = {.mem_type = TRUSTED_MEM_PROT_REGION},
 #if IS_ENABLED(CONFIG_TRUSTONIC_TEE_SUPPORT) || \
-	IS_ENABLED(CONFIG_MICROTRUST_TEE_SUPPORT)
+	IS_ENABLED(CONFIG_MICROTRUST_TEE_SUPPORT) || \
+	IS_ENABLED(CONFIG_TEEGRIS_TEE_SUPPORT)
 		.notify_remote = true,
 		.notify_remote_fn = secmem_fr_set_prot_shared_region,
 #else
@@ -90,7 +92,8 @@ static struct tmem_device_description mtee_mchunks[] = {
 		.ssmr_feature_id = SSMR_FEAT_WFD_REGION,
 		.u_ops_data.mtee = {.mem_type = TRUSTED_MEM_WFD_REGION},
 #if IS_ENABLED(CONFIG_TRUSTONIC_TEE_SUPPORT) || \
-	IS_ENABLED(CONFIG_MICROTRUST_TEE_SUPPORT)
+	IS_ENABLED(CONFIG_MICROTRUST_TEE_SUPPORT) || \
+	IS_ENABLED(CONFIG_TEEGRIS_TEE_SUPPORT)
 		.notify_remote = true,
 		.notify_remote_fn = secmem_fr_set_wfd_region,
 #else

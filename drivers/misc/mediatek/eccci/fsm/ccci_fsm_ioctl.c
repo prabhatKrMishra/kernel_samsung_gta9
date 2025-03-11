@@ -26,6 +26,50 @@ signed int __weak battery_get_bat_voltage(void)
 	return 0;
 }
 
+#ifdef CUST_FT_EE_TRIGGER_REBOOT
+static int ccci_md_log_level;
+
+#define MD_LOG_LEVEL_HIGH	0x4948
+#define MD_LOG_LEVEL_MID	0x494d
+#define MD_LOG_LEVEL_LOW	0x4f4c
+
+void drv_tri_panic_by_lvl(int md_id)
+{
+	CCCI_NORMAL_LOG(md_id, FSM,
+		"%s:log level=0x%x\n", __func__, ccci_md_log_level);
+
+	if (ccci_md_log_level == MD_LOG_LEVEL_LOW) {
+		/* modem reset */
+		CCCI_NORMAL_LOG(md_id, FSM,
+			"Curr log level is low, trigger reset called by %s\n",
+			current->comm);
+		fsm_monitor_send_message(md_id, CCCI_MD_MSG_RESET_REQUEST, 0);
+	} else if ((ccci_md_log_level == MD_LOG_LEVEL_MID) ||
+		(ccci_md_log_level == MD_LOG_LEVEL_HIGH)) {
+		CCCI_NORMAL_LOG(md_id, FSM,
+			"ram dump done called by %s\n", current->comm);
+		panic("CP Crash");
+	} else
+		CCCI_NORMAL_LOG(md_id, FSM,
+			"md log level is invalid, do nothing\n");
+}
+
+int ccci_get_ap_debug_level(void)
+{
+	if (ccci_md_log_level == MD_LOG_LEVEL_LOW)
+		return 0;
+	else if (ccci_md_log_level == MD_LOG_LEVEL_MID)
+		return 1;
+	else if (ccci_md_log_level == MD_LOG_LEVEL_HIGH)
+		return 2;
+
+	CCCI_ERROR_LOG(-1, FSM,
+		"%s:debug_level(%d) invalid\n", __func__,
+		ccci_md_log_level);
+	return -1;
+}
+#endif
+
 #ifdef CCCI_KMODULE_ENABLE
 int switch_sim_mode(int id, char *buf, unsigned int len)
 {
@@ -152,6 +196,9 @@ static int fsm_md_data_ioctl(int md_id, unsigned int cmd, unsigned long arg)
 					ret);
 				ret = -EFAULT;
 			}
+#ifdef CUST_FT_EE_TRIGGER_REBOOT
+			ccci_md_log_level = per_md_data->md_boot_data[MD_CFG_LOG_LEVEL];
+#endif
 		}
 		break;
 	case CCCI_IOC_SIM_SWITCH:
@@ -405,8 +452,11 @@ long ccci_fsm_ioctl(int md_id, unsigned int cmd, unsigned long arg)
 	int ret = 0;
 	enum MD_STATE_FOR_USER state_for_user;
 	unsigned int data;
+	static unsigned long boot_ready_count;
 	char *VALID_USER = "ccci_mdinit";
-
+#ifdef CUST_FT_EE_TRIGGER_REBOOT
+	struct ccci_modem *md;
+#endif
 	if (!ctl)
 		return -EINVAL;
 
@@ -465,6 +515,10 @@ long ccci_fsm_ioctl(int md_id, unsigned int cmd, unsigned long arg)
 		/* add check whether the user call md start ioctl is valid */
 		if (strncmp(current->comm,
 			VALID_USER, strlen(VALID_USER)) == 0) {
+#ifdef CUST_FT_EE_TRIGGER_REBOOT
+			md = ccci_md_get_modem_by_id(md_id);
+			md->ccci_drv_trigger_upload = 0;
+#endif
 			CCCI_NORMAL_LOG(md_id, FSM,
 				"MD start ioctl called by %s\n", current->comm);
 			ret = fsm_append_command(ctl, CCCI_COMMAND_START, 0);
@@ -533,11 +587,14 @@ long ccci_fsm_ioctl(int md_id, unsigned int cmd, unsigned long arg)
 		break;
 	/* RILD nodify ccci power off md */
 	case CCCI_IOC_RILD_POWER_OFF_MD:
+		if (ctl->boot_count == boot_ready_count || ctl->md_state != READY)
+			break;
 		CCCI_NORMAL_LOG(md_id, FSM,
-				"MD will power off ioctl called by %s\n",
-				current->comm);
+				"MD power off called by %s, boot_count %lu ,ready_count %lu\n",
+				current->comm, ctl->boot_count, boot_ready_count);
 		inject_md_status_event(md_id, MD_STA_EV_RILD_POWEROFF_START,
 				current->comm);
+		boot_ready_count = ctl->boot_count;
 		break;
 	case CCCI_IOC_SET_EFUN:
 		if (copy_from_user(&data, (void __user *)arg,
@@ -568,6 +625,27 @@ long ccci_fsm_ioctl(int md_id, unsigned int cmd, unsigned long arg)
 			"get modem exception type=%d ret=%d\n",
 			ctl->ee_ctl.ex_type, ret);
 		break;
+#ifdef CUST_FT_EE_TRIGGER_REBOOT
+	case CCCI_IOC_ENTER_UPLOAD:
+		drv_tri_panic_by_lvl(md_id);
+		break;
+	case CCCI_IOC_DRV_ENTER_UPLOAD:
+		md = ccci_md_get_modem_by_id(md_id);
+		md->ccci_drv_trigger_upload = 1;
+		CCCI_NORMAL_LOG(md_id, FSM, "drv trigger upload called by %s\n",
+			current->comm);
+		break;
+	case CCCI_IOC_LOG_LVL:
+		if (copy_from_user(&ccci_md_log_level, (void __user *)arg,
+			sizeof(unsigned int))) {
+			CCCI_NORMAL_LOG(md_id, FSM,
+				"cpy log level fail: copy_from_user fail!\n");
+			ret = -EFAULT;
+		}
+		CCCI_NORMAL_LOG(md_id, FSM,
+			"cpy log level value:0x%x\n", ccci_md_log_level);
+		break;
+#endif
 	default:
 		ret = fsm_md_data_ioctl(md_id, cmd, arg);
 		break;

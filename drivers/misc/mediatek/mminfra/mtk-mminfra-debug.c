@@ -42,9 +42,6 @@ static atomic_t clk_ref_cnt = ATOMIC_INIT(0);
 static struct device *dev;
 static struct mminfra_dbg *dbg;
 
-static bool check_smi_cg = true;
-static bool check_gce_cg = true;
-
 #define MMINFRA_BASE		0x1e800000
 
 #define MMINFRA_CG_CON0		0x100
@@ -151,9 +148,8 @@ static void mminfra_cg_check(bool on)
 
 	if (on) {
 		/* SMI CG still off */
-		if ((check_smi_cg && (con0_val & (SMI_CG_BIT)))
-			|| (check_gce_cg && ((con0_val & GCEM_CG_BIT)
-			|| (con0_val & GCED_CG_BIT) || (con1_val & GCE26M_CG_BIT)))) {
+		if ((con0_val & (SMI_CG_BIT)) || (con0_val & GCEM_CG_BIT) ||
+			(con0_val & GCED_CG_BIT) || (con1_val & GCE26M_CG_BIT)) {
 			pr_notice("%s cg still off, CG_CON0:0x%x CG_CON1:0x%x\n",
 						__func__, con0_val, con1_val);
 			mtk_smi_dbg_cg_status();
@@ -161,9 +157,8 @@ static void mminfra_cg_check(bool on)
 		}
 	} else {
 		/* SMI CG still on */
-		if ((check_smi_cg && !(con0_val & (SMI_CG_BIT)))
-			|| (check_gce_cg && (!(con0_val & GCEM_CG_BIT)
-			|| !(con0_val & GCED_CG_BIT) || !(con1_val & GCE26M_CG_BIT)))) {
+		if (!(con0_val & (SMI_CG_BIT)) || !(con0_val & GCEM_CG_BIT)
+			|| !(con0_val & GCED_CG_BIT) || !(con1_val & GCE26M_CG_BIT)) {
 			pr_notice("%s Scg still on, CG_CON0:0x%x CG_CON1:0x%x\n",
 						__func__, con0_val, con1_val);
 			mtk_smi_dbg_cg_status();
@@ -457,12 +452,6 @@ static int mminfra_debug_probe(struct platform_device *pdev)
 	}
 
 	dbg->mminfra_base = ioremap(MMINFRA_BASE, 0x8f4);
-
-	if (of_property_read_bool(node, "skip-smi-cg-check"))
-		check_smi_cg = false;
-
-	if (of_property_read_bool(node, "skip-gce-cg-check"))
-		check_gce_cg = false;
 
 	cmdq_get_mminfra_cb(is_mminfra_power_on);
 	cmdq_get_mminfra_gce_cg_cb(is_gce_cg_on);

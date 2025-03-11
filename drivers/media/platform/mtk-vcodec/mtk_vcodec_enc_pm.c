@@ -76,7 +76,7 @@ int mtk_vcodec_init_enc_pm(struct mtk_vcodec_dev *mtkdev)
 
 	node = of_parse_phandle(dev->of_node, "mediatek,larbs", 0);
 	if (!node) {
-		mtk_v4l2_err("no mediatek,larbs found");
+		mtk_v4l2_err("no mediatek,larb found");
 		return -1;
 	}
 	for (larb_index = 0; larb_index < MTK_VENC_MAX_LARB_COUNT; larb_index++) {
@@ -303,6 +303,13 @@ static int mtk_venc_translation_fault_callback(
 	} else if (larb_id == 8) {
 		reg_base = dev->enc_reg_base[VENC_C1_SYS];
 		hw_id = MTK_VENC_CORE_1;
+	}
+
+	if (dev->tf_info != NULL) {
+		dev->tf_info->hw_id  = (__u32)hw_id;
+		dev->tf_info->port   = (__u32)port;
+		dev->tf_info->tf_mva = (__u64)mva;
+		dev->tf_info->has_tf = 1;
 	}
 
 	spin_lock_irqsave(&dev->enc_power_lock[hw_id], flags);

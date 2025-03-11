@@ -1607,12 +1607,8 @@ static void init_dma_threshold(struct mtk_raw_device *dev)
 	bool is_srt = mtk_cam_is_srt(dev->pipeline->hw_mode);
 	unsigned int raw_urgent, yuv_urgent;
 
-	if (!yuv_dev) {
-		dev_info(dev->dev, "%s: yuv_dev is null\n",
-			 __func__);
-		return;
-	}
 	cam_dev = dev->cam;
+
 	dev_info(dev->dev, "%s: SRT:%d\n", __func__, is_srt);
 
 	set_fifo_threshold(dev->base + REG_IMGO_R1_BASE);
@@ -1700,7 +1696,7 @@ static void init_dma_threshold(struct mtk_raw_device *dev)
 		mtk_smi_larb_ultra_dis(&dev->larb_pdev->dev, true);
 		mtk_smi_larb_ultra_dis(&yuv_dev->larb_pdev->dev, true);
 	} else {
-		writel_relaxed(RAW_WDMA_PORT | RAW_RAWIR2_PORT, cam_dev->base + raw_urgent);
+		writel_relaxed(RAW_WDMA_PORT, cam_dev->base + raw_urgent);
 		writel_relaxed(YUV_WDMA_PORT, cam_dev->base + yuv_urgent);
 
 		mtk_smi_larb_ultra_dis(&dev->larb_pdev->dev, false);
@@ -1821,17 +1817,13 @@ void initialize(struct mtk_raw_device *dev, int is_slave)
 #if USINGSCQ
 	u32 val;
 
-	if (!dev) {
-		pr_info("%s: dev is null\n",
-			 __func__);
-		return;
-	}
 	val = readl_relaxed(dev->base + REG_CQ_EN);
 	writel_relaxed(val | SCQ_EN | CQ_DROP_FRAME_EN, dev->base + REG_CQ_EN);
 
 	//writel_relaxed(0x100010, dev->base + REG_CQ_EN);
 	writel_relaxed(0xffffffff, dev->base + REG_SCQ_START_PERIOD);
 #endif
+
 	writel_relaxed(CQ_THR0_MODE_IMMEDIATE | CQ_THR0_EN,
 		       dev->base + REG_CQ_THR0_CTL);
 	writel_relaxed(CQ_THR0_MODE_IMMEDIATE | CQ_THR0_EN,
@@ -2075,7 +2067,7 @@ static int mtk_raw_required_freq_chk(int twin_en, int fps,
 
 	capable *= pixel_mode;
 
-	require = (u64)width * (height + MTK_RAW_H_LATENCY) * fps;
+	require = width * (height + MTK_RAW_H_LATENCY) * fps;
 	require_percent = require;
 	do_div(require_percent, 100);
 
@@ -2128,10 +2120,16 @@ static int mtk_raw_linebuf_chk(bool b_twin, bool b_bin, bool b_frz, bool b_qbn,
 	}
 	if (input_x <= CAM_RAW_PROCESS_MAX_LINE_BUFFER) {
 		return LB_CHECK_OK;
-	}  else if (b_frz)
-		return LB_CHECK_FRZ;
-	else
+	} else if (b_frz) {
+		if (input_x > CAM_RAW_FRZ_MAX_LINE_BUFFER)
+			return LB_CHECK_FRZ;
+
+		*frz_ratio = input_x * 100 /
+			CAM_RAW_PROCESS_MAX_LINE_BUFFER;
+		return LB_CHECK_OK;
+	} else {
 		return LB_CHECK_RAW;
+	}
 }
 
 static int mtk_raw_pixelmode_calc(int rawpxl, int b_twin, bool b_bin,
@@ -2357,7 +2355,7 @@ bool mtk_raw_resource_calc(struct mtk_cam_device *cam,
 
 	mtk_raw_update_debug_param(cam, res, &clk_res);
 
-	eq_throughput = ((u64)((u64)1 << res->tgo_pxl_mode)) * res->clk_target;
+	eq_throughput = ((u64)(1 << res->tgo_pxl_mode)) * res->clk_target;
 	if (res_found) {
 		dev_info(cam->dev, "Res-end:%d BIN/FRZ/HWN/CLK/pxl/pxl(seninf):", idx_res);
 		dev_info(cam->dev,
@@ -2540,7 +2538,7 @@ static irqreturn_t mtk_irq_raw(int irq, void *data)
 		++raw_dev->cur_vsync_idx;
 	}
 
-	if (irq_info.irq_type > 0 && !raw_dev->is_slave) {
+	if (irq_info.irq_type && !raw_dev->is_slave) {
 		if (push_msgfifo(raw_dev, &irq_info) == 0)
 			wake_thread = 1;
 	}
@@ -3100,7 +3098,7 @@ static int raw_stagger_select(struct mtk_cam_ctx *ctx,
 	int stagger_order_mask[STAGGER_MAX_STREAM_NUM] = {0};
 	int mask = 0x0;
 	bool selected = false;
-	stagger_select.raw_select = -1;
+
 	stagger_order = stagger_mode_plan[stagger_plan];
 	/* check how many stagger sensors are running, */
 	/* this will affect the decision of which mode */
@@ -3137,11 +3135,7 @@ static int raw_stagger_select(struct mtk_cam_ctx *ctx,
 				result->hw_mode);
 		}
 	}
-	if (-1 == stagger_select.raw_select) {
-		dev_info(cam->dev, "[%s]stagger_select.raw_selectis failed\n"
-		, __func__);
-		return false;
-	}
+
 	result->enabled_raw = 0;
 	for (m = MTKCAM_SUBDEV_RAW_0; m < RAW_PIPELINE_NUM; m++) {
 		mask = 1 << m;
@@ -3166,7 +3160,6 @@ int mtk_cam_raw_stagger_select(struct mtk_cam_ctx *ctx,
 	bool selected;
 	struct mtk_raw_stagger_select result;
 
-	memset(&result, 0, sizeof(result));
 	selected = raw_stagger_select(ctx,
 				raw_status,
 				ctx->pipe->hw_mode,
@@ -3423,13 +3416,10 @@ mtk_raw_pipeline_get_fmt(struct mtk_raw_pipeline *pipe,
 			 struct v4l2_subdev_pad_config *cfg,
 			 int padid, int which)
 {
-	if (padid < 0) {
-		pr_debug("%s: padid < 0\n", __func__);
-		return NULL;
-	}
 	/* format invalid and return default format */
 	if (which == V4L2_SUBDEV_FORMAT_TRY)
 		return v4l2_subdev_get_try_format(&pipe->subdev, cfg, padid);
+
 	if (WARN_ON(padid >= pipe->subdev.entity.num_pads))
 		return &pipe->cfg[0].mbus_fmt;
 
@@ -3441,10 +3431,6 @@ mtk_raw_pipeline_get_selection(struct mtk_raw_pipeline *pipe,
 			       struct v4l2_subdev_pad_config *cfg,
 			       int pad, int which)
 {
-	if (pad < 0) {
-		pr_debug("%s: pad < 0\n", __func__);
-		return NULL;
-	}
 	/* format invalid and return default format */
 	if (which == V4L2_SUBDEV_FORMAT_TRY)
 		return v4l2_subdev_get_try_crop(&pipe->subdev, cfg, pad);
@@ -3534,11 +3520,6 @@ int mtk_raw_set_src_pad_selection_default(struct v4l2_subdev *sd,
 
 	pipe = container_of(sd, struct mtk_raw_pipeline, subdev);
 	source_sel = mtk_raw_pipeline_get_selection(pipe, cfg, pad, which);
-	if (!source_sel) {
-		dev_info(sd->v4l2_dev->dev, "%s: source_sel is null\n",
-			__func__);
-		return -1;
-	}
 	if (source_sel->width > sink_fmt->width) {
 		source_sel->width = sink_fmt->width;
 		/* may need some log */
@@ -3859,7 +3840,7 @@ int mtk_raw_set_src_pad_fmt(struct v4l2_subdev *sd,
 	const struct mtk_cam_format_desc *fmt_desc;
 	struct mtk_raw_pipeline *pipe;
 	int ret = 0;
-	struct v4l2_mbus_framefmt *source_fmt = NULL, *sink_fmt = NULL;
+	struct v4l2_mbus_framefmt *source_fmt, *sink_fmt = NULL;
 
 	/* Do nothing for pad to meta video device */
 	if (fmt->pad >= MTK_RAW_META_OUT_BEGIN)
@@ -3895,14 +3876,11 @@ int mtk_raw_set_src_pad_fmt(struct v4l2_subdev *sd,
 		*source_fmt = fmt->format;
 		ret = node->desc.pad_ops->set_pad_fmt(sd, cfg, sink_fmt, &res, fmt->pad,
 											fmt->which);
-	} else {
-		dev_info(dev,
-			"%s(%d): Set fmt pad:%d(%s), no source_fmt\n",
-			__func__, fmt->which, fmt->pad, node->desc.name);
-		return -EINVAL;
 	}
+
 	if (ret)
 		return ret;
+
 	dev_dbg(dev,
 		"%s(%d): s_fmt to pad:%d(%s), user(0x%x/%d/%d) driver(0x%x/%d/%d)\n",
 		__func__, fmt->which, fmt->pad, node->desc.name,
@@ -3919,7 +3897,7 @@ int mtk_raw_try_pad_fmt(struct v4l2_subdev *sd,
 				struct v4l2_subdev_format *fmt)
 {
 
-	if (fmt->pad < MTK_RAW_SOURCE_BEGIN)
+	if (fmt->pad >= MTK_RAW_SINK && fmt->pad < MTK_RAW_SOURCE_BEGIN)
 		mtk_raw_set_sink_pad_fmt(sd, cfg, fmt);
 	else if (fmt->pad < MTK_RAW_PIPELINE_PADS_NUM)
 		mtk_raw_set_src_pad_fmt(sd, cfg, fmt);
@@ -4126,12 +4104,8 @@ static int mtk_raw_set_fmt(struct v4l2_subdev *sd,
 			sd->name, fmt->pad, v4l2_subdev_format_request_fd(fmt));
 		return -EINVAL;
 	}
+
 	stream_data = mtk_cam_req_get_s_data_no_chk(cam_req, pipe->id, 0);
-	if (!stream_data) {
-		dev_info(cam->dev, "%s: stream_data is null\n",
-		__func__);
-		return -EINVAL;
-	}
 	stream_data->pad_fmt_update |= (1 << fmt->pad);
 	stream_data->pad_fmt[fmt->pad] = *fmt;
 
@@ -4254,7 +4228,7 @@ mtk_cam_get_link_enabled_raw(struct v4l2_subdev *seninf)
 	int i;
 
 	cam = container_of(seninf->v4l2_dev->mdev, struct mtk_cam_device, media_dev);
-	for (i = MTKCAM_SUBDEV_RAW_0; i < MTKCAM_SUBDEV_RAW_END; i++) {
+	for (i = MTKCAM_SUBDEV_RAW_0; i <= MTKCAM_SUBDEV_RAW_END; i++) {
 		if (cam->raw.pipelines[i].res_config.seninf == seninf)
 			return &cam->raw.pipelines[i];
 	}
@@ -5885,6 +5859,10 @@ static void mtk_raw_pipeline_queue_setup(struct mtk_raw_pipeline *pipe)
 {
 	unsigned int node_idx, i;
 
+	if (WARN_ON(MTK_RAW_TOTAL_OUTPUT_QUEUES + MTK_RAW_TOTAL_CAPTURE_QUEUES
+	    != MTK_RAW_TOTAL_NODES))
+		return;
+
 	node_idx = 0;
 
 	/* Setup the output queue */
@@ -6016,7 +5994,7 @@ static int mtk_raw_pipeline_register(unsigned int id, struct device *dev,
 	struct mtk_cam_device *cam = dev_get_drvdata(pipe->raw->cam_dev);
 	struct v4l2_subdev *sd = &pipe->subdev;
 	struct mtk_cam_video_device *video;
-	int i;
+	unsigned int i;
 	int ret;
 
 	pipe->id = id;
@@ -6027,18 +6005,18 @@ static int mtk_raw_pipeline_register(unsigned int id, struct device *dev,
 	sd->entity.function = MEDIA_ENT_F_PROC_VIDEO_PIXEL_FORMATTER;
 	sd->entity.ops = &mtk_cam_media_entity_ops;
 	sd->flags = V4L2_SUBDEV_FL_HAS_DEVNODE | V4L2_SUBDEV_FL_HAS_EVENTS;
-	if (snprintf(sd->name, sizeof(sd->name), "%s-%d", dev_driver_string(dev), pipe->id) < 0) {
-		dev_info(dev, "%s: snprinf failed\n", __func__);
-		return -1;
-	}
+	snprintf(sd->name, sizeof(sd->name),
+		 "%s-%d", dev_driver_string(dev), pipe->id);
 	v4l2_set_subdevdata(sd, pipe);
 	mtk_raw_pipeline_ctrl_setup(pipe);
 	dev_info(dev, "%s: %s\n", __func__, sd->name);
+
 	ret = v4l2_device_register_subdev(v4l2_dev, sd);
 	if (ret < 0) {
 		dev_info(dev, "Failed to register subdev: %d\n", ret);
 		return ret;
 	}
+
 	mtk_raw_pipeline_queue_setup(pipe);
 	/* setup pads of raw pipeline */
 	for (i = 0; i < ARRAY_SIZE(pipe->pads); i++) {

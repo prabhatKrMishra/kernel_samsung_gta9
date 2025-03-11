@@ -41,16 +41,6 @@
 
 static struct mrdump_mini_elf_header *mrdump_mini_ehdr;
 
-#ifdef MODULE
-#if !IS_ENABLED(CONFIG_ARM64)
-/*
- * Build error of 32bit KO:
- * ERROR: modpost: "init_mm" [../mrdump/mrdump.ko] undefined!
- */
-extern struct mm_struct init_mm __weak;
-#endif
-#endif
-
 
 #ifdef CONFIG_MODULES
 struct module_sect_attr {
@@ -292,7 +282,7 @@ static unsigned long virt_2_pfn(unsigned long addr)
 
 	if (get_kernel_nofault(_pgd_val, pgd) || pgd_none(_pgd_val))
 		goto OUT;
-	pud = pud_offset((p4d_t *)pgd, addr);
+	pud = pud_offset(pgd, addr);
 	if (get_kernel_nofault(_pud_val, pud) || pud_none(_pud_val))
 		goto OUT;
 	pmd = pmd_offset(pud, addr);

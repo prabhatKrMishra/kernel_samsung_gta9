@@ -9,7 +9,6 @@
 #include <linux/types.h>
 #include <linux/bug.h>
 #include "mtk-mml-color.h"
-#include "mtk-mml-pq-core.h"
 
 #define TILE_SCALER_SUBPIXEL_SHIFT  (20)
 

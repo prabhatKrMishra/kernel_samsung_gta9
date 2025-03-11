@@ -10,7 +10,7 @@
 #define _MET_MPAM_EVENTS_H
 
 #include <linux/tracepoint.h>
-// coverity[var_deref_op : FALSE]
+
 TRACE_EVENT(MPAM_CT_task_leave,
 	TP_PROTO(int pid, char *comm),
 	TP_ARGS(pid, comm),
@@ -20,12 +20,11 @@ TRACE_EVENT(MPAM_CT_task_leave,
 	),
 	TP_fast_assign(
 		__entry->pid = pid;
-		memcpy(__entry->comm, comm, TASK_COMM_LEN);
+		snprintf(__entry->comm, TASK_COMM_LEN, "%s", comm);
 	),
 	TP_printk("pid=%d, taskname=%s", __entry->pid, __entry->comm)
 );
 
-// coverity[var_deref_op : FALSE]
 TRACE_EVENT(MPAM_CT_task_enter,
 	TP_PROTO(int pid, char *comm),
 	TP_ARGS(pid, comm),
@@ -35,7 +34,7 @@ TRACE_EVENT(MPAM_CT_task_enter,
 	),
 	TP_fast_assign(
 		__entry->pid = pid;
-		memcpy(__entry->comm, comm, TASK_COMM_LEN);
+		snprintf(__entry->comm, TASK_COMM_LEN, "%s", comm);
 	),
 	TP_printk("pid=%d, taskname=%s", __entry->pid, __entry->comm)
 );

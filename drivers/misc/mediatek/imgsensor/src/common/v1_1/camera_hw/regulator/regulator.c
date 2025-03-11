@@ -23,9 +23,9 @@ static const int regulator_voltage[] = {
 struct REGULATOR_CTRL regulator_control[REGULATOR_TYPE_MAX_NUM] = {
 	{"vcama"},
 	{"vcama1"},
-	{"vcamaf"},
 	{"vcamd"},
 	{"vcamio"},
+	{"vcamaf"},
 };
 
 static struct REGULATOR reg_instance;
@@ -123,6 +123,7 @@ static enum IMGSENSOR_RETURN regulator_set(
 	enable_cnt = &preg->enable_cnt[(unsigned int)sensor_idx][
 		reg_type_offset + pin - IMGSENSOR_HW_PIN_AVDD];
 
+/* Tab A9 code for SR-AX6739A-01-249 by jianghongyan at 20230508 start */
 	if (pregulator) {
 		if (pin_state != IMGSENSOR_HW_PIN_STATE_LEVEL_0) {
 			if (regulator_set_voltage(pregulator,
@@ -131,15 +132,15 @@ static enum IMGSENSOR_RETURN regulator_set(
 				regulator_voltage[
 				pin_state - IMGSENSOR_HW_PIN_STATE_LEVEL_0])) {
 
-				PK_DBG(
-				  "[regulator]fail to regulator_set_voltage, powertype:%d powerId:%d\n",
+				printk(
+				  "[lll regulator]fail to regulator_set_voltage, powertype:%d powerId:%d,pin_state=%d\n",
 				  pin,
 				  regulator_voltage[
-				  pin_state - IMGSENSOR_HW_PIN_STATE_LEVEL_0]);
+				  pin_state - IMGSENSOR_HW_PIN_STATE_LEVEL_0],pin_state);
 			}
 			if (regulator_enable(pregulator)) {
-				PK_DBG(
-				"[regulator]fail to regulator_enable, powertype:%d powerId:%d\n",
+				printk(
+				"[lll regulator]fail to regulator_enable, powertype:%d powerId:%d\n",
 				pin,
 				regulator_voltage[
 				  pin_state - IMGSENSOR_HW_PIN_STATE_LEVEL_0]);
@@ -164,6 +165,7 @@ static enum IMGSENSOR_RETURN regulator_set(
 				pin,
 				IMGSENSOR_HW_PIN_AVDD);
 	}
+/* Tab A9 code for SR-AX6739A-01-249 by jianghongyan at 20230508 end */
 
 	return IMGSENSOR_RETURN_SUCCESS;
 }

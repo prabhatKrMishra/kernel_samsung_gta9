@@ -27,6 +27,25 @@
 #endif
 
 /* The switch of log message */
+/*Tab A9 code for AX6739A-1934 by lina at 20230713 start*/
+#ifdef CONFIG_ODM_CUSTOM_D85_BUILD
+#define TYPEC_INFO_ENABLE	1
+#define TYPEC_INFO2_ENABLE	1
+#define PE_EVENT_DBG_ENABLE	1
+#define PE_STATE_INFO_ENABLE	1
+#define TCPC_INFO_ENABLE	1
+#define TCPC_TIMER_DBG_EN	1
+#define TCPC_TIMER_INFO_EN	1
+#define PE_INFO_ENABLE		1
+#define TCPC_DBG_ENABLE		1
+#define TCPC_DBG2_ENABLE	1
+#define DPM_INFO_ENABLE		1
+#define DPM_INFO2_ENABLE	1
+#define DPM_DBG_ENABLE		1
+#define PD_ERR_ENABLE		1
+#define PE_DBG_ENABLE		1
+#define TYPEC_DBG_ENABLE	1
+#else
 #define TYPEC_INFO_ENABLE	1
 #define TYPEC_INFO2_ENABLE	1
 #define PE_EVENT_DBG_ENABLE	1
@@ -43,7 +62,8 @@
 #define PD_ERR_ENABLE		1
 #define PE_DBG_ENABLE		0
 #define TYPEC_DBG_ENABLE	0
-
+#endif//CONFIG_ODM_CUSTOM_D85_BUILD
+/*Tab A9 code for AX6739A-1934 by lina at 20230713 end*/
 
 #define DP_INFO_ENABLE		1
 #define DP_DBG_ENABLE		1

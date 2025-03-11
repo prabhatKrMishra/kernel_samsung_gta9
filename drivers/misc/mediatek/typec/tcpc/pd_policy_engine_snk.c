@@ -21,6 +21,11 @@ void pe_snk_startup_entry(struct pd_port *pd_port)
 	uint8_t msg_id_last = pd_port->pe_data.msg_id_rx[TCPC_TX_SOP];
 #endif	/* CONFIG_USB_PD_IGNORE_PS_RDY_AFTER_PR_SWAP */
 
+	/*Tab A9 code for P230612-08698 by qiaodan at 20230614 start*/
+	#if IS_ENABLED(CONFIG_USB_POWER_DELIVERY)
+	pd_port->pe_data.pd_connected = false;
+	#endif // CONFIG_USB_POWER_DELIVERY
+	/*Tab A9 code for P230612-08698 by qiaodan at 20230614 end*/
 	pd_reset_protocol_layer(pd_port, false);
 
 	if (pr_swap) {

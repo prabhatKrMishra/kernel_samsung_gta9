@@ -27,11 +27,9 @@
 #include <gpufreq_debug.h>
 #include <gpu_misc.h>
 #include <gpufreq_ipi.h>
-#if defined(MTK_GPU_EB_SUPPORT)
 #include <gpueb_ipi.h>
 #include <gpueb_reserved_mem.h>
 #include <gpueb_debug.h>
-#endif
 #include <mtk_gpu_utility.h>
 
 #if IS_ENABLED(CONFIG_MTK_PBM)
@@ -52,10 +50,8 @@
  * Local Function Declaration
  * ===============================================
  */
-#if defined(MTK_GPU_EB_SUPPORT)
-static int gpufreq_gpueb_init(void);
-#endif
 static int gpufreq_wrapper_pdrv_probe(struct platform_device *pdev);
+static int gpufreq_gpueb_init(void);
 static void gpufreq_init_external_callback(void);
 static int gpufreq_ipi_to_gpueb(struct gpufreq_ipi_data data);
 static int gpufreq_validate_target(unsigned int *target);
@@ -1700,7 +1696,6 @@ static int gpufreq_ipi_to_gpueb(struct gpufreq_ipi_data data)
 {
 	int ret = GPUFREQ_SUCCESS;
 
-#if defined(MTK_GPU_EB_SUPPORT)
 	if (data.cmd_id < 0 || data.cmd_id >= CMD_NUM) {
 		GPUFREQ_LOGE("invalid gpufreq IPI command: %d (EINVAL)", data.cmd_id);
 		ret = GPUFREQ_EINVAL;
@@ -1712,7 +1707,6 @@ static int gpufreq_ipi_to_gpueb(struct gpufreq_ipi_data data)
 
 	ret = mtk_ipi_send_compl(get_gpueb_ipidev(), g_ipi_channel, IPI_SEND_POLLING,
 		(void *)&data, GPUFREQ_IPI_DATA_LEN, IPI_TIMEOUT_MS);
-
 	if (unlikely(ret != IPI_ACTION_DONE)) {
 		GPUFREQ_LOGE("[ABORT] fail to send IPI command: %s (%d)",
 			gpufreq_ipi_cmd_name[data.cmd_id], ret);
@@ -1724,8 +1718,8 @@ static int gpufreq_ipi_to_gpueb(struct gpufreq_ipi_data data)
 
 	GPUFREQ_LOGD("channel: %d receive IPI command: %s (%d)",
 		g_ipi_channel, gpufreq_ipi_cmd_name[g_recv_msg.cmd_id], g_recv_msg.cmd_id);
+
 done:
-#endif /*MTK_GPU_EB_SUPPORT*/
 	return ret;
 }
 
@@ -1788,17 +1782,11 @@ static void gpufreq_dump_dvfs_status(void)
  ***********************************************************************************/
 static void gpufreq_abort(void)
 {
-#if defined(MTK_GPU_EB_SUPPORT)
 	gpueb_dump_status();
-#endif
-
 	gpufreq_dump_infra_status();
 
-
 #if GPUFREQ_FORCE_WDT_ENABLE
-#if defined(MTK_GPU_EB_SUPPORT)
 	gpueb_trigger_wdt("GPUFREQ");
-#endif
 #else
 	BUG_ON(1);
 #endif /* GPUFREQ_FORCE_WDT_ENABLE */
@@ -1911,7 +1899,6 @@ void gpufreq_register_gpuppm_fp(struct gpuppm_platform_fp *platform_fp)
 }
 EXPORT_SYMBOL(gpufreq_register_gpuppm_fp);
 
-#if defined(MTK_GPU_EB_SUPPORT)
 static int gpufreq_gpueb_init(void)
 {
 	struct gpufreq_ipi_data send_msg = {};
@@ -1927,7 +1914,6 @@ static int gpufreq_gpueb_init(void)
 		ret = GPUFREQ_ENOENT;
 		goto done;
 	}
-
 	mtk_ipi_register(get_gpueb_ipidev(), g_ipi_channel, NULL, NULL, (void *)&g_recv_msg);
 
 	/* init shared memory */
@@ -1973,11 +1959,10 @@ static int gpufreq_gpueb_init(void)
 		status_shared_mem_pa, g_status_shared_mem_va, status_shared_mem_size);
 	GPUFREQ_LOGI("debug shared memory phy_addr: 0x%llx, virt_addr: 0x%llx, size: 0x%x",
 		debug_shared_mem_pa, g_debug_shared_mem_va, debug_shared_mem_size);
+
 done:
 	return ret;
-
 }
-#endif /*MTK_GPU_EB_SUPPORT*/
 
 static int gpufreq_wrapper_pdrv_probe(struct platform_device *pdev)
 {
@@ -1995,7 +1980,6 @@ static int gpufreq_wrapper_pdrv_probe(struct platform_device *pdev)
 	of_property_read_u32(of_wrapper, "dual-buck", &g_dual_buck);
 	of_property_read_u32(of_wrapper, "gpueb-support", &g_gpueb_support);
 
-#if defined(MTK_GPU_EB_SUPPORT)
 	/* init gpueb setting if gpueb is enabled */
 	if (g_gpueb_support) {
 		ret = gpufreq_gpueb_init();
@@ -2004,7 +1988,6 @@ static int gpufreq_wrapper_pdrv_probe(struct platform_device *pdev)
 			goto done;
 		}
 	}
-#endif
 
 	GPUFREQ_LOGI("gpufreq wrapper driver probe done, dual_buck: %s, gpueb: %s",
 		g_dual_buck ? "true" : "false",

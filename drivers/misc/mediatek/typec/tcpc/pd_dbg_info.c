@@ -154,6 +154,11 @@ int pd_dbg_info_init(void)
 			print_out_thread_fn, NULL, "pd_dbg_info");
 	init_waitqueue_head(&event_loop_wait_que);
 	atomic_set(&pending_event, 0);
+	/*Tab A9 code for AX6739A-1934 by lina at 20230713 start*/
+	#ifdef CONFIG_ODM_CUSTOM_D85_BUILD
+	dbg_log_en = true;
+	#endif//CONFIG_ODM_CUSTOM_D85_BUILD
+	/*Tab A9 code for AX6739A-1934 by lina at 20230713 end*/
 	wake_up_process(print_out_tsk);
 	return 0;
 }

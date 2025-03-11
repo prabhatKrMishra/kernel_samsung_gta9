@@ -136,7 +136,67 @@ static void dump_backtrace_entry(unsigned long where, const char *loglvl)
 {
 	printk("%s %pS\n", loglvl, (void *)where);
 }
+/* Tab A9 code for SR-AX6739A-01-372 by Tangyuhang at 20230601 start */
+#ifdef CONFIG_ODM_CUSTOM_FACTORY_BUILD
 
+void dump_backtrace_hq(struct pt_regs *regs, struct task_struct *tsk,
+		    const char *loglvl,char *str)
+{
+	struct stackframe frame;
+	char sym[KSYM_SYMBOL_LEN];
+	unsigned long offset,size;
+	char *pStr = str;
+	int skip = 0;
+
+	pr_debug("%s(regs = %p tsk = %p)\n", __func__, regs, tsk);
+
+	if (regs) {
+		if (user_mode(regs))
+			return;
+		skip = 1;
+	}
+
+	if (!tsk)
+		tsk = current;
+
+	if (!try_get_task_stack(tsk))
+		return;
+
+	if (tsk == current) {
+		start_backtrace(&frame,
+				(unsigned long)__builtin_frame_address(0),
+				(unsigned long)dump_backtrace_hq);
+	} else {
+		/*
+		 * task blocked in __switch_to
+		 */
+		start_backtrace(&frame,
+				thread_saved_fp(tsk),
+				thread_saved_pc(tsk));
+	}
+
+	do {
+		/* skip until specified stack frame */
+		if (!skip) {
+			kallsyms_lookup(frame.pc, &size, &offset, NULL, sym);
+			if (pStr != str) {
+         			pStr += sprintf(pStr, "\n");
+        		}
+        		pStr += sprintf(pStr, "%s", sym);
+		} else if (frame.fp == regs->regs[29]) {
+			skip = 0;
+			kallsyms_lookup(regs->pc, &size, &offset, NULL, sym);
+			if (pStr != str) {
+        			pStr += sprintf(pStr, "\n");
+        		}
+        		pStr += sprintf(pStr, "%s", sym);
+		}
+	} while (!unwind_frame(tsk, &frame));
+	put_task_stack(tsk);
+}
+EXPORT_SYMBOL_GPL(dump_backtrace_hq);
+#endif
+/* Tab A9 code for SR-AX6739A-01-372 by Tangyuhang at 20230601 end */
 void dump_backtrace(struct pt_regs *regs, struct task_struct *tsk,
 		    const char *loglvl)
 {

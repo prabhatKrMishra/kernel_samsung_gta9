@@ -1047,6 +1047,15 @@ void qmu_done_rx(struct musb *musb, u8 ep_num)
 		musb_g_giveback(musb_ep, request, 0);
 		req = next_request(musb_ep);
 		request = &req->request;
+		/*Tab A9 code for AX6739A-301 by hualei at 20230526 start*/
+		if (!request) {
+			QMU_ERR(
+				"[RXD]%s Cannot get next usb_request of %d",
+				"but we should have next request and QMU has done.\n",
+				__func__, ep_num);
+			return;
+		}
+		/*Tab A9 code for AX6739A-301 by hualei at 20230526 end*/
 	}
 
 	/* QMU should keep take HWO gpd , so there is error */

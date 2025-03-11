@@ -15,6 +15,11 @@
 #define MTK_DISP_EARLY_EVENT_BLANK	0x00
 #define MTK_DISP_EVENT_BLANK		0x01
 
+/*Tab A9 code for AX6739A-2213 by yuli at 20230711 start*/
+#define MTK_DISP_ESD_RECOVERY_RESUME		0x10
+#define MTK_DISP_ESD_RECOVERY_SUSPEND		0x11
+/*Tab A9 code for AX6739A-2213 by yuli at 20230711 end*/
+
 enum {
 	/* disp power on */
 	MTK_DISP_BLANK_UNBLANK,

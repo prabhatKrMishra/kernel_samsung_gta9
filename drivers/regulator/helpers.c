@@ -24,9 +24,15 @@
  * enable_reg and enable_mask fields in their descriptor and then use
  * this as their is_enabled operation, saving some code.
  */
+/*Tab A9 code for AX6739A-581 by zhangziyi at 20230602 start*/
+const int g_ldo_vibr_con0  = 0x1D08; //enable crtl - bit0(valid:1D0A)
+const int g_ldo_vibr_op_en = 0x1D0A; //enable SW opration - bit0
+const int g_ldo_vibr_con1  = 0x1D16; //enable status - bit15
+
 int regulator_is_enabled_regmap(struct regulator_dev *rdev)
 {
 	unsigned int val;
+	unsigned int debug_val = 0;
 	int ret;
 
 	ret = regmap_read(rdev->regmap, rdev->desc->enable_reg, &val);
@@ -34,6 +40,15 @@ int regulator_is_enabled_regmap(struct regulator_dev *rdev)
 		return ret;
 
 	val &= rdev->desc->enable_mask;
+
+	if (rdev->desc->enable_reg == g_ldo_vibr_con0) {
+		ret = regmap_read(rdev->regmap, g_ldo_vibr_con0, &debug_val);
+		printk("[vibr][%s] reg 0x1d08 = 0x%x\n", __func__, debug_val);
+		ret = regmap_read(rdev->regmap, g_ldo_vibr_op_en, &debug_val);
+		printk("[vibr][%s] reg 0x1d0a = 0x%x\n", __func__, debug_val);
+		ret = regmap_read(rdev->regmap, g_ldo_vibr_con1, &debug_val);
+		printk("[vibr][%s] reg 0x1d16 = 0x%x\n", __func__, debug_val);
+	}
 
 	if (rdev->desc->enable_is_inverted) {
 		if (rdev->desc->enable_val)
@@ -46,6 +61,7 @@ int regulator_is_enabled_regmap(struct regulator_dev *rdev)
 	}
 }
 EXPORT_SYMBOL_GPL(regulator_is_enabled_regmap);
+/*Tab A9 code for AX6739A-581 by zhangziyi at 20230602 end*/
 
 /**
  * regulator_enable_regmap - standard enable() for regmap users

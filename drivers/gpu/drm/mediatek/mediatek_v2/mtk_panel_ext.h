@@ -18,11 +18,17 @@
 #define MAX_DYN_CMD_NUM 20
 #define MAX_TX_CMD_NUM_PACK 64
 
+/*Tab A9 code for AX6739A-1983 by hehaoran5 at 20230705 start*/
+#define BACKLIGHt_ELECTRICAL_NUMER0 18
+#define BACKLIGHt_ELECTRICAL_NUMER1 31   //15.5 * 2
+#define BACKLIGHt_ELECTRICAL_DENOM 20
+/*Tab A9 code for AX6739A-1983 by hehaoran5 at 20230705 end*/
+
 struct mtk_dsi;
 struct cmdq_pkt;
 struct mtk_panel_para_table {
 	u8 count;
-	u8 para_list[64];
+	u8 para_list[510];
 };
 
 /*
@@ -101,11 +107,6 @@ enum MTK_PANEL_OUTPUT_PORT_MODE {
 	MTK_PANEL_SINGLE_PORT = 0x0,
 	MTK_PANEL_DSC_SINGLE_PORT,
 	MTK_PANEL_DUAL_PORT,
-};
-
-enum MTK_PANEL_ROTATION {
-	MTK_PANEL_ROTATE_0 = 0,
-	MTK_PANEL_ROTATE_180,
 };
 
 enum MTK_PANEL_SPR_OUTPUT_MODE {
@@ -220,25 +221,9 @@ struct mtk_panel_spr_params {
 	struct spr_color_params spr_color_params[SPR_COLOR_PARAMS_TYPE_NUM];
 
 };
-struct dsc_rc_range_parameters {
-	/**
-	 * @range_min_qp: Min Quantization Parameters allowed for this range
-	 */
-	u8 range_min_qp;
-	/**
-	 * @range_max_qp: Max Quantization Parameters allowed for this range
-	 */
-	u8 range_max_qp;
-	/**
-	 * @range_bpg_offset:
-	 * Bits/group offset to apply to target for this group
-	 */
-	u8 range_bpg_offset;
-};
 
 struct mtk_panel_dsc_params {
 	unsigned int enable;
-	unsigned int dual_dsc_enable;
 	unsigned int ver; /* [7:4] major [3:0] minor */
 	unsigned int slice_mode;
 	unsigned int rgb_swap;
@@ -271,8 +256,6 @@ struct mtk_panel_dsc_params {
 	unsigned int rc_quant_incr_limit1;
 	unsigned int rc_tgt_offset_hi;
 	unsigned int rc_tgt_offset_lo;
-	unsigned int rc_buf_thresh[14];
-	struct dsc_rc_range_parameters rc_range_parameters[15];
 };
 struct mtk_dsi_phy_timcon {
 	unsigned int hs_trail;
@@ -396,11 +379,8 @@ struct msync_cmd_table {
 };
 
 struct mtk_panel_params {
-	unsigned int change_fps_by_vfp_send_cmd;
 	unsigned int pll_clk;
 	unsigned int data_rate;
-	//either pll_clk or data_rate must be set, event if data_rate_khz is set
-	unsigned int data_rate_khz; //only used in exact value for fps
 	struct mtk_dsi_phy_timcon phy_timcon;
 	unsigned int vfp_low_power;
 	struct dynamic_mipi_params dyn;
@@ -442,7 +422,6 @@ struct mtk_panel_params {
 	unsigned int lp_perline_en; //0: lp perframe 1: lp perline
 	unsigned int cmd_null_pkt_en;
 	unsigned int cmd_null_pkt_len;
-	unsigned int set_area_before_trigger;
 
 //Settings for LFR Function:
 	unsigned int lfr_enable;
@@ -454,7 +433,8 @@ struct mtk_panel_params {
 
 	struct mtk_panel_cm_params cm_params;
 	struct mtk_panel_spr_params spr_params;
-	enum MTK_PANEL_ROTATION rotate;
+
+	bool disable_rdma_underflow;
 };
 
 struct mtk_panel_ext {
@@ -504,7 +484,6 @@ struct mtk_panel_funcs {
 			void *handle, unsigned int flag);
 	int (*get_virtual_heigh)(void);
 	int (*get_virtual_width)(void);
-	int (*ext_cmd_set)(void *dsi, dcs_write_gce cb, void *handle);
 	/**
 	 * @doze_enable_start:
 	 *
@@ -560,6 +539,7 @@ struct mtk_panel_funcs {
 
 	int (*hbm_set_cmdq)(struct drm_panel *panel, void *dsi_drv,
 			    dcs_write_gce cb, void *handle, bool en);
+	int (*hbm_set_lcm_cmdq)(struct drm_panel *panel, bool en);
 	void (*hbm_get_state)(struct drm_panel *panel, bool *state);
 	void (*hbm_get_wait_state)(struct drm_panel *panel, bool *wait);
 	bool (*hbm_set_wait_state)(struct drm_panel *panel, bool wait);
@@ -569,6 +549,7 @@ struct mtk_panel_funcs {
 
 	int (*send_ddic_cmd_pack)(struct drm_panel *panel,
 		void *dsi_drv, dcs_write_gce_pack cb, void *handle);
+	int (*set_disp_on_cmdq)(struct drm_panel *panel);
 };
 
 void mtk_panel_init(struct mtk_panel_ctx *ctx);
@@ -586,5 +567,34 @@ int mtk_panel_tch_handle_reg(struct drm_panel *panel);
 void **mtk_panel_tch_handle_init(void);
 int mtk_panel_tch_rst(struct drm_panel *panel);
 enum mtk_lcm_version mtk_drm_get_lcm_version(void);
+
+/*Tab A9 code for SR-AX6739A-01-768 by yuli at 20230718 start*/
+static inline int lcm_detect_panel(const char *name)
+{
+    struct device_node *chosen = NULL;
+    const char* panel_name = NULL;
+
+    chosen = of_find_node_by_name(NULL, "chosen");
+    if (NULL == chosen) {
+        pr_err("chosen node is not found\n");
+    } else {
+        of_property_read_string(chosen, "panel_name", &panel_name);
+        pr_info("panel_name: %s\n", panel_name);
+    }
+
+    if (panel_name == NULL) {
+        pr_err("%s:panel_name is NULL\n", __func__);
+        return -EFAULT;
+    }
+
+    if (strstr(panel_name, name)) {
+        pr_info("%s:panel_name detect success: %s\n", __func__, panel_name);
+        return 0;
+    }
+
+    pr_err("%s:panel_name detect fail: %s\n", __func__, panel_name);
+    return -EFAULT;
+}
+/*Tab A9 code for SR-AX6739A-01-768 by yuli at 20230718 end*/
 
 #endif

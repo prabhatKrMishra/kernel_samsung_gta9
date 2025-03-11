@@ -88,7 +88,10 @@ static int fops_vcodec_open(struct file *file)
 
 	mutex_lock(&dev->dev_mutex);
 	ctx->dec_flush_buf = mtk_buf;
-	ctx->id = dev->id_counter++;
+	dev->id_counter++;
+	if (dev->id_counter == 0)
+		dev->id_counter++;
+	ctx->id = dev->id_counter;
 	v4l2_fh_init(&ctx->fh, video_devdata(file));
 	file->private_data = &ctx->fh;
 	v4l2_fh_add(&ctx->fh);
@@ -149,8 +152,8 @@ static int fops_vcodec_open(struct file *file)
 	dev->dec_cnt++;
 
 	mutex_unlock(&dev->dev_mutex);
-	mtk_v4l2_debug(0, "%s decoder [%d][%d]", dev_name(&dev->plat_dev->dev),
-				   ctx->id, dev->dec_cnt);
+	mtk_v4l2_debug(0, "%s decoder [%d]", dev_name(&dev->plat_dev->dev),
+				   ctx->id);
 	return ret;
 
 	/* Deinit when failure occurred */
@@ -177,7 +180,7 @@ static int fops_vcodec_release(struct file *file)
 	struct mtk_vcodec_dev *dev = video_drvdata(file);
 	struct mtk_vcodec_ctx *ctx = fh_to_ctx(file->private_data);
 
-	mtk_v4l2_debug(0, "[%d][%d] decoder", ctx->id, dev->dec_cnt);
+	mtk_v4l2_debug(0, "[%d] decoder", ctx->id);
 	mutex_lock(&dev->dev_mutex);
 
 	/*
@@ -393,9 +396,6 @@ static int mtk_vcodec_dec_probe(struct platform_device *pdev)
 	if (ret)
 		mtk_v4l2_debug(0, "[VDEC] Cannot get svp-mtee, skip");
 
-	ret = of_property_read_u32(pdev->dev.of_node, "mediatek,uniq_dom", &dev->unique_domain);
-	if (ret)
-		mtk_v4l2_debug(0, "[VDEC] Cannot get uniq dom, skip");
 
 	ret = mtk_vcodec_dec_irq_setup(pdev, dev);
 	if (ret)
@@ -411,8 +411,6 @@ static int mtk_vcodec_dec_probe(struct platform_device *pdev)
 	mutex_init(&dev->ipi_mutex);
 	mutex_init(&dev->ipi_mutex_res);
 	mutex_init(&dev->dec_dvfs_mutex);
-	mutex_init(&dev->log_param_mutex);
-	mutex_init(&dev->prop_param_mutex);
 	spin_lock_init(&dev->irqlock);
 
 	snprintf(dev->v4l2_dev.name, sizeof(dev->v4l2_dev.name), "%s",
@@ -561,7 +559,6 @@ static const struct of_device_id mtk_vcodec_match[] = {
 	{.compatible = "mediatek,mt6895-vcodec-dec",},
 	{.compatible = "mediatek,mt6855-vcodec-dec",},
 	{.compatible = "mediatek,mt6833-vcodec-dec",},
-	{.compatible = "mediatek,mt6768-vcodec-dec",},
 	{.compatible = "mediatek,mt6789-vcodec-dec",},
 	{.compatible = "mediatek,vdec_gcon",},
 	{},

@@ -26,6 +26,37 @@
 #include "timesync.h"
 #include "debug.h"
 #include "custom_cmd.h"
+/*Tab A9 code for SR-AX6739A-01-254 by zhangziyi at 20230522 start*/
+#include <linux/of_device.h>
+#define MAX_NUM 4
+const int g_max_len = 4;
+
+enum screen_supply {
+	FIRST_SCREEN = 1,
+	SECOND_SCREEN,
+	THIRD_SCREEN,
+	FOURTH_SCREEN
+};
+
+static int g_screen_num[MAX_NUM] = {
+	FIRST_SCREEN,
+	SECOND_SCREEN,
+	THIRD_SCREEN,
+	FOURTH_SCREEN,
+};
+
+const char *g_name_judge[MAX_NUM] = {
+	"0x20",
+	"0x30",
+	"0x40",
+	"0x60",
+}; // Cover ID
+
+enum fac_version {
+	FAC_VERSION = 1,
+	NO_FAC_VERSION,
+};
+/*Tab A9 code for SR-AX6739A-01-254 by zhangziyi at 20230522 end*/
 
 struct transceiver_config {
 	uint8_t length;
@@ -615,11 +646,43 @@ static int transceiver_calibration(struct hf_device *hf_dev,
 		SENS_COMM_CTRL_CALI_CMD, NULL, 0);
 }
 
+/*Tab A9 code for SR-AX6739A-01-254 by zhangziyi at 20230522 start*/
+static int param_judge(void)
+{
+	int board_id = 0;
+	int i = 0;
+	struct device_node *chosen = NULL;
+	const char *screen_name = NULL;
+	char screen_id[5] = {0};
+
+	screen_id[4] = '\0';
+	chosen = of_find_node_by_name(NULL, "chosen");
+	if (NULL == chosen) {
+		pr_err("chosen not found\n");
+	} else {
+		of_property_read_string(chosen, "get_swid", &screen_name);
+		strncpy(screen_id, screen_name, g_max_len);
+		pr_err("get_swid = %s, screen_id = %s\n", screen_name, screen_id);
+		for (i = 0; i < g_max_len; i++) {
+			if (strcmp(screen_id, g_name_judge[i]) == 0) {
+				board_id = g_screen_num[i];
+				pr_err("board_id = %d\n", board_id);
+				break;
+			} else {
+				pr_err("get board_id failed:%d\n", board_id);
+			}
+		}
+	}
+	return board_id;
+}
+
 static int transceiver_config(struct hf_device *hf_dev,
 		int sensor_type, void *data, uint8_t length)
 {
 	struct transceiver_device *dev = hf_dev->private_data;
 	struct transceiver_config *cfg = NULL;
+	uint8_t board_id = 0;
+	uint8_t fac_value = 0;
 
 	mutex_lock(&dev->config_lock);
 	cfg = dev->state[sensor_type].config;
@@ -640,11 +703,26 @@ static int transceiver_config(struct hf_device *hf_dev,
 	}
 	cfg->length = length;
 	memcpy(cfg->data, data, length);
+	if (sensor_type == SENSOR_TYPE_LIGHT) {
+		board_id = param_judge();
+
+		cfg->data[4] = board_id;
+		#ifdef CONFIG_ODM_CUSTOM_FACTORY_BUILD
+		fac_value = FAC_VERSION;
+		#else
+		fac_value = NO_FAC_VERSION;
+		#endif // CONFIG_ODM_CUSTOM_FACTORY_BUILD
+		cfg->data[5] = fac_value;
+		pr_err("data[0] = %d, data[4] = %d, data[5] = %d, length = %d, fac_value = %d\n",
+			cfg->data[0], cfg->data[4], cfg->data[5], length, fac_value);
+		memcpy(data, cfg->data, length);
+	}
 	mutex_unlock(&dev->config_lock);
 
 	return transceiver_comm_with(sensor_type,
 		SENS_COMM_CTRL_CONFIG_CMD, data, length);
 }
+/*Tab A9 code for SR-AX6739A-01-254 by zhangziyi at 20230522 end*/
 
 static transceiver_selftest(struct hf_device *hf_dev,
 		int sensor_type)

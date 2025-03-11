@@ -25,6 +25,9 @@
 #include <linux/scatterlist.h>
 #include <linux/sched.h>
 #include <linux/slab.h>
+/*Tab A9 code for AX6739A-210 by qiaodan at 20230524 start*/
+#include <linux/pm_qos.h>
+/*Tab A9 code for AX6739A-210 by qiaodan at 20230524 end*/
 
 #define I2C_RS_TRANSFER			(1 << 4)
 #define I2C_ARB_LOST			(1 << 3)
@@ -38,7 +41,6 @@
 #define I2C_I3C_EN			(1 << 15)
 #define I2C_HFIFO_UNLOCK		(1 << 15)
 #define I2C_HFIFO_NINTH_BIT		(2 << 8)
-#define I2C_HHS_SAMPLE_CNT_DIV		(1 << 9)
 #define I2C_HFIFO_MASTER_CODE		0x0008
 #define I2C_DCM_DISABLE			0x0000
 #define I2C_IO_CONFIG_OPEN_DRAIN	0x0003
@@ -96,6 +98,9 @@
 #define I2C_MCU_INTR_EN         0x1
 
 #define I2C_DRV_NAME		"i2c-mt65xx"
+/*Tab A9 code for AX6739A-210 by qiaodan at 20230524 start*/
+#define I2C_QOS_VALUE		150
+/*Tab A9 code for AX6739A-210 by qiaodan at 20230524 end*/
 
 /* mt6873 use DMA_HW_VERSION1 */
 enum {
@@ -251,7 +256,6 @@ struct mtk_i2c_compatible {
 	unsigned char max_dma_support;
 	unsigned char slave_addr_ver;
 	unsigned char fifo_size;
-	unsigned char need_add_hhs_div;
 };
 
 struct mtk_i2c_ac_timing {
@@ -296,6 +300,10 @@ struct mtk_i2c {
 	bool ignore_restart_irq;
 	struct mtk_i2c_ac_timing ac_timing;
 	const struct mtk_i2c_compatible *dev_comp;
+	/*Tab A9 code for AX6739A-210 by qiaodan at 20230524 start*/
+	bool i2c_qos_enable;
+	struct pm_qos_request i2c_qos_request;
+	/*Tab A9 code for AX6739A-210 by qiaodan at 20230524 end*/
 };
 
 /**
@@ -453,38 +461,6 @@ static const struct mtk_i2c_compatible mt8192_compat = {
 	.max_dma_support = 36,
 };
 
-static const struct mtk_i2c_compatible mt6765_compat = {
-	.regs = mt_i2c_regs_v2,
-	.pmic_i2c = 0,
-	.dcm = 0,
-	.auto_restart = 1,
-	.aux_len_reg = 1,
-	.timing_adjust = 1,
-	.dma_sync = 1,
-	.ltiming_adjust = 1,
-	.dma_ver = 0,
-	.apdma_sync = 1,
-	.max_dma_support = 36,
-	.fifo_size = 8,
-	.need_add_hhs_div = 0,
-};
-
-static const struct mtk_i2c_compatible mt6768_compat = {
-	.regs = mt_i2c_regs_v2,
-	.pmic_i2c = 0,
-	.dcm = 0,
-	.auto_restart = 1,
-	.aux_len_reg = 1,
-	.timing_adjust = 1,
-	.dma_sync = 1,
-	.ltiming_adjust = 1,
-	.dma_ver = 0,
-	.apdma_sync = 1,
-	.max_dma_support = 36,
-	.fifo_size = 8,
-	.need_add_hhs_div = 1,
-};
-
 static const struct mtk_i2c_compatible mt6873_compat = {
 	.regs = mt_i2c_regs_v2,
 	.pmic_i2c = 0,
@@ -543,8 +519,6 @@ static const struct of_device_id mtk_i2c_of_match[] = {
 	{ .compatible = "mediatek,mt8173-i2c", .data = &mt8173_compat },
 	{ .compatible = "mediatek,mt8183-i2c", .data = &mt8183_compat },
 	{ .compatible = "mediatek,mt8192-i2c", .data = &mt8192_compat },
-	{ .compatible = "mediatek,mt6765-i2c", .data = &mt6765_compat },
-	{ .compatible = "mediatek,mt6768-i2c", .data = &mt6768_compat },
 	{}
 };
 MODULE_DEVICE_TABLE(of, mtk_i2c_of_match);
@@ -807,9 +781,6 @@ static int mtk_i2c_check_ac_timing(struct mtk_i2c *i2c,
 			i2c->ac_timing.hs = I2C_TIME_DEFAULT_VALUE |
 				I2C_TIME_HS_SPEED_VALUE | (sample_cnt << 12) |
 				(high_cnt << 8);
-			/* Add hs smaple cnt div to make data correct */
-			if (i2c->dev_comp->need_add_hhs_div == 1)
-				i2c->ac_timing.hs |= I2C_HHS_SAMPLE_CNT_DIV;
 			i2c->ac_timing.ltiming &= ~GENMASK(15, 9);
 			i2c->ac_timing.ltiming |= (sample_cnt << 12) |
 				(low_cnt << 9);
@@ -1414,6 +1385,13 @@ static int mtk_i2c_transfer(struct i2c_adapter *adap,
 	struct i2c_msg multi_msg[1];
 	struct mtk_i2c *i2c = i2c_get_adapdata(adap);
 
+	/*Tab A9 code for AX6739A-210 by qiaodan at 20230524 start*/
+	if (i2c->i2c_qos_enable) {
+		cpu_latency_qos_update_request(&i2c->i2c_qos_request,
+						I2C_QOS_VALUE);
+	}
+	/*Tab A9 code for AX6739A-210 by qiaodan at 20230524 end*/
+
 	ret = mtk_i2c_clock_enable(i2c);
 	if (ret)
 		return ret;
@@ -1507,6 +1485,12 @@ static int mtk_i2c_transfer(struct i2c_adapter *adap,
 
 err_exit:
 	mtk_i2c_clock_disable(i2c);
+	/*Tab A9 code for AX6739A-210 by qiaodan at 20230524 start*/
+	if (i2c->i2c_qos_enable) {
+		cpu_latency_qos_update_request(&i2c->i2c_qos_request,
+						PM_QOS_DEFAULT_VALUE);
+	}
+	/*Tab A9 code for AX6739A-210 by qiaodan at 20230524 end*/
 	return ret;
 }
 
@@ -1578,6 +1562,9 @@ static int mtk_i2c_parse_dt(struct device_node *np, struct mtk_i2c *i2c)
 	i2c->have_pmic = of_property_read_bool(np, "mediatek,have-pmic");
 	i2c->use_push_pull =
 		of_property_read_bool(np, "mediatek,use-push-pull");
+	/*Tab A9 code for AX6739A-210 by qiaodan at 20230524 start*/
+	i2c->i2c_qos_enable = of_property_read_bool(np, "i2c_qos_enable");
+	/*Tab A9 code for AX6739A-210 by qiaodan at 20230524 end*/
 
 	return 0;
 }
@@ -1696,6 +1683,12 @@ static int mtk_i2c_probe(struct platform_device *pdev)
 	}
 	mtk_i2c_init_hw(i2c);
 	mtk_i2c_clock_disable(i2c);
+
+	/*Tab A9 code for AX6739A-210 by qiaodan at 20230524 start*/
+	if (i2c->i2c_qos_enable) {
+		cpu_latency_qos_add_request(&i2c->i2c_qos_request, PM_QOS_DEFAULT_VALUE);
+	}
+	/*Tab A9 code for AX6739A-210 by qiaodan at 20230524 end*/
 
 	ret = devm_request_irq(&pdev->dev, irq, mtk_i2c_irq,
 			       IRQF_NO_SUSPEND | IRQF_TRIGGER_NONE,

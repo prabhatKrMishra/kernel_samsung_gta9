@@ -23,3 +23,8 @@ obj-$(CONFIG_MTK_THERMAL_INTERFACE)	+= thermal_interface.o
 obj-$(CONFIG_MTK_THERMAL_JATM)	+= thermal_jatm.o
 
 obj-$(CONFIG_MTK_BOARD_THERMAL)	+= board_temp.o
+
+#Tab A9 code for AX6739A-2537 by lina at 20230728 start
+obj-$(CONFIG_GXY_VIRTUAL_BACK_TEMP) +=  gxy_virtual_back_temp.o
+obj-$(CONFIG_GXY_VIRTUAL_FRONT_TEMP) +=  gxy_virtual_front_temp.o
+#Tab A9 code for AX6739A-2537 by lina at 20230728 end

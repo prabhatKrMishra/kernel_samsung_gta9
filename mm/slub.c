@@ -1437,6 +1437,28 @@ out:
 
 __setup("slub_debug", setup_slub_debug);
 
+static const char * const exclusion_list[] = {
+	"zspage",
+	"zs_handle",
+	"avtab_node",
+	"vm_area_struct",
+	"anon_vma_chain",
+	"anon_vma"
+};
+
+static int is_kmem_cache_excluded(const char *str)
+{
+	int i, excluded = 0;
+
+	for (i = 0; i < (int)ARRAY_SIZE(exclusion_list); i++) {
+		if (!strncmp(str, exclusion_list[i], strlen(exclusion_list[i]))) {
+			excluded = 1;
+			break;
+		}
+	}
+	return excluded;
+}
+
 /*
  * kmem_cache_flags - apply debugging options to the cache
  * @object_size:	the size of an object without meta data
@@ -1480,7 +1502,7 @@ slab_flags_t kmem_cache_flags(unsigned int object_size,
 
 			if (!strncmp(name, iter, cmplen)) {
 				flags |= block_flags;
-				return flags;
+				goto out;
 			}
 
 			if (!*end || *end == ';')
@@ -1489,7 +1511,11 @@ slab_flags_t kmem_cache_flags(unsigned int object_size,
 		}
 	}
 
-	return flags | slub_debug;
+	flags |= slub_debug;
+out:
+	if (name && is_kmem_cache_excluded(name))
+		flags &= ~SLAB_STORE_USER;
+	return flags;
 }
 #else /* !CONFIG_SLUB_DEBUG */
 static inline void setup_object_debug(struct kmem_cache *s,
@@ -2351,6 +2377,7 @@ redo:
 
 	c->page = NULL;
 	c->freelist = NULL;
+	c->tid = next_tid(c->tid);
 }
 
 /*
@@ -2484,8 +2511,6 @@ static inline void flush_slab(struct kmem_cache *s, struct kmem_cache_cpu *c)
 {
 	stat(s, CPUSLAB_FLUSH);
 	deactivate_slab(s, c->page, c->freelist, c);
-
-	c->tid = next_tid(c->tid);
 }
 
 /*
@@ -2771,6 +2796,7 @@ redo:
 
 	if (!freelist) {
 		c->page = NULL;
+		c->tid = next_tid(c->tid);
 		stat(s, DEACTIVATE_BYPASS);
 		goto new_slab;
 	}
@@ -5547,7 +5573,8 @@ static char *create_unique_id(struct kmem_cache *s)
 	char *name = kmalloc(ID_STR_LENGTH, GFP_KERNEL);
 	char *p = name;
 
-	BUG_ON(!name);
+	if (!name)
+		return ERR_PTR(-ENOMEM);
 
 	*p++ = ':';
 	/*
@@ -5605,6 +5632,8 @@ static int sysfs_slab_add(struct kmem_cache *s)
 		 * for the symlinks.
 		 */
 		name = create_unique_id(s);
+		if (IS_ERR(name))
+			return PTR_ERR(name);
 	}
 
 	s->kobj.kset = kset;

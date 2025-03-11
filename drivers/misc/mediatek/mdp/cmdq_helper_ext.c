@@ -4822,9 +4822,9 @@ unsigned long cmdq_get_tracing_mark(void)
 	return tracing_mark_write_addr;
 }
 
-noinline int tracing_mark_write_cmdq(char *fmt, ...)
+noinline int tracing_mark_write(char *fmt, ...)
 {
-#if IS_ENABLED(CONFIG_TRACING)
+#if IS_ENABLED(CONFIG_TRACING) && IS_ENABLED(CONFIG_MTK_MDP_DEBUG)
 	char buf[TRACE_MSG_LEN];
 	va_list args;
 	int len;

@@ -112,7 +112,6 @@ enum battery_property {
 	BAT_PROP_INIT_DONE,
 	BAT_PROP_FG_RESET,
 	BAT_PROP_LOG_LEVEL,
-	BAT_PROP_TEMP_TH_GAP,
 };
 
 struct battery_data {
@@ -1012,6 +1011,11 @@ struct mtk_battery {
 	int bat_cycle_thr;
 	int bat_cycle_car;
 	int bat_cycle_ncar;
+	/*Tab A9 U code for AX6739AU-112 by wenyaqi at 20240125 start*/
+    #if !defined(CONFIG_ODM_CUSTOM_FACTORY_BUILD)
+	int bat_cycle_debug;
+	#endif // !CONFIG_ODM_CUSTOM_FACTORY_BUILD
+    /*Tab A9 U code for AX6739AU-112 by wenyaqi at 20240125 end*/
 
 	/* power misc */
 	struct shutdown_controller sdc;
@@ -1073,6 +1077,11 @@ struct mtk_battery {
 	void (*shutdown)(struct mtk_battery *gm);
 	int (*suspend)(struct mtk_battery *gm, pm_message_t state);
 	int (*resume)(struct mtk_battery *gm);
+	/*Tab A9 code for SR-AX6739A-01-521 by shanxinkai at 20230601 start*/
+	#if !defined(CONFIG_ODM_CUSTOM_FACTORY_BUILD)
+	void (*reset_cycle)(struct mtk_battery *gm, bool en);
+	#endif // !CONFIG_ODM_CUSTOM_FACTORY_BUILD
+	/*Tab A9 code for SR-AX6739A-01-521 by shanxinkai at 20230601 end*/
 
 	int log_level;
 };

@@ -21,20 +21,19 @@
 #define GCE_REC_MAX_TILE_BLOCK      (40)
 #define GCE_REC_MAX_LABEL_COUNT     (2048)
 
+#define IMGSYS_ENG_MAX 10
 #define IMGSYS_REG_START	0x15000000
 #define IMGSYS_REG_END		0x1570FFFF
 
 #define IMGSYS_CMD_MAX_SZ_N	0x9000
 #define IMGSYS_CMD_MAX_SZ_V	0x50000
 
-#define IMGSYS_NOR_THD 11
 #define IMGSYS_QOS_MAX 56
 #define IMGSYS_SEC_THD 2
 #define IMGSYS_MAX_FPS 60
 
 #define IMGSYS_VSS_FREQ_FLOOR	660000000
 #define IMGSYS_SMVR_FREQ_FLOOR	393000000
-#define IMGSYS_4K60_FREQ_FLOOR	393000000
 
 #define IMGSYS_CMDQ_HW_EVENT_BEGIN	129
 #define IMGSYS_CMDQ_HW_EVENT_END	250
@@ -69,8 +68,8 @@
 #define IMGSYS_QOS_FHD_60_BW_1	1355
 #define IMGSYS_QOS_4K_30_BW_0	0//2350
 #define IMGSYS_QOS_4K_30_BW_1	0//1258
-#define IMGSYS_QOS_4K_60_BW_0	2000//2244
-#define IMGSYS_QOS_4K_60_BW_1	1000//2360
+#define IMGSYS_QOS_4K_60_BW_0	2244
+#define IMGSYS_QOS_4K_60_BW_1	2360
 #define IMGSYS_QOS_VSS_BW_0		10000
 #define IMGSYS_QOS_VSS_BW_1		0
 
@@ -621,7 +620,7 @@ static struct imgsys_event_table imgsys_event[] = {
 	{IMGSYS_CMDQ_EVENT_MAX, "imgsys_event_max"},
 };
 
-static struct cmdq_client *imgsys_clt[IMGSYS_NOR_THD];
+static struct cmdq_client *imgsys_clt[IMGSYS_ENG_MAX];
 static struct cmdq_client *imgsys_sec_clt[IMGSYS_SEC_THD];
 
 enum mtk_imgsys_m4u_port {
@@ -978,15 +977,13 @@ static struct imgsys_dvfs_group  dvfs_group[MTK_IMGSYS_DVFS_GROUP] = {
 	{0, (IMGSYS_ENG_WPE_LITE
 			|IMGSYS_ENG_TRAW
 			|IMGSYS_ENG_LTR
+			|IMGSYS_ENG_XTR
 			|IMGSYS_ENG_ME)},
 	{1, (IMGSYS_ENG_WPE_TNR
 			|IMGSYS_ENG_DIP)},
 	{2, (IMGSYS_ENG_WPE_EIS
 			|IMGSYS_ENG_PQDIP_A
-			|IMGSYS_ENG_PQDIP_B)},
-	{3, (IMGSYS_ENG_XTR
-			|IMGSYS_ENG_ADL_A
-			|IMGSYS_ENG_ADL_B)}
+			|IMGSYS_ENG_PQDIP_B)}
 };
 
 static struct imgsys_dvfs_group  qos_group[MTK_IMGSYS_QOS_GROUP] = {

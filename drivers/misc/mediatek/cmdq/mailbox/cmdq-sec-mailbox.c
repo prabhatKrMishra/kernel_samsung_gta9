@@ -113,7 +113,6 @@ struct cmdq_sec_thread {
 struct cmdq_sec_shared_mem {
 	void		*va;
 	dma_addr_t	pa;
-	dma_addr_t	mva;
 	u32		size;
 };
 
@@ -177,7 +176,7 @@ static const s32 cmdq_max_task_in_secure_thread[
 static const s32 cmdq_tz_cmd_block_size[CMDQ_MAX_SECURE_THREAD_COUNT] = {
 	4 << 12, 4 << 12, 20 << 12, 4 << 12, 4 << 12};
 
-static struct cmdq_sec_helper_fp helper_fp = {
+struct cmdq_sec_helper_fp helper_fp = {
 	.sec_insert_backup_cookie_fp = cmdq_sec_insert_backup_cookie,
 	.sec_pkt_wait_complete_fp = cmdq_sec_pkt_wait_complete,
 	.sec_pkt_free_data_fp = cmdq_sec_pkt_free_data,
@@ -399,14 +398,9 @@ s32 cmdq_sec_insert_backup_cookie(struct cmdq_pkt *pkt)
 	right.value = 1;
 	cmdq_pkt_logic_command(pkt, CMDQ_LOGIC_ADD, xpr, &left, &right);
 
-	if (!cpr_not_support_cookie)
-		err = cmdq_pkt_write_indriect(pkt, NULL,
-			cmdq->shared_mem->mva + CMDQ_SEC_SHARED_THR_CNT_OFFSET +
-			thread->idx * sizeof(u32) + gce_mminfra, xpr, ~0);
-	else
-		err = cmdq_pkt_write_indriect(pkt, NULL,
-			cmdq->shared_mem->pa + CMDQ_SEC_SHARED_THR_CNT_OFFSET +
-			thread->idx * sizeof(u32) + gce_mminfra, xpr, ~0);
+	err = cmdq_pkt_write_indriect(pkt, NULL,
+		cmdq->shared_mem->pa + CMDQ_SEC_SHARED_THR_CNT_OFFSET +
+		thread->idx * sizeof(u32) + gce_mminfra, xpr, ~0);
 	if (err)
 		return err;
 	return cmdq_pkt_set_event(pkt, CMDQ_TOKEN_SECURE_THR_EOF);
@@ -1195,6 +1189,8 @@ cmdq_sec_task_submit(struct cmdq_sec *cmdq, struct cmdq_sec_task *task,
 
 	cmdq_log("task:%p iwc_cmd:%u cmdq:%p thrd-idx:%u tgid:%u",
 		task, iwc_cmd, cmdq, thrd_idx, current->tgid);
+	if (iwc_cmd != 4 && !task)
+		cmdq_err("iwc_cmd:%u data:%p task:%p", iwc_cmd, data, task);
 
 #if IS_ENABLED(CONFIG_MMPROFILE)
 	mmprofile_log_ex(cmdq->mmp.submit, MMPROFILE_FLAG_PULSE,
@@ -1243,6 +1239,10 @@ cmdq_sec_task_submit(struct cmdq_sec *cmdq, struct cmdq_sec_task *task,
 			pkt->rec_trigger = sched_clock();
 		err = cmdq_sec_session_send(
 			cmdq->context, task, iwc_cmd, thrd_idx, cmdq, mtee);
+
+		if (iwc_cmd != 4 && (!cmdq->context->mtee_iwc_msg || !task))
+			cmdq_err("iwc_cmd:%u mtee_iwc_msg:%p data:%p task:%p", iwc_cmd,
+				cmdq->context->mtee_iwc_msg, data, task);
 
 		if (err) {
 			cmdq_util_dump_lock();
@@ -1707,19 +1707,10 @@ static void cmdq_sec_reserved_mem_lookup(struct cmdq_sec_shared_mem *shared_mem)
 	if (!va)
 		va = ioremap(pa, PAGE_SIZE);
 	shared_mem->va = va;
-	if (!cpr_not_support_cookie) {
-		shared_mem->pa = pa;
-		shared_mem->mva = *(u64 *)va ? *(u64 *)va : pa; /* iova */
+	shared_mem->pa = *(u64 *)va ? *(u64 *)va : pa; /* iova */
 
-		cmdq_msg("%s: buf:%s pa:%#llx size:%u va:%p pa:%pa iova:%pa", __func__,
-			buf, pa, shared_mem->size, shared_mem->va,
-			&shared_mem->pa, &shared_mem->mva);
-	} else {
-		shared_mem->pa = *(u64 *)va ? *(u64 *)va : pa; /* iova */
-
-		cmdq_msg("%s: buf:%s pa:%#llx size:%u va:%p iova:%pa", __func__,
-			buf, pa, shared_mem->size, shared_mem->va, &shared_mem->pa);
-	}
+	cmdq_msg("%s: buf:%s pa:%#llx size:%u va:%p iova:%pa", __func__,
+		buf, pa, shared_mem->size, shared_mem->va, &shared_mem->pa);
 }
 
 static int cmdq_sec_probe(struct platform_device *pdev)

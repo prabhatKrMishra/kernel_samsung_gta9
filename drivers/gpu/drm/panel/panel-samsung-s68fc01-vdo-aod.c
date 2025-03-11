@@ -414,7 +414,7 @@ static int panel_ata_check(struct drm_panel *panel)
 {
 	struct lcm *ctx = panel_to_lcm(panel);
 	struct mipi_dsi_device *dsi = to_mipi_dsi_device(ctx->dev);
-	unsigned char data[3] = {0, 0, 0};
+	unsigned char data[3];
 	unsigned char id[3] = {0xb3, 0x2, 0x1};
 	ssize_t ret;
 
@@ -877,10 +877,6 @@ static ssize_t aod_area_store(struct device *dev,
 
 	for (i = 0; i < count; i++) {
 		ret = sscanf(&buf[i], "%c", &doze_area_cmd[i]);
-		if (ret != 1) {
-			pr_info("%s ret = %d sscanf failed", __func__, ret);
-			return ret;
-		}
 		pr_info("%s ret = %d, buf[%d]=%d", __func__, ret, i, buf[i]);
 	}
 

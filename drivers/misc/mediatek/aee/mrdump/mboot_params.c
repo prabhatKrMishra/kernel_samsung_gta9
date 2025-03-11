@@ -27,6 +27,10 @@
 #include <linux/uaccess.h>
 #include <linux/vmalloc.h>
 
+#if IS_ENABLED(CONFIG_SEC_DEBUG)
+#include <linux/sec_debug.h>
+#endif
+
 #include <mt-plat/aee.h>
 #include "mboot_params_internal.h"
 #include "mrdump_helper.h"
@@ -307,6 +311,10 @@ void sram_log_save(const char *msg, int count)
 
 	if (!mbootlog_buf)
 		return;
+
+#if IS_ENABLED(CONFIG_SEC_DEBUG)
+	pr_info("[mbootlog] %s", msg);
+#endif
 
 	/* count >= buffer_size, full the buffer */
 	if (count >= mbootlog_buf_len) {
@@ -763,8 +771,103 @@ console_initcall(mboot_params_early_init);
 #define LAST_RR_MEMCPY_WITH_ID(rr_item, id, str, len)			\
 	(strlcpy(RR_LINUX->rr_item[id], str, len))
 
+#if IS_ENABLED(CONFIG_SEC_DEBUG)
+#define SECDBG_RR_BASE 0x11FFE0 /* "addr" */
+
+struct secdbg_reset_reason {
+	uint32_t is_upload;
+	uint32_t upload_reason;
+	uint32_t is_power_reset;
+	uint32_t power_reset_reason;
+#if IS_ENABLED(CONFIG_SEC_DUMP_SINK)	
+	uint32_t reboot_magic;
+#endif
+	uint32_t reserved[3];
+};
+
+static struct secdbg_reset_reason *secdbg_rr;
+int secdbg_rr_init(void)
+{
+ 		secdbg_rr = ioremap_wc(SECDBG_RR_BASE,
+ 				sizeof(struct secdbg_reset_reason));
+
+    if (!secdbg_rr) {
+        pr_info("Remap secdbg_rr_addr failed\n");
+        return -EIO;
+    }
+
+    return 0;
+}
+
+void secdbg_set_upload_magic(uint32_t upload_magic)
+{
+	secdbg_rr->is_upload = upload_magic;
+}
+EXPORT_SYMBOL(secdbg_set_upload_magic);
+
+void secdbg_set_power_flag(uint32_t power_flag)
+{
+	secdbg_rr->is_power_reset = power_flag;
+}
+EXPORT_SYMBOL(secdbg_set_power_flag);
+
+void secdbg_set_upload_reason(uint32_t upload_reason)
+{
+  	secdbg_rr->upload_reason = upload_reason;
+}
+EXPORT_SYMBOL(secdbg_set_upload_reason);
+
+void secdbg_set_power_reset_reason(uint32_t reset_reason)
+{
+  	secdbg_rr->power_reset_reason = reset_reason;
+}
+EXPORT_SYMBOL(secdbg_set_power_reset_reason);
+
+void sec_upload_cause(void *buf)
+{
+	secdbg_set_upload_magic(UPLOAD_MAGIC_UPLOAD);
+
+#if IS_ENABLED(CONFIG_SEC_DEBUG_EXTRA_INFO)
+	sec_debug_set_extra_info_upload(buf);
+#endif	
+	
+	if (!strncmp(buf, "User Fault", 10))
+		secdbg_set_upload_reason(UPLOAD_CAUSE_USER_FAULT);
+	else if (!strncmp(buf, "Hard Reset Hook", 15))
+		secdbg_set_upload_reason(UPLOAD_CAUSE_FORCED_UPLOAD);		
+	else if (!strncmp(buf, "Crash Key", 9))
+		secdbg_set_upload_reason(UPLOAD_CAUSE_FORCED_UPLOAD);
+	else if (!strncmp(buf, "User Crash Key", 14))
+		secdbg_set_upload_reason(UPLOAD_CAUSE_USER_FORCED_UPLOAD);
+	else if (!strncmp(buf, "CP Crash", 8))
+		secdbg_set_upload_reason(UPLOAD_CAUSE_CP_ERROR_FATAL);
+	else if (!strncmp(buf, "Watchdog", 8))
+		secdbg_set_upload_reason(UPLOAD_CAUSE_WATCHDOG);
+	else
+		secdbg_set_upload_reason(UPLOAD_CAUSE_KERNEL_PANIC);
+}
+EXPORT_SYMBOL(sec_upload_cause);
+#endif
+
 static void mboot_params_init_val(void)
 {
+#if IS_ENABLED(CONFIG_SEC_DEBUG)
+  	secdbg_rr_init();
+	
+  	/* Initialize flags for SEC_DEBUG */
+  	secdbg_set_upload_magic(UPLOAD_MAGIC_UPLOAD); 
+  	secdbg_set_upload_reason(UPLOAD_CAUSE_INIT); 
+  	secdbg_set_power_flag(SEC_POWER_OFF); 
+  	secdbg_set_power_reset_reason(SEC_RESET_REASON_INIT); 
+  	
+  	pr_info("secdbg_rr->is_upload=%x\n", secdbg_rr->is_upload);
+  	pr_info("secdbg_rr->upload_reason=%x\n", secdbg_rr->upload_reason);
+  	pr_info("secdbg_rr->is_power_reset=%x\n", secdbg_rr->is_power_reset);
+  	pr_info("secdbg_rr->power_reset_reason=%x\n", secdbg_rr->power_reset_reason);  	  	  
+  
+  	pr_info("SEC Debug RR setting completed\n");
+#endif
+
 	LAST_RR_SET(pmic_ext_buck, 0xff);
 #if defined(CONFIG_RANDOMIZE_BASE) && defined(CONFIG_ARM64)
 	LAST_RR_SET(kaslr_offset, 0xecab1e);
@@ -3423,7 +3526,7 @@ last_rr_show_t aee_rr_last_xxx[] = {
 	aee_rr_show_suspend_debug_flag
 };
 
-#define array_size(x) (sizeof(x) / sizeof((x)[0]))
+#define array_size_local(x) (sizeof(x) / sizeof((x)[0]))
 int aee_rr_reboot_reason_show(struct seq_file *m, void *v)
 {
 	int i, cpu;
@@ -3433,16 +3536,16 @@ int aee_rr_reboot_reason_show(struct seq_file *m, void *v)
 		seq_printf(m, "%s, old status is %u.\n", mboot_params_clear ?
 				"Clear" : "Not Clear", old_wdt_status);
 		seq_puts(m, "Only try to dump last_XXX.\n");
-		for (i = 0; i < array_size(aee_rr_last_xxx); i++)
+		for (i = 0; i < array_size_local(aee_rr_last_xxx); i++)
 			aee_rr_last_xxx[i] (m);
 		return 0;
 	}
-	for (i = 0; i < array_size(aee_rr_show); i++)
+	for (i = 0; i < array_size_local(aee_rr_show); i++)
 		aee_rr_show[i] (m);
 
 	for (cpu = 0; cpu < num_possible_cpus(); cpu++) {
 		seq_printf(m, "CPU %d\n", cpu);
-		for (i = 0; i < array_size(aee_rr_show_cpu); i++)
+		for (i = 0; i < array_size_local(aee_rr_show_cpu); i++)
 			aee_rr_show_cpu[i] (m, cpu);
 	}
 	return 0;

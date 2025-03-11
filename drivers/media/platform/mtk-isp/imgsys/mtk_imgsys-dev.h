@@ -55,7 +55,7 @@
 #define MTK_DIP_DEV_META_BUF_POOL_MAX_SIZE	(1024 * 1024 * 16)
 #define MTK_IMGSYS_OPP_SET			2
 #define MTK_IMGSYS_CLK_LEVEL_CNT		5
-#define MTK_IMGSYS_DVFS_GROUP			4
+#define MTK_IMGSYS_DVFS_GROUP			3
 #define MTK_IMGSYS_QOS_GROUP			2
 
 #define MTK_IMGSYS_LOG_LENGTH			1024
@@ -240,7 +240,6 @@ struct mtk_imgsys_dvfs {
 	unsigned long freq;
 	unsigned int vss_task_cnt;
 	unsigned int smvr_task_cnt;
-	unsigned int stream_4k60_task_cnt;
 };
 
 struct mtk_imgsys_qos_path {
@@ -723,6 +722,7 @@ struct timeval {
 
 struct swfrm_info_t {
 	uint32_t req_sbuf_goft;
+	void *req_sbuf_kva;
 	int swfrminfo_ridx;
 	int request_fd;
 	int request_no;

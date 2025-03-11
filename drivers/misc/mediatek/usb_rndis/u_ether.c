@@ -882,7 +882,7 @@ static netdev_tx_t eth_start_xmit(struct sk_buff *skb,
 	if (list_empty(&dev->tx_reqs)) {
 		busyCnt++;
 		if (__ratelimit(&ratelimit2))
-			U_ETHER_DBG("okCnt : %lu, busyCnt : %lu\n",
+			U_ETHER_DBG("okCnt : %u, busyCnt : %u\n",
 					okCnt, busyCnt);
 		spin_unlock_irqrestore(&dev->req_lock, flags);
 		rndis_test_tx_busy++;
@@ -1405,7 +1405,6 @@ int mtk_gether_set_dev_addr(struct net_device *net, const char *dev_addr)
 	struct eth_dev *dev;
 	u8 new_addr[ETH_ALEN];
 
-	memset(new_addr, 0, ETH_ALEN);
 	dev = netdev_priv(net);
 	if (get_ether_addr(dev_addr, new_addr))
 		return -EINVAL;
@@ -1428,7 +1427,6 @@ int mtk_gether_set_host_addr(struct net_device *net, const char *host_addr)
 	struct eth_dev *dev;
 	u8 new_addr[ETH_ALEN];
 
-	memset(new_addr, 0, ETH_ALEN);
 	dev = netdev_priv(net);
 	if (get_ether_addr(host_addr, new_addr))
 		return -EINVAL;

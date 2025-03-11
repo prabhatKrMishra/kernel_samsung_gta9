@@ -139,18 +139,23 @@ int mt6789_fe_trigger(struct snd_pcm_substream *substream, int cmd,
 	unsigned int rate = runtime->rate;
 	int fs;
 	int ret = 0;
-	unsigned int value = 0;
+
+	if (!in_interrupt())
+		dev_info(afe->dev,
+			 "%s(), %s cmd %d, irq_id %d, is_afe_need_triggered %d, no_period_wakeup %d\n",
+			 __func__, memif->data->name, cmd, irq_id,
+			 is_afe_need_triggered(memif),
+			 runtime->no_period_wakeup);
 
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_START:
 		if (is_afe_need_triggered(memif)) {
 			ret = mtk_memif_set_enable(afe, id);
-			regmap_read(afe->regmap, memif->data->enable_reg, &value);
 			if (ret) {
 				dev_err(afe->dev,
 					"%s(), error, id %d, memif enable, ret %d\n",
 					__func__, id, ret);
-				break;
+				return ret;
 			}
 		}
 
@@ -173,10 +178,8 @@ int mt6789_fe_trigger(struct snd_pcm_substream *substream, int cmd,
 
 		/* set irq fs */
 		fs = afe->irq_fs(substream, runtime->rate);
-		if (fs < 0) {
-			ret = -EINVAL;
-			break;
-		}
+		if (fs < 0)
+			return -EINVAL;
 
 		mtk_regmap_update_bits(afe->regmap, irq_data->irq_fs_reg,
 				   irq_data->irq_fs_maskbit,
@@ -185,7 +188,7 @@ int mt6789_fe_trigger(struct snd_pcm_substream *substream, int cmd,
 		if (!runtime->no_period_wakeup)
 			mtk_irq_set_enable(afe, irq_data, id);
 
-		break;
+		return 0;
 	case SNDRV_PCM_TRIGGER_STOP:
 	case SNDRV_PCM_TRIGGER_SUSPEND:
 		if (afe_priv->xrun_assert[id] > 0) {
@@ -202,7 +205,6 @@ int mt6789_fe_trigger(struct snd_pcm_substream *substream, int cmd,
 
 		if (is_afe_need_triggered(memif)) {
 			ret = mtk_memif_set_disable(afe, id);
-			regmap_read(afe->regmap, memif->data->enable_reg, &value);
 			if (ret) {
 				dev_err(afe->dev,
 					"%s(), error, id %d, memif enable, ret %d\n",
@@ -218,19 +220,11 @@ int mt6789_fe_trigger(struct snd_pcm_substream *substream, int cmd,
 			regmap_write(afe->regmap, irq_data->irq_clr_reg,
 				     1 << irq_data->irq_clr_shift);
 		}
-		break;
+
+		return ret;
 	default:
-		ret = -EINVAL;
+		return -EINVAL;
 	}
-
-	if (!in_interrupt())
-		dev_info(afe->dev,
-			 "%s, %s cmd %d, irq %d, need_triggered %d, wakeup %d enable: 0x%x, bit_banding = %d\n",
-			 __func__, memif->data->name, cmd, irq_id,
-			 is_afe_need_triggered(memif),
-			 runtime->no_period_wakeup, value, afe->is_memif_bit_banding);
-
-	return ret;
 }
 
 static int mt6789_memif_fs(struct snd_pcm_substream *substream,
@@ -1176,8 +1170,6 @@ static const struct snd_kcontrol_new memif_ul2_ch1_mix[] = {
 				    I_CONNSYS_I2S_CH1, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("SRC_1_OUT_CH1", AFE_CONN5_1,
 				    I_SRC_1_OUT_CH1, 1, 0),
-	SOC_DAPM_SINGLE_AUTODISABLE("GAIN1_OUT_CH1", AFE_CONN5,
-				    I_GAIN1_OUT_CH1, 1, 0),
 };
 
 static const struct snd_kcontrol_new memif_ul2_ch2_mix[] = {
@@ -1207,30 +1199,24 @@ static const struct snd_kcontrol_new memif_ul2_ch2_mix[] = {
 				    I_CONNSYS_I2S_CH2, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("SRC_1_OUT_CH2", AFE_CONN6_1,
 				    I_SRC_1_OUT_CH2, 1, 0),
-	SOC_DAPM_SINGLE_AUTODISABLE("GAIN1_OUT_CH2", AFE_CONN6,
-				    I_GAIN1_OUT_CH2, 1, 0),
 };
 
 static const struct snd_kcontrol_new memif_ul3_ch1_mix[] = {
 	SOC_DAPM_SINGLE_AUTODISABLE("CONNSYS_I2S_CH1", AFE_CONN32_1,
 				    I_CONNSYS_I2S_CH1, 1, 0),
+	SOC_DAPM_SINGLE_AUTODISABLE("GAIN2_OUT_CH1", AFE_CONN32,
+				    I_GAIN2_OUT_CH1, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("DL1_CH1", AFE_CONN32,
 				    I_DL1_CH1, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("DL2_CH1", AFE_CONN32,
 				    I_DL2_CH1, 1, 0),
-	SOC_DAPM_SINGLE_AUTODISABLE("DL3_CH1", AFE_CONN32,
-				    I_DL3_CH1, 1, 0),
 };
 
 static const struct snd_kcontrol_new memif_ul3_ch2_mix[] = {
 	SOC_DAPM_SINGLE_AUTODISABLE("CONNSYS_I2S_CH2", AFE_CONN33_1,
 				    I_CONNSYS_I2S_CH2, 1, 0),
-	SOC_DAPM_SINGLE_AUTODISABLE("DL1_CH2", AFE_CONN33,
-				    I_DL1_CH1, 1, 0),
-	SOC_DAPM_SINGLE_AUTODISABLE("DL2_CH2", AFE_CONN33,
-				    I_DL2_CH1, 1, 0),
-	SOC_DAPM_SINGLE_AUTODISABLE("DL3_CH2", AFE_CONN33,
-				    I_DL3_CH1, 1, 0),
+	SOC_DAPM_SINGLE_AUTODISABLE("GAIN2_OUT_CH2", AFE_CONN33,
+				    I_GAIN2_OUT_CH2, 1, 0),
 };
 
 static const struct snd_kcontrol_new memif_ul4_ch1_mix[] = {
@@ -1398,7 +1384,6 @@ static const struct snd_soc_dapm_widget mt6789_memif_widgets[] = {
 
 	SND_SOC_DAPM_INPUT("UL1_VIRTUAL_INPUT"),
 	SND_SOC_DAPM_INPUT("UL2_VIRTUAL_INPUT"),
-	SND_SOC_DAPM_INPUT("UL3_VIRTUAL_INPUT"),
 	SND_SOC_DAPM_INPUT("UL6_VIRTUAL_INPUT"),
 };
 
@@ -1446,8 +1431,6 @@ static const struct snd_soc_dapm_route mt6789_memif_routes[] = {
 
 	{"UL2_CH1", "PCM_2_CAP_CH1", "PCM 2 Capture"},
 	{"UL2_CH2", "PCM_2_CAP_CH1", "PCM 2 Capture"},
-	{"UL2_CH1", "GAIN1_OUT_CH1", "HW Gain 1 Out"},
-	{"UL2_CH2", "GAIN1_OUT_CH2", "HW Gain 1 Out"},
 
 	{"UL_MONO_1", NULL, "UL_MONO_1_CH1"},
 	{"UL_MONO_1_CH1", "PCM_2_CAP_CH1", "PCM 2 Capture"},
@@ -1468,15 +1451,10 @@ static const struct snd_soc_dapm_route mt6789_memif_routes[] = {
 	{"UL3", NULL, "UL3_CH2"},
 	{"UL3_CH1", "CONNSYS_I2S_CH1", "Connsys I2S"},
 	{"UL3_CH2", "CONNSYS_I2S_CH2", "Connsys I2S"},
-	{"UL3_CH1", "DL1_CH1", "Hostless_UL3 UL"},
-	{"UL3_CH2", "DL1_CH2", "Hostless_UL3 UL"},
-	{"UL3_CH1", "DL2_CH1", "Hostless_UL3 UL"},
-	{"UL3_CH2", "DL2_CH2", "Hostless_UL3 UL"},
-	{"UL3_CH1", "DL3_CH1", "Hostless_UL3 UL"},
-	{"UL3_CH2", "DL3_CH2", "Hostless_UL3 UL"},
 
-	{"Hostless_UL3 UL", NULL, "UL3_VIRTUAL_INPUT"},
-
+	/* hw gain to UL3 */
+	{"UL3_CH1", "GAIN2_OUT_CH1", "HW Gain 2 Out"},
+	{"UL3_CH2", "GAIN2_OUT_CH2", "HW Gain 2 Out"},
 	{"UL4", NULL, "UL4_CH1"},
 	{"UL4", NULL, "UL4_CH2"},
 	{"UL4_CH1", "ADDA_UL_CH1", "ADDA_UL_Mux"},
@@ -2926,9 +2904,6 @@ static int mt6789_afe_runtime_suspend(struct device *dev)
 
 	/* reset sgen */
 	regmap_write(afe->regmap, AFE_SINEGEN_CON0, 0x0);
-	regmap_update_bits(afe->regmap, AFE_SINEGEN_CON2,
-			   INNER_LOOP_BACK_MODE_MASK_SFT,
-			   0x3f << INNER_LOOP_BACK_MODE_SFT);
 
 	/* cache only */
 	regcache_cache_only(afe->regmap, true);

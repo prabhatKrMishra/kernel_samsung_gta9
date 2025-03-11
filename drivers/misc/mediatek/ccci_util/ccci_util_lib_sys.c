@@ -346,6 +346,16 @@ static ssize_t kcfg_setting_show(char *buf)
 	if (actual_write > 0 && actual_write < (4096 - curr))
 		curr += actual_write;
 
+#if IS_ENABLED(CONFIG_MTK_SRIL_SUPPORT)
+	actual_write = scnprintf(&buf[curr], 4096 - curr,
+		"[MTK_SRIL_SUPPORT]:1\n");
+	curr += actual_write;
+#else
+	actual_write = scnprintf(&buf[curr], 4096 - curr,
+		"[MTK_SRIL_SUPPORT]:0\n");
+	curr += actual_write;
+#endif
+
 	/* Add total size to tail */
 	actual_write = snprintf(&buf[curr],
 		4096 - curr, "total:%d\n", curr);

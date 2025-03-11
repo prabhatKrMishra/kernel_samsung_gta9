@@ -321,7 +321,6 @@ static ssize_t mtu3_probe_write(struct file *file, const char __user *ubuf,
 	u32 val;
 	int i;
 
-	memset(buf, 0x00, sizeof(buf));
 	if (copy_from_user(&buf, ubuf, min_t(size_t, sizeof(buf) - 1, count)))
 		return -EFAULT;
 
@@ -450,7 +449,6 @@ static ssize_t ssusb_mode_write(struct file *file, const char __user *ubuf,
 	struct ssusb_mtk *ssusb = sf->private;
 	char buf[16];
 
-	memset(buf, 0x00, sizeof(buf));
 	if (copy_from_user(&buf, ubuf, min_t(size_t, sizeof(buf) - 1, count)))
 		return -EFAULT;
 
@@ -499,7 +497,6 @@ static ssize_t ssusb_vbus_write(struct file *file, const char __user *ubuf,
 	char buf[16];
 	bool enable;
 
-	memset(buf, 0x00, sizeof(buf));
 	if (copy_from_user(&buf, ubuf, min_t(size_t, sizeof(buf) - 1, count)))
 		return -EFAULT;
 

@@ -13,6 +13,8 @@
 #include <mt-plat/dvfsrc-exp.h>
 #include <mt-plat/mtk_blocktag.h>
 
+#include "mmc-sec-feature.h"
+
 static int msdc_execute_tuning(struct mmc_host *mmc, u32 opcode);
 
 static const struct mtk_mmc_compatible mt8135_compat = {
@@ -174,34 +176,6 @@ static const struct mtk_mmc_compatible mt6789_compat = {
 	.set_crypto_enable_in_sw = true,
 };
 
-static const struct mtk_mmc_compatible mt6765_compat = {
-	.clk_div_bits = 12,
-	.recheck_sdio_irq = false,
-	.hs400_tune = false,
-	.pad_tune_reg = MSDC_PAD_TUNE0,
-	.async_fifo = true,
-	.data_tune = true,
-	.busy_check = true,
-	.stop_clk_fix = true,
-	.enhance_rx = true,
-	.support_64g = true,
-	.need_gate_cg = true,
-};
-
-static const struct mtk_mmc_compatible mt6768_compat = {
-	.clk_div_bits = 12,
-	.recheck_sdio_irq = false,
-	.hs400_tune = false,
-	.pad_tune_reg = MSDC_PAD_TUNE0,
-	.async_fifo = true,
-	.data_tune = true,
-	.busy_check = true,
-	.stop_clk_fix = true,
-	.enhance_rx = true,
-	.support_64g = true,
-	.need_gate_cg = true,
-};
-
 static const struct mtk_mmc_compatible common_compat = {
 	.clk_div_bits = 12,
 	.recheck_sdio_irq = false,
@@ -244,8 +218,6 @@ static const struct of_device_id msdc_of_ids[] = {
 	{ .compatible = "mediatek,mt8516-mmc", .data = &mt8516_compat},
 	{ .compatible = "mediatek,mt7620-mmc", .data = &mt7620_compat},
 	{ .compatible = "mediatek,mt6779-mmc", .data = &mt6779_compat},
-	{ .compatible = "mediatek,mt6765-mmc", .data = &mt6765_compat},
-	{ .compatible = "mediatek,mt6768-mmc", .data = &mt6768_compat},
 	{ .compatible = "mediatek,mt6789-mmc", .data = &mt6789_compat},
 	{ .compatible = "mediatek,common-mmc", .data = &common_compat},
 	{ .compatible = "mediatek,common-mmc-v2", .data = &common_v2_compat},
@@ -908,6 +880,9 @@ static void msdc_request_done(struct msdc_host *host, struct mmc_request *mrq)
 		mmc_mtk_biolog_transfer_req_compl(mmc_from_priv(host), 0, 0);
 		mmc_mtk_biolog_check(mmc_from_priv(host), 0);
 	}
+
+	sd_sec_check_req_err(host, mrq);
+
 	mmc_request_done(mmc_from_priv(host), mrq);
 	if (host->dev_comp->recheck_sdio_irq)
 		msdc_recheck_sdio_irq(host);
@@ -1227,7 +1202,7 @@ static bool msdc_data_xfer_done(struct msdc_host *host, u32 events,
 				readl(host->base + MSDC_DMA_CFG));
 		sdr_set_field(host->base + MSDC_DMA_CTRL, MSDC_DMA_CTRL_STOP,
 				1);
-		while (readl(host->base + MSDC_DMA_CTRL) & MSDC_DMA_CTRL_STOP)
+		while (readl(host->base + MSDC_DMA_CFG) & MSDC_DMA_CFG_STS)
 			cpu_relax();
 		sdr_clr_bits(host->base + MSDC_INTEN, data_ints_mask);
 		dev_dbg(host->dev, "DMA stop\n");
@@ -1314,10 +1289,13 @@ static int msdc_ops_switch_volt(struct mmc_host *mmc, struct mmc_ios *ios)
 		}
 
 		/* Apply different pinctrl settings for different signal voltage */
-		if (ios->signal_voltage == MMC_SIGNAL_VOLTAGE_180)
+		if (ios->signal_voltage == MMC_SIGNAL_VOLTAGE_180) {
+			host->pins_state = PINS_UHS;
 			pinctrl_select_state(host->pinctrl, host->pins_uhs);
-		else
+		} else {
+			host->pins_state = PINS_DEFAULT;
 			pinctrl_select_state(host->pinctrl, host->pins_default);
+		}
 	}
 #endif
 	return 0;
@@ -1431,7 +1409,7 @@ static irqreturn_t msdc_irq(int irq, void *dev_id)
 		if ((events & event_mask) & MSDC_INT_SDIOIRQ)
 			__msdc_enable_sdio_irq(host, 0);
 		/* clear interrupts */
-		writel(events, host->base + MSDC_INT);
+		writel(events & event_mask, host->base + MSDC_INT);
 
 		mrq = host->mrq;
 		cmd = host->cmd;
@@ -1525,7 +1503,7 @@ static void msdc_init_hw(struct msdc_host *host)
 	sdr_set_field(host->base + MSDC_IOCON, MSDC_IOCON_DDLSEL, 0);
 	writel(0x403c0046, host->base + MSDC_PATCH_BIT);
 	sdr_set_field(host->base + MSDC_PATCH_BIT, MSDC_CKGEN_MSDC_DLY_SEL, 1);
-	writel(0xfffe4089, host->base + MSDC_PATCH_BIT1);
+	writel(0xffff4089, host->base + MSDC_PATCH_BIT1);
 	sdr_set_bits(host->base + EMMC50_CFG0, EMMC50_CFG_CFCSTS_SEL);
 
 	if (host->dev_comp->stop_clk_fix) {
@@ -2560,10 +2538,6 @@ static void mmc_mtk_crypto_enable(struct mmc_host *mmc)
 static void msdc_cqe_enable(struct mmc_host *mmc)
 {
 	struct msdc_host *host = mmc_priv(mmc);
-	struct cqhci_host *cq_host = mmc->cqe_private;
-
-	if (host->dev_comp->set_crypto_enable_in_sw)
-		mmc_mtk_crypto_enable(mmc);
 
 	if (host->dev_comp->set_crypto_enable_in_sw)
 		mmc_mtk_crypto_enable(mmc);
@@ -2576,7 +2550,6 @@ static void msdc_cqe_enable(struct mmc_host *mmc)
 	msdc_set_busy_timeout(host, 20 * 1000000000ULL, 0);
 	/* default read data timeout 1s */
 	msdc_set_timeout(host, 1000000000ULL, 0);
-	cqhci_writel(cq_host, 0x40, CQHCI_SSC1);
 }
 
 static void msdc_cqe_disable(struct mmc_host *mmc, bool recovery)
@@ -2853,9 +2826,7 @@ static int msdc_drv_probe(struct platform_device *pdev)
 	struct mmc_host *mmc;
 	struct msdc_host *host;
 	struct resource *res;
-	int ret = -222;
-
-	dev_err(&pdev->dev, "[%s %d]ret=%d\n", __func__, __LINE__, ret);
+	int ret;
 
 	if (!pdev->dev.of_node) {
 		dev_err(&pdev->dev, "No DT found\n");
@@ -2936,9 +2907,18 @@ static int msdc_drv_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "Cannot find pinctrl uhs!\n");
 		goto host_free;
 	}
+
+	host->pins_pull_down = pinctrl_lookup_state(host->pinctrl, "pull_down");
+	if (IS_ERR(host->pins_pull_down)) {
+		ret = PTR_ERR(host->pins_pull_down);
+		dev_info(&pdev->dev, "Cannot find pinctrl pull_down!\n");
+		host->pins_pull_down = NULL;
+	}
 #endif
 
 	msdc_of_property_parse(pdev, host);
+
+	host->pins_state = PINS_DEFAULT;
 
 	if (host->id == MSDC_SD) {
 		host->sd_oc.nb.notifier_call = msdc_sd_event;
@@ -3065,7 +3045,7 @@ static int msdc_drv_probe(struct platform_device *pdev)
 #if IS_ENABLED(CONFIG_RPMB)
 	ret = mmc_rpmb_register(mmc);
 #endif
-	dev_err(&pdev->dev, "[%s %d]ret=%d\n", __func__, __LINE__, ret);
+	mmc_set_sec_features(pdev);
 
 	return 0;
 end:
@@ -3086,7 +3066,6 @@ release_mem:
 			host->dma.bd, host->dma.bd_addr);
 host_free:
 	mmc_free_host(mmc);
-	dev_err(&pdev->dev, "[%s %d]ret=%d\n", __func__, __LINE__, ret);
 
 	return ret;
 }
@@ -3330,8 +3309,11 @@ static int __maybe_unused msdc_runtime_suspend(struct device *dev)
 	cpu_latency_qos_update_request(&host->pm_qos_req,
 		PM_QOS_DEFAULT_VALUE);
 
-	mmc_mtk_biolog_clk_gating(false);
 	set_mmc_perf_mode(mmc, false);
+
+	if (!(mmc->caps2 & MMC_CAP2_NO_SD))
+		if (host->pins_pull_down)
+			pinctrl_select_state(host->pinctrl, host->pins_pull_down);
 
 	return 0;
 }
@@ -3340,6 +3322,13 @@ static int __maybe_unused msdc_runtime_resume(struct device *dev)
 {
 	struct mmc_host *mmc = dev_get_drvdata(dev);
 	struct msdc_host *host = mmc_priv(mmc);
+
+	if (!(mmc->caps2 & MMC_CAP2_NO_SD)) {
+		if (host->pins_state == PINS_DEFAULT && host->pins_default)
+			pinctrl_select_state(host->pinctrl, host->pins_default);
+		else if (host->pins_state == PINS_UHS && host->pins_uhs)
+			pinctrl_select_state(host->pinctrl, host->pins_uhs);
+	}
 
 	cpu_latency_qos_update_request(&host->pm_qos_req, 0);
 	if (host->dvfsrc_vcore_power && host->req_vcore) {

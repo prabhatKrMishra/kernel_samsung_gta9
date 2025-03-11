@@ -20,14 +20,6 @@
 #define MAX_PMIF_NUM			2
 
 const u32 pmif_chip_to_hw_ver[CLKBUF_CHIP_ID_MAX][MAX_PMIF_NUM] = {
-	[MT6765] = {
-		CLKBUF_PMIF_VERSION_1,
-		CLKBUF_PMIF_VERSION_1,
-	},
-	[MT6768] = {
-		CLKBUF_PMIF_VERSION_1,
-		CLKBUF_PMIF_VERSION_1,
-	},
 	[MT6789] = {
 		CLKBUF_PMIF_VERSION_1,
 		CLKBUF_PMIF_VERSION_1,
@@ -143,6 +135,9 @@ int clkbuf_pmif_get_inf_data(enum PMIF_INF inf, u32 *clr_addr, u32 *set_addr,
 {
 	int ret = 0;
 
+	if (inf >= PMIF_RC_INF)
+		return -EINVAL;
+
 	if (inf == PMIF_CONN_INF) {
 		pr_notice("ofs: %x\n", clkbuf_pmif.pmif[0]->_conn_clr_addr.ofs);
 		ret = clk_buf_read(&clkbuf_pmif.pmif[0]->hw,
@@ -189,8 +184,6 @@ int clkbuf_pmif_get_inf_data(enum PMIF_INF inf, u32 *clr_addr, u32 *set_addr,
 			&clkbuf_pmif.pmif[0]->_nfc_set_cmd, set_cmd);
 		if (ret)
 			return ret;
-	} else {
-		ret = -EINVAL;
 	}
 
 	return ret;

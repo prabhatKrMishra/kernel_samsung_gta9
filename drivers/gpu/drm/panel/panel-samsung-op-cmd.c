@@ -111,12 +111,13 @@ static void lcm_dcs_write_ext(struct lcm *ctx, const void *data, size_t len)
 	}
 }
 
-static int get_mode_enum(struct drm_display_mode *m)
+static unsigned int get_mode_enum(struct drm_display_mode *m)
 {
-	int ret = 0, m_vrefresh = 0;
+	unsigned int ret = 0;
+	int m_vrefresh = 0;
 
 	if (m == NULL) {
-		DDPMSG("%s display mode is null, return mode 0\n", __func__);
+		DDPMSG("%s display mode is null\n", __func__);
 		return 0;
 	}
 
@@ -287,7 +288,7 @@ static unsigned int lcm_enable_reg_vmch3p0(int en)
 
 static void lcm_panel_init(struct lcm *ctx)
 {
-	int mode_id = -1;
+	unsigned int mode_id = 0;
 	unsigned int count = 0;
 	struct drm_display_mode *m = ctx->m;
 
@@ -544,7 +545,7 @@ static int panel_ata_check(struct drm_panel *panel)
 {
 	struct lcm *ctx = panel_to_lcm(panel);
 	struct mipi_dsi_device *dsi = to_mipi_dsi_device(ctx->dev);
-	unsigned char data[3] = {0, 0, 0};
+	unsigned char data[3];
 	unsigned char id[3] = {0x00, 0x80, 0x00};
 	ssize_t ret;
 
@@ -968,7 +969,7 @@ static int mtk_panel_ext_param_get(struct drm_panel *panel,
 		struct mtk_panel_params **ext_param,
 		unsigned int mode)
 {
-	int mode_id = -1;
+	unsigned int mode_id = 0;
 
 	if (!connector || !panel) {
 		pr_info("%s, invalid param\n", __func__);
@@ -991,7 +992,7 @@ static int mtk_panel_ext_param_set(struct drm_panel *panel,
 	struct drm_connector *connector, unsigned int mode)
 {
 	struct mtk_panel_ext *ext = find_panel_ext(panel);
-	int mode_id = -1;
+	unsigned int mode_id = 0;
 
 	if (!connector || !panel) {
 		pr_info("%s, invalid param\n", __func__);
@@ -1014,15 +1015,10 @@ static int mode_switch_hs(struct drm_panel *panel, struct drm_connector *connect
 	struct drm_display_mode *m = get_mode_by_id(connector, dst_mode);
 	struct drm_display_mode *src_m = get_mode_by_id(connector, cur_mode);
 	struct lcm *ctx = panel_to_lcm(panel);
-	int mode_id = -1;
+	unsigned int mode_id = 0;
 
 	if (cur_mode == dst_mode)
 		return ret;
-
-	if (m == NULL || src_m == NULL) {
-		DDPPR_ERR("%s:%d invalid display_mode\n", __func__, __LINE__);
-		return -1;
-	}
 
 	if (stage == BEFORE_DSI_POWERDOWN) {
 		mode_id = get_mode_enum(m);

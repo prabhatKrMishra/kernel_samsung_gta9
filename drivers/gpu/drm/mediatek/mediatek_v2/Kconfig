@@ -1,6 +1,5 @@
 config DRM_MEDIATEK_V2
 	bool "Version 2 of DRM Support for Mediatek SoCs"
-	select FONT_SUPPORT
 	help
 	  Choose this option if you have a phone Mediatek
 	  SoCs. The module will be called mediatek-drm v2
@@ -49,8 +48,8 @@ config MTK_RECU_FENCE_LOCK
 	  limitation. So the option will control whether display run
 	  workaround flow.
 
-config MTK_FB_MMDVFS_SUPPORT
-       bool "No HRT hardware is required to support MMDVFS"
-       help
-         If HRT hardware is not in the platform, then support for
-         MMDVFS needs to be added through software.
+config MTK_DISP_DEBUG
+	bool "DISP Debug Support for Mediatek SoCs"
+	help
+	  Choose this option if you have a Mediatek SoCs.
+	  This driver provides disp driver debug feature.

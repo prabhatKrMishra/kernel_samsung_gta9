@@ -216,8 +216,6 @@ struct mml_comp_aal {
 
 	u32 sram_curve_start;
 	u32 sram_hist_start;
-
-	u16 event_vcp_readback_done;
 };
 
 enum aal_label_index {
@@ -241,7 +239,6 @@ struct aal_frame_data {
 	struct mml_reuse_offset offs_curve[AAL_LABEL_CNT];
 	bool is_aal_need_readback;
 	bool config_success;
-	bool relay_mode;
 };
 
 static inline struct aal_frame_data *aal_frm_data(struct mml_comp_config *ccfg)
@@ -271,18 +268,13 @@ static s32 aal_buf_prepare(struct mml_comp *comp, struct mml_task *task,
 {
 	struct mml_frame_config *cfg = task->config;
 	struct mml_frame_dest *dest = &cfg->info.dest[ccfg->node->out_idx];
-	struct mml_comp_aal *aal = comp_to_aal(comp);
-	struct aal_frame_data *aal_frm = aal_frm_data(ccfg);
 	s32 ret = 0;
 
 	mml_pq_trace_ex_begin("%s", __func__);
 	mml_pq_msg("%s engine_id[%d] en_dre[%d]", __func__, comp->id,
 		   dest->pq_config.en_dre);
 
-	aal_frm->relay_mode = (!(dest->pq_config.en_dre) ||
-		dest->crop.r.width < aal->data->min_tile_width);
-
-	if (!(aal_frm->relay_mode))
+	if (dest->pq_config.en_dre)
 		ret = mml_pq_set_comp_config(task);
 
 	mml_pq_trace_ex_end();
@@ -408,7 +400,7 @@ static s32 aal_config_frame(struct mml_comp *comp, struct mml_task *task,
 
 	mml_pq_trace_ex_begin("%s", __func__);
 	mml_pq_msg("%s engine_id[%d] en_dre[%d]", __func__, comp->id, dest->pq_config.en_dre);
-	if (aal_frm->relay_mode) {
+	if (!dest->pq_config.en_dre || dest->crop.r.width < aal->data->min_tile_width) {
 		/* relay mode */
 		aal_relay(pkt, base_pa, 0x1);
 		goto exit;
@@ -537,7 +529,7 @@ static s32 aal_config_tile(struct mml_comp *comp, struct mml_task *task,
 	cmdq_pkt_write(pkt, NULL, base_pa + AAL_OUTPUT_SIZE,
 		(aal_output_w << 16) + aal_output_h, U32_MAX);
 
-	if (aal_frm->relay_mode)
+	if (!dest->pq_config.en_dre)
 		goto exit;
 
 	if (!idx) {
@@ -555,7 +547,7 @@ static s32 aal_config_tile(struct mml_comp *comp, struct mml_task *task,
 	aal_hist_left_start =
 		(tile->out.xs > aal_frm->out_hist_xs) ? tile->out.xs : aal_frm->out_hist_xs;
 
-	mml_pq_msg("%s jobid[%d] engine_id[%d] idx[%d] pipe[%d] pkt[%p]",
+	mml_pq_msg("%s jobid[%d] engine_id[%d] idx[%d] pipe[%d] pkt[%08x]",
 		__func__, task->job.jobid, comp->id, idx, ccfg->pipe, pkt);
 
 	mml_pq_msg("%s %d: %d: %d: [input] [xs, xe] = [%d, %d], [ys, ye] = [%d, %d]",
@@ -737,7 +729,7 @@ static void aal_readback_cmdq(struct mml_comp *comp, struct mml_task *task,
 
 	mml_assign(pkt, idx_out, (u32)pa,
 		reuse, cache, &aal_frm->labels[AAL_POLLGPR_0]);
-	mml_assign(pkt, idx_out + 1, (u32)DO_SHIFT_RIGHT(pa, 32),
+	mml_assign(pkt, idx_out + 1, (u32)(pa >> 32),
 		reuse, cache, &aal_frm->labels[AAL_POLLGPR_1]);
 
 	/* loop again here */
@@ -852,12 +844,10 @@ static void aal_readback_vcp(struct mml_comp *comp, struct mml_task *task,
 
 	cmdq_vcp_enable(true);
 
-	cmdq_pkt_acquire_event(pkt, aal->event_vcp_readback_done);
 	cmdq_pkt_readback(pkt, engine, task->pq_task->aal_hist[pipe]->va_offset,
 		 AAL_HIST_NUM+AAL_DUAL_INFO_NUM, gpr,
 		&reuse->labels[reuse->label_idx],
 		&aal_frm->polling_reuse);
-	cmdq_pkt_clear_event(pkt, aal->event_vcp_readback_done);
 
 	add_reuse_label(reuse, &aal_frm->labels[AAL_POLLGPR_0],
 		task->pq_task->aal_hist[pipe]->va_offset);
@@ -873,13 +863,12 @@ static s32 aal_config_post(struct mml_comp *comp, struct mml_task *task,
 {
 	struct mml_frame_dest *dest = &task->config->info.dest[ccfg->node->out_idx];
 	struct mml_comp_aal *aal = comp_to_aal(comp);
-	struct aal_frame_data *aal_frm = aal_frm_data(ccfg);
 	bool vcp = aal->data->vcp_readback;
 
 	mml_pq_msg("%s start engine_id[%d] en_dre[%d]", __func__, comp->id,
 			dest->pq_config.en_dre);
 
-	if (aal_frm->relay_mode)
+	if (!dest->pq_config.en_dre)
 		goto exit;
 
 	if (vcp)
@@ -907,7 +896,7 @@ static s32 aal_reconfig_frame(struct mml_comp *comp, struct mml_task *task,
 	mml_pq_trace_ex_begin("%s", __func__);
 	mml_pq_msg("%s engine_id[%d] en_dre[%d] config_success[%d]", __func__, comp->id,
 			dest->pq_config.en_dre, aal_frm->config_success);
-	if (aal_frm->relay_mode)
+	if (!dest->pq_config.en_dre)
 		goto exit;
 
 	ret = mml_pq_get_comp_config_result(task, AAL_WAIT_TIMEOUT_MS);
@@ -959,7 +948,7 @@ static s32 aal_config_repost(struct mml_comp *comp, struct mml_task *task,
 	mml_pq_msg("%s engine_id[%d] en_dre[%d]", __func__, comp->id,
 			dest->pq_config.en_dre);
 
-	if (aal_frm->relay_mode)
+	if (!dest->pq_config.en_dre)
 		goto exit;
 
 	if (vcp) {
@@ -1006,7 +995,8 @@ static s32 aal_config_repost(struct mml_comp *comp, struct mml_task *task,
 		mml_update(reuse, aal_frm->labels[AAL_POLLGPR_0],
 			(u32)task->pq_task->aal_hist[pipe]->pa);
 		mml_update(reuse, aal_frm->labels[AAL_POLLGPR_1],
-			(u32)DO_SHIFT_RIGHT(task->pq_task->aal_hist[pipe]->pa, 32));
+			(u32)(task->pq_task->aal_hist[pipe]->pa >> 32));
+
 		begin_pa = cmdq_pkt_get_pa_by_offset(pkt, aal_frm->begin_offset);
 		condi_inst = (u32 *)cmdq_pkt_get_va_by_offset(pkt, aal_frm->condi_offset);
 		if (unlikely(!condi_inst)) {
@@ -1229,19 +1219,8 @@ static void aal_debug_dump(struct mml_comp *comp)
 		value[7], value[8]);
 }
 
-static void aal_reset(struct mml_comp *comp, struct mml_frame_config *cfg, u32 pipe)
-{
-	const struct mml_topology_path *path = cfg->path[pipe];
-	struct mml_comp_aal *aal = comp_to_aal(comp);
-	bool vcp = aal->data->vcp_readback;
-
-	if (vcp)
-		cmdq_clear_event(path->clt->chan, aal->event_vcp_readback_done);
-}
-
 static const struct mml_comp_debug_ops aal_debug_ops = {
 	.dump = &aal_debug_dump,
-	.reset = &aal_reset,
 };
 
 static int mml_bind(struct device *dev, struct device *master, void *data)
@@ -1315,14 +1294,6 @@ static int probe(struct platform_device *pdev)
 
 	if (of_property_read_u32(dev->of_node, "sram_his_base", &priv->sram_hist_start))
 		dev_err(dev, "read his base fail\n");
-
-	if (priv->data->vcp_readback) {
-		if (of_property_read_u16(dev->of_node, "event_vcp_readback_done",
-				&priv->event_vcp_readback_done)) {
-			dev_err(dev, "read event_vcp_readback_done fail\n");
-			return -ENOENT;
-		}
-	}
 
 	/* assign ops */
 	priv->comp.tile_ops = &aal_tile_ops;

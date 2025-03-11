@@ -58,6 +58,7 @@ void ccci_set_mem_access_protection_1st_stage(struct ccci_modem *md);
 void ccci_set_mem_access_protection_second_stage(int md_id);
 #endif
 
+unsigned int ccci_get_md_debug_mode(struct ccci_modem *md);
 //void ccci_get_platform_version(char *ver);
 void ccci_platform_common_init(struct ccci_modem *md);
 void ccci_platform_init_6873(struct ccci_modem *md);

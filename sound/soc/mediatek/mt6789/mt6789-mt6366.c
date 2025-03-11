@@ -22,6 +22,33 @@
 #endif
 
 #include "../common/mtk-sp-spk-amp.h"
+/*Tab A9 code for AX6739A-8|SR-AX6739A-01-186|AX6739A-27 by hujincan at 20230428 start*/
+#include <linux/of_gpio.h>
+#include <linux/gpio.h>
+#include <linux/spinlock.h>
+
+/* 200us < t < 1000us Change */
+/* TLatch(for AW87XX) to 500us to ensure successfully lock mode */
+const int g_fs15xx_start = 500;
+/* 2us < t < 150us */
+const int g_fs15xx_pulse_delay_us = 10;
+/* pull up gpio > 800us */
+const int g_fs15xx_t_work = 820;
+/* tswton suggest to be 3ms+ between each mode */
+const int g_fs15xx_t_pwd = 5000;
+const int g_fs15xx_off_mode = 0;
+const int g_fs15xx_open_mode = 5;
+
+const int g_aw87xx_off_mode = 0;
+const int g_aw87xx_open_mode = 10;
+const int g_aw87xx_pulse_delay_us = 2;
+
+int g_ctrl_mod_l_up = 0;
+int g_ctrl_mod_r_down = 0;
+int g_audio_switch = 0;
+
+static DEFINE_SPINLOCK(s_fs15xx_lock);
+/*Tab A9 code for AX6739A-8|SR-AX6739A-01-186|AX6739A-27 by hujincan at 20230428 end*/
 
 /*
  * if need additional control for the ext spk amp that is connected
@@ -42,6 +69,9 @@ static const char *const
 				     MTK_SPK_I2S_3_STR,
 				     MTK_SPK_I2S_5_STR,
 					 };
+/*Tab A9 code for AX6739A-8|SR-AX6739A-01-191 by hujincan at 20230425 start*/
+static const char *const s_audio_switch_str[] = { "SPK", "RCV" };
+static const char *const s_spk_mode_str[] = { "DUAL SPK", "SPKL", "SPKR" };
 
 static const struct soc_enum mt6789_spk_type_enum[] = {
 	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(mt6789_spk_type_str),
@@ -49,6 +79,13 @@ static const struct soc_enum mt6789_spk_type_enum[] = {
 	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(mt6789_spk_i2s_type_str),
 			    mt6789_spk_i2s_type_str),
 };
+static const struct soc_enum s_ext_spk_operation_enum[] = {
+	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(s_audio_switch_str),
+			    s_audio_switch_str),
+	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(s_spk_mode_str),
+			    s_spk_mode_str),
+};
+/*Tab A9 code for AX6739A-8|SR-AX6739A-01-191 by hujincan at 20230425 end*/
 
 static int mt6789_spk_type_get(struct snd_kcontrol *kcontrol,
 			       struct snd_ctl_elem_value *ucontrol)
@@ -80,6 +117,212 @@ static int mt6789_spk_i2s_in_type_get(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+/*Tab A9 code for AX6739A-8|SR-AX6739A-01-186|SR-AX6739A-01-191 by hujincan at 20230425 start*/
+static int s_audio_switch_value = 0; //Default SPK
+static int rcv_spk_audio_switch_get(struct snd_kcontrol *kcontrol,
+				    struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.integer.value[0] = s_audio_switch_value;
+	return 0;
+}
+static int rcv_spk_audio_switch_set(struct snd_kcontrol *kcontrol,
+				    struct snd_ctl_elem_value *ucontrol)
+{
+	pr_info("%s() audio switch = %ld\n ", __func__,
+		 ucontrol->value.integer.value[0]);
+	if (ucontrol->value.integer.value[0]) {
+		gpio_set_value(g_audio_switch, 1);
+	} else {
+		gpio_set_value(g_audio_switch, 0);
+	}
+	s_audio_switch_value = ucontrol->value.integer.value[0];
+	return 0;
+}
+
+int fs15xx_shutdown(unsigned int mod_pin)
+{
+	unsigned long gpio_flag;
+
+	spin_lock_irqsave(&s_fs15xx_lock, gpio_flag);
+	gpio_set_value(mod_pin, 0);
+	udelay(g_fs15xx_t_pwd);
+	spin_unlock_irqrestore(&s_fs15xx_lock, gpio_flag);
+
+	return 0;
+}
+
+int fs15xx_set_l_up_mode(int fsm_mode_new, int aw_mode_new)
+{
+	unsigned long gpio_flag;
+	static int s_fsm_mode = g_fs15xx_off_mode;
+	static int s_aw_mode = g_aw87xx_off_mode;
+	int count;
+	int ret = 0;
+
+	pr_info("%s(),fsm_mode_new:%d ,aw_mode_new:%d", __func__, fsm_mode_new, aw_mode_new);
+	if (fsm_mode_new > 12 || fsm_mode_new < 0 || aw_mode_new > 10 || aw_mode_new < 0) {
+		// invalid mode
+		return -1;
+	}
+
+	if ((s_fsm_mode == fsm_mode_new) && (s_aw_mode == aw_mode_new)) {
+		// the same mode and same gpio, not to switch again
+		return ret;
+	}
+
+	// switch mode online, need shut down pa firstly
+	s_fsm_mode = fsm_mode_new;
+	s_aw_mode = aw_mode_new;
+	fs15xx_shutdown(g_ctrl_mod_l_up);
+	if ((fsm_mode_new == g_fs15xx_off_mode) || (aw_mode_new == g_aw87xx_off_mode)) {
+		return 0;
+	}
+
+	// enable pa into work mode
+	// make sure idle mode: gpio output low
+	gpio_direction_output(g_ctrl_mod_l_up, 0);
+	spin_lock_irqsave(&s_fs15xx_lock, gpio_flag);
+
+	// awinic pa sequential logic
+	gpio_set_value(g_ctrl_mod_l_up, 1);
+	count = s_aw_mode - 1;
+	while (count > 0) {
+		udelay(g_aw87xx_pulse_delay_us);
+		gpio_set_value(g_ctrl_mod_l_up, 0);
+		udelay(g_aw87xx_pulse_delay_us);
+		gpio_set_value(g_ctrl_mod_l_up, 1);
+		count--;
+	}
+
+	// 1. send T-sta
+	gpio_set_value(g_ctrl_mod_l_up, 1);
+	udelay(g_fs15xx_start);
+	gpio_set_value(g_ctrl_mod_l_up, 0);
+	udelay(g_fs15xx_pulse_delay_us); // < 140us
+	// 2. send mode
+	count = s_fsm_mode - 1;
+	while (count > 0) { // count of pulse
+		gpio_set_value(g_ctrl_mod_l_up, 1);
+		udelay(g_fs15xx_pulse_delay_us); // < 140us 10-150
+		gpio_set_value(g_ctrl_mod_l_up, 0);
+		udelay(g_fs15xx_pulse_delay_us); // < 140us
+		count--;
+	}
+
+	// 3. pull up gpio and delay, enable pa
+	gpio_set_value(g_ctrl_mod_l_up, 1);
+	spin_unlock_irqrestore(&s_fs15xx_lock, gpio_flag);
+
+	udelay(g_fs15xx_t_work); // pull up gpio > 800us
+
+	return ret;
+}
+
+int fs15xx_set_r_down_mode(int fsm_mode_new, int aw_mode_new)
+{
+	unsigned long gpio_flag;
+	static int s_fsm_mode = g_fs15xx_off_mode;
+	static int s_aw_mode = g_aw87xx_off_mode;
+	int count;
+	int ret = 0;
+
+	pr_info("%s(),fsm_mode_new:%d ,aw_mode_new:%d", __func__, fsm_mode_new, aw_mode_new);
+	if (fsm_mode_new > 12 || fsm_mode_new < 0 || aw_mode_new > 10 || aw_mode_new < 0) {
+		// invalid mode
+		return -1;
+	}
+
+	if ((s_fsm_mode == fsm_mode_new) && (s_aw_mode == aw_mode_new)) {
+		// the same mode and same gpio, not to switch again
+		return ret;
+	}
+
+	// switch mode online, need shut down pa firstly
+	s_fsm_mode = fsm_mode_new;
+	s_aw_mode = aw_mode_new;
+	fs15xx_shutdown(g_ctrl_mod_r_down);
+	if ((fsm_mode_new == g_fs15xx_off_mode) || (aw_mode_new == g_aw87xx_off_mode)) {
+		return 0;
+	}
+
+	// enable pa into work mode
+	// make sure idle mode: gpio output low
+	gpio_direction_output(g_ctrl_mod_r_down, 0);
+	spin_lock_irqsave(&s_fs15xx_lock, gpio_flag);
+
+	// awinic pa sequential logic
+	gpio_set_value(g_ctrl_mod_r_down, 1);
+	count = s_aw_mode - 1;
+	while (count > 0) {
+		udelay(g_aw87xx_pulse_delay_us);
+		gpio_set_value(g_ctrl_mod_r_down, 0);
+		udelay(g_aw87xx_pulse_delay_us);
+		gpio_set_value(g_ctrl_mod_r_down, 1);
+		count--;
+	}
+
+	// 1. send T-sta
+	gpio_set_value(g_ctrl_mod_r_down, 1);
+	udelay(g_fs15xx_start);
+	gpio_set_value(g_ctrl_mod_r_down, 0);
+	udelay(g_fs15xx_pulse_delay_us); // < 140us
+	// 2. send mode
+	count = s_fsm_mode - 1;
+	while (count > 0) { // count of pulse
+		gpio_set_value(g_ctrl_mod_r_down, 1);
+		udelay(g_fs15xx_pulse_delay_us); // < 140us 10-150
+		gpio_set_value(g_ctrl_mod_r_down, 0);
+		udelay(g_fs15xx_pulse_delay_us); // < 140us
+		count--;
+	}
+
+	// 3. pull up gpio and delay, enable pa
+	gpio_set_value(g_ctrl_mod_r_down, 1);
+	spin_unlock_irqrestore(&s_fs15xx_lock, gpio_flag);
+
+	udelay(g_fs15xx_t_work); // pull up gpio > 800us
+
+	return ret;
+}
+
+static int s_spk_mode = 0; //Defaukt DUAL SPK
+static int spk_mode_get(struct snd_kcontrol *kcontrol,
+		  struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.integer.value[0] = s_spk_mode;
+	return 0;
+}
+static int spk_mode_set(struct snd_kcontrol *kcontrol,
+		  struct snd_ctl_elem_value *ucontrol)
+{
+	pr_info("%s() spk mode = %ld\n ", __func__,
+		ucontrol->value.integer.value[0]);
+	s_spk_mode = ucontrol->value.integer.value[0];
+	return 0;
+}
+
+/*Tab A9 code for AX6739A-586 by hujincan at 20230602 start*/
+static int spk_mode_immediately_set(struct snd_kcontrol *kcontrol,
+		  struct snd_ctl_elem_value *ucontrol)
+{
+	pr_info("%s() spk mode = %ld\n ", __func__,
+		ucontrol->value.integer.value[0]);
+	/* Open the PA and set the mode */
+	if (ucontrol->value.integer.value[0] == 0) { //DUAL SPK
+		fs15xx_set_l_up_mode(g_fs15xx_open_mode, g_aw87xx_open_mode);
+		fs15xx_set_r_down_mode(g_fs15xx_open_mode, g_aw87xx_open_mode);
+	} else if (ucontrol->value.integer.value[0] == 1) { //SPKL
+		fs15xx_set_l_up_mode(g_fs15xx_open_mode, g_aw87xx_open_mode);
+		fs15xx_set_r_down_mode(g_fs15xx_off_mode, g_aw87xx_off_mode);
+	} else if (ucontrol->value.integer.value[0] == 2) { //SPKR
+		fs15xx_set_l_up_mode(g_fs15xx_off_mode, g_aw87xx_off_mode);
+		fs15xx_set_r_down_mode(g_fs15xx_open_mode, g_aw87xx_open_mode);
+	}
+	s_spk_mode = ucontrol->value.integer.value[0];
+	return 0;
+}
+/*Tab A9 code for AX6739A-586 by hujincan at 20230602 end*/
+
 static int mt6789_mt6366_spk_amp_event(struct snd_soc_dapm_widget *w,
 					struct snd_kcontrol *kcontrol,
 					int event)
@@ -92,9 +335,22 @@ static int mt6789_mt6366_spk_amp_event(struct snd_soc_dapm_widget *w,
 	switch (event) {
 	case SND_SOC_DAPM_POST_PMU:
 		/* spk amp on control */
+		if (s_spk_mode == 0) { //DUAL SPK
+			fs15xx_set_l_up_mode(g_fs15xx_open_mode, g_aw87xx_open_mode);
+			fs15xx_set_r_down_mode(g_fs15xx_open_mode, g_aw87xx_open_mode);
+		} else if (s_spk_mode == 1) { //SPKL
+			fs15xx_set_l_up_mode(g_fs15xx_open_mode, g_aw87xx_open_mode);
+			fs15xx_set_r_down_mode(g_fs15xx_off_mode, g_aw87xx_off_mode);
+		} else if (s_spk_mode == 2) { //SPKR
+			fs15xx_set_l_up_mode(g_fs15xx_off_mode, g_aw87xx_off_mode);
+			fs15xx_set_r_down_mode(g_fs15xx_open_mode, g_aw87xx_open_mode);
+		}
 		break;
 	case SND_SOC_DAPM_PRE_PMD:
 		/* spk amp off control */
+		fs15xx_set_l_up_mode(g_fs15xx_off_mode, g_aw87xx_off_mode);
+		fs15xx_set_r_down_mode(g_fs15xx_off_mode, g_aw87xx_off_mode);
+		s_spk_mode = 0; //Defaukt DUAL SPK
 		break;
 	default:
 		break;
@@ -102,6 +358,7 @@ static int mt6789_mt6366_spk_amp_event(struct snd_soc_dapm_widget *w,
 
 	return 0;
 };
+/*Tab A9 code for AX6739A-8|SR-AX6739A-01-186|SR-AX6739A-01-191 by hujincan at 20230425 start*/
 
 static const struct snd_soc_dapm_widget mt6789_mt6366_widgets[] = {
 	SND_SOC_DAPM_SPK(EXT_SPK_AMP_W_NAME, mt6789_mt6366_spk_amp_event),
@@ -113,6 +370,7 @@ static const struct snd_soc_dapm_route mt6789_mt6366_routes[] = {
 	{EXT_SPK_AMP_W_NAME, NULL, "Headphone R Ext Spk Amp"},
 };
 
+/*Tab A9 code for AX6739A-8|SR-AX6739A-01-191|AX6739A-586 by hujincan at 20230602 start*/
 static const struct snd_kcontrol_new mt6789_mt6366_controls[] = {
 	SOC_DAPM_PIN_SWITCH(EXT_SPK_AMP_W_NAME),
 	SOC_ENUM_EXT("MTK_SPK_TYPE_GET", mt6789_spk_type_enum[0],
@@ -121,7 +379,14 @@ static const struct snd_kcontrol_new mt6789_mt6366_controls[] = {
 		     mt6789_spk_i2s_out_type_get, NULL),
 	SOC_ENUM_EXT("MTK_SPK_I2S_IN_TYPE_GET", mt6789_spk_type_enum[1],
 		     mt6789_spk_i2s_in_type_get, NULL),
+	SOC_ENUM_EXT("RCV_SPK_Audio_Switch", s_ext_spk_operation_enum[0],
+		     rcv_spk_audio_switch_get, rcv_spk_audio_switch_set),
+	SOC_ENUM_EXT("SPK_MODE_Switch", s_ext_spk_operation_enum[1],
+		     spk_mode_get, spk_mode_set),
+	SOC_ENUM_EXT("SPK_MODE_IMMEDIATELY_Switch", s_ext_spk_operation_enum[1],
+		     NULL, spk_mode_immediately_set),
 };
+/*Tab A9 code for AX6739A-8|SR-AX6739A-01-191|AX6739A-586 by hujincan at 20230602 end*/
 
 /*
  * define mtk_spk_i2s_mck node in dts when need mclk,
@@ -482,6 +747,14 @@ SND_SOC_DAILINK_DEFS(hostless_fm,
 	DAILINK_COMP_ARRAY(COMP_CPU("Hostless FM DAI")),
 	DAILINK_COMP_ARRAY(COMP_DUMMY()),
 	DAILINK_COMP_ARRAY(COMP_EMPTY()));
+SND_SOC_DAILINK_DEFS(hostless_fm_record,
+	DAILINK_COMP_ARRAY(COMP_CPU("Hostless_FM_Record DAI")),
+	DAILINK_COMP_ARRAY(COMP_DUMMY()),
+	DAILINK_COMP_ARRAY(COMP_EMPTY()));
+SND_SOC_DAILINK_DEFS(hostless_adda_dl_hwgain,
+	DAILINK_COMP_ARRAY(COMP_CPU("Hostless_ADDA_DL_HWGain DAI")),
+	DAILINK_COMP_ARRAY(COMP_DUMMY()),
+	DAILINK_COMP_ARRAY(COMP_EMPTY()));
 SND_SOC_DAILINK_DEFS(hostless_speech,
 	DAILINK_COMP_ARRAY(COMP_CPU("Hostless Speech DAI")),
 	DAILINK_COMP_ARRAY(COMP_DUMMY()),
@@ -815,6 +1088,26 @@ static struct snd_soc_dai_link mt6789_mt6366_dai_links[] = {
 		.dpcm_capture = 1,
 		.ignore_suspend = 1,
 		SND_SOC_DAILINK_REG(hostless_fm),
+	},
+	{
+		.name = "Hostless_FM_Record",
+		.stream_name = "Hostless_FM_Record",
+		.trigger = {SND_SOC_DPCM_TRIGGER_PRE,
+			    SND_SOC_DPCM_TRIGGER_PRE},
+		.dynamic = 1,
+		.dpcm_capture = 1,
+		.ignore_suspend = 1,
+		SND_SOC_DAILINK_REG(hostless_fm_record),
+	},
+	{
+		.name = "Hostless_ADDA_DL_HWGain",
+		.stream_name = "Hostless_ADDA_DL_HWGain",
+		.trigger = {SND_SOC_DPCM_TRIGGER_PRE,
+			    SND_SOC_DPCM_TRIGGER_PRE},
+		.dynamic = 1,
+		.dpcm_playback = 1,
+		.ignore_suspend = 1,
+		SND_SOC_DAILINK_REG(hostless_adda_dl_hwgain),
 	},
 	{
 		.name = "Hostless_Speech",
@@ -1197,6 +1490,38 @@ static int mt6789_mt6366_dev_probe(struct platform_device *pdev)
 #endif
 
 	card->dev = &pdev->dev;
+
+	/*Tab A9 code for AX6739A-8 by hujincan at 20230425 start*/
+	g_ctrl_mod_l_up = of_get_named_gpio(pdev->dev.of_node, "ctrl-mod-l-up", 0);
+	if (g_ctrl_mod_l_up < 0) {
+		pr_err("%s(), get ctrl-mod-l-up fail!\n", __func__);
+	}
+	if (gpio_is_valid(g_ctrl_mod_l_up)) {
+		if (gpio_request(g_ctrl_mod_l_up, "ctrl-mod-l-up") < 0) {
+			pr_err("%s(), gpio_request ctrl-mod-l-up fail\n", __func__);
+		}
+	}
+
+	g_ctrl_mod_r_down = of_get_named_gpio(pdev->dev.of_node, "ctrl-mod-r-down", 0);
+	if (g_ctrl_mod_r_down < 0) {
+		pr_err("%s(), get ctrl-mod-r-down fail!\n", __func__);
+	}
+	if (gpio_is_valid(g_ctrl_mod_r_down)) {
+		if (gpio_request(g_ctrl_mod_r_down, "ctrl-mod-r-down") < 0) {
+			pr_err("%s(), gpio_request ctrl-mod-r-down fail\n", __func__);
+		}
+	}
+
+	g_audio_switch = of_get_named_gpio(pdev->dev.of_node, "audio-switch", 0);
+	if (g_audio_switch < 0) {
+		pr_err("%s(), get audio-switch fail!\n", __func__);
+	}
+	if (gpio_is_valid(g_audio_switch)) {
+		if (gpio_request(g_audio_switch, "audio-switch") < 0) {
+			pr_err("%s(), gpio_request audio-switch fail\n", __func__);
+		}
+	}
+	/*Tab A9 code for AX6739A-8 by hujincan at 20230425 end*/
 
 	ret = devm_snd_soc_register_card(&pdev->dev, card);
 	if (ret)

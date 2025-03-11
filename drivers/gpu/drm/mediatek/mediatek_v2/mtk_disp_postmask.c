@@ -325,7 +325,7 @@ static void mtk_postmask_config(struct mtk_ddp_comp *comp,
 				      handle);
 
 		if (postmask->data->is_support_34bits)
-			mtk_ddp_write_relaxed(comp, DO_SHIFT_RIGHT(addr, 32),
+			mtk_ddp_write_relaxed(comp, (addr >> 32),
 					DISP_POSTMASK_MEM_ADDR_MSB, handle);
 
 		mtk_ddp_write_relaxed(comp, size, DISP_POSTMASK_MEM_LENGTH,
@@ -415,12 +415,12 @@ int mtk_postmask_analysis(struct mtk_ddp_comp *comp)
 
 	if (postmask->data->is_support_34bits) {
 		addr = readl(DISP_POSTMASK_MEM_ADDR_MSB + baddr);
-		addr = DO_SHIFT_LEFT(addr, 32);
+		addr = (addr << 32);
 	}
 
 	addr += readl(DISP_POSTMASK_MEM_ADDR + baddr);
 
-	DDPDUMP("mem_addr=0x%llx,length=0x%x\n",
+	DDPDUMP("mem_addr=0x%x,length=0x%x\n",
 		addr, readl(DISP_POSTMASK_MEM_LENGTH + baddr));
 
 	DDPDUMP("status=0x%x,cur_pos=0x%x\n",

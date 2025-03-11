@@ -19,8 +19,10 @@
 	/* System shutdown current */
 	FG_METER_RESISTANCE = <(70)>;
 	/* The resistance of PCB */
-	CAR_TUNE_VALUE = <(101)>;
+	/*Tab A9 code for SR-AX6739A-01-460 by lina at 20230519 start*/
+	CAR_TUNE_VALUE = <(99)>;
 	/* Tune value for current measurement */
+	/*Tab A9 code for SR-AX6739A-01-460 by lina at 20230519 end*/
 	PMIC_MIN_VOL = <(33500)>;
 	/* vboot voltage for gauge 0%*/
 	POWERON_SYSTEM_IBOOT = <(500)>;
@@ -35,9 +37,11 @@
 	/* Battery temperature T2 */
 	TEMPERATURE_T3 = <(0)>;
 	/* Battery temperature T3 */
-	TEMPERATURE_T4 = <(-7)>;
+	/*Tab A9 code for SR-AX6739A-01-515 by lina at 20230505 start*/
+	TEMPERATURE_T4 = <(-10)>;
 	/* Battery temperature T4 */
-	TEMPERATURE_T5 = <(-10)>;
+	TEMPERATURE_T5 = <(-20)>;
+	/*Tab A9 code for SR-AX6739A-01-515 by lina at 20230505 end*/
 	/* Battery temperature T5 */
 	g_FG_PSEUDO100_T0 = <(100)>;
 	/* Pseudo 100% percentage at T0 */
@@ -68,6 +72,8 @@
 	MULTI_TEMP_GAUGE0 = <(1)>;
 	/* Multi gauge0 enable */
 	RBAT_PULL_UP_VOLT = <(2800)>;
-#include "mt6789_battery_table.dtsi"
+/*Tab A9 code for SR-AX6739A-01-515 by lina at 20230505 start*/
+#include "mt6789_battery_table_ext.dtsi"
+/*Tab A9 code for SR-AX6739A-01-515 by lina at 20230505 end*/
 #include "mt6789_battery_prop_dim2_ext.dtsi"
 };

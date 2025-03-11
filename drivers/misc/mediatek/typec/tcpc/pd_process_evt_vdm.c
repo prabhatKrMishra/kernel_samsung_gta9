@@ -8,6 +8,9 @@
 #include "inc/pd_process_evt.h"
 #include "inc/pd_dpm_core.h"
 #include "pd_dpm_prv.h"
+/*Tab A9 code for SR-AX6739A-01-482 by qiaodan at 20230516 start*/
+#include <linux/power/gxy_psy_sysfs.h>
+/*Tab A9 code for SR-AX6739A-01-482 by qiaodan at 20230516 end*/
 
 /* VDM reactions */
 
@@ -594,6 +597,10 @@ static inline bool pd_process_data_msg(
 {
 	bool ret = false;
 	uint32_t vdm_hdr;
+	/*Tab A9 code for SR-AX6739A-01-482 by qiaodan at 20230516 start*/
+	uint32_t idh_hdr = 0;
+	uint32_t idh_type = 0;
+	/*Tab A9 code for SR-AX6739A-01-482 by qiaodan at 20230516 end*/
 	struct pd_msg *pd_msg = pd_event->pd_msg;
 
 	if (pd_event->msg != PD_DATA_VENDOR_DEF)
@@ -616,6 +623,14 @@ static inline bool pd_process_data_msg(
 		PE_DBG("reset vdm_state\n");
 #endif /* if PE_DBG_RESET_VDM_DIS == 0 */
 	}
+
+	/*Tab A9 code for SR-AX6739A-01-482 by qiaodan at 20230516 start*/
+	idh_hdr = pd_msg->payload[VDO_INDEX_IDH];
+	idh_type = PD_IDH_PTYPE(idh_hdr);
+	if ((idh_type == IDH_PTYPE_HUB) || (idh_type == IDH_PTYPE_AMA)) {
+		gxy_usb_set_pdhub_flag(true);
+	}
+	/*Tab A9 code for SR-AX6739A-01-482 by qiaodan at 20230516 end*/
 
 	print_vdm_msg(pd_port, pd_event);
 

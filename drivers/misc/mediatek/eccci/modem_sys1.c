@@ -71,6 +71,23 @@ bool spm_is_md1_sleep(void)
 
 #endif
 
+static int ccci_get_md_sec_smem_size_and_update(void)
+{
+#ifdef ENABLE_MD_SEC_SMEM
+	struct arm_smccc_res res;
+
+	arm_smccc_smc(MTK_SIP_KERNEL_CCCI_CONTROL,
+				UPDATE_MD_SEC_SMEM, 0, 0, 0, 0, 0, 0, &res);
+	CCCI_NORMAL_LOG(-1, TAG,
+		"%s:size=0x%x\n", __func__, (int)res.a0);
+
+	return (int)res.a0;
+#else
+
+	return 0;
+#endif
+}
+
 void ccif_enable_irq(struct ccci_modem *md)
 {
 	struct md_sys1_info *md_info = (struct md_sys1_info *)md->private_data;
@@ -236,10 +253,8 @@ static int md_cd_ee_handshake(struct ccci_modem *md, int timeout)
 	md_cd_exception(md, HIF_EX_INIT);
 	polling_ready(md, D2H_EXCEPTION_INIT_DONE);
 	md_cd_exception(md, HIF_EX_INIT_DONE);
-
 	polling_ready(md, D2H_EXCEPTION_CLEARQ_DONE);
 	md_cd_exception(md, HIF_EX_CLEARQ_DONE);
-
 	polling_ready(md, D2H_EXCEPTION_ALLQ_RESET);
 	md_cd_exception(md, HIF_EX_ALLQ_RESET);
 
@@ -416,6 +431,10 @@ static int md_cd_start(struct ccci_modem *md)
 	/* 7. let modem go */
 	if (md->hw_info->plat_ptr->let_md_go)
 		md->hw_info->plat_ptr->let_md_go(md);
+
+	/* Notify ATF update md sec smem info */
+
+	ccci_get_md_sec_smem_size_and_update();
 	wdt_enable_irq(md);
 	ccci_md_hif_start(md, 2);
 
@@ -792,7 +811,10 @@ static void config_ap_runtime_data_v2_1(struct ccci_modem *md,
 	struct ccci_smem_region *runtime_data =
 		ccci_md_get_smem_by_user_id(md->index,
 			SMEM_USER_RAW_RUNTIME_DATA);
+	int sec_smem_size = ccci_get_md_sec_smem_size_and_update();
 
+	CCCI_NORMAL_LOG(md->index, TAG,
+		"%s:sec_smem_size=0x%x\n", __func__, sec_smem_size);
 	ap_feature->head_pattern = AP_FEATURE_QUERY_PATTERN;
 	/*AP query MD feature set */
 
@@ -807,7 +829,7 @@ static void config_ap_runtime_data_v2_1(struct ccci_modem *md,
 	ap_feature->noncached_mpu_start_addr =
 		md->mem_layout.md_bank4_noncacheable_total.base_md_view_phy;
 	ap_feature->noncached_mpu_total_size =
-		md->mem_layout.md_bank4_noncacheable_total.size;
+		md->mem_layout.md_bank4_noncacheable_total.size + sec_smem_size;
 	ap_feature->cached_mpu_start_addr =
 		md->mem_layout.md_bank4_cacheable_total.base_md_view_phy;
 	ap_feature->cached_mpu_total_size =
@@ -1110,7 +1132,7 @@ static ssize_t md_cd_debug_show(struct ccci_modem *md, char *buf)
 {
 	int curr = 0;
 
-	curr = snprintf(buf, 16, "%d\n", ccci_debug_enable);
+	curr = scnprintf(buf, 16, "%d\n", ccci_debug_enable);
 	if (curr < 0) {
 		CCCI_ERROR_LOG(md->index, TAG,
 			"%s-%d:scnprintf fail,curr = %d\n", __func__, __LINE__, curr);

@@ -211,6 +211,13 @@ void fg_daemon_send_data(struct mtk_battery *gm,
 				struct fgd_cmd_param_t_custom),
 				prcv->total_size);
 			}
+			if ((prcv->idx + prcv->size) >
+				sizeof(struct fgd_cmd_param_t_custom)) {
+				bm_err("size is different %d size %d idx %d\n",
+					(int)sizeof(struct fgd_cmd_param_t_custom),
+					prcv->size, prcv->idx);
+				return;
+			}
 
 			ptr = (char *)&gm->fg_data;
 			memcpy(&ptr[prcv->idx],
@@ -236,6 +243,13 @@ void fg_daemon_send_data(struct mtk_battery *gm,
 				(int)sizeof(
 				struct VersionControl),
 				prcv->total_size);
+			}
+			if ((prcv->idx + prcv->size) >
+				sizeof(struct VersionControl)) {
+				bm_err("size is different %d size %d idx %d\n",
+					(int)sizeof(struct VersionControl),
+					prcv->size, prcv->idx);
+				return;
 			}
 
 			ptr = (char *)&gm->fg_version;
@@ -313,6 +327,16 @@ void fg_daemon_get_data(int cmd,
 	{
 		char *ptr;
 
+		if (prcv->idx + prcv->size >
+			sizeof(struct fuel_gauge_custom_data)) {
+			bm_err("%s size is different %d %d %d\n",
+			__func__,
+			(int)sizeof(
+			struct fuel_gauge_custom_data),
+			prcv->idx, prcv->size);
+			return;
+		}
+
 		if (sizeof(struct fuel_gauge_custom_data)
 			!= prcv->total_size) {
 			bm_err("%s size is different %d %d\n",
@@ -340,6 +364,16 @@ void fg_daemon_get_data(int cmd,
 	case FG_DAEMON_CMD_GET_CUSTOM_TABLE:
 		{
 			char *ptr;
+
+			if (prcv->idx + prcv->size >
+				sizeof(struct fuel_gauge_table_custom_data)) {
+				bm_err("%s size is different %d %d %d\n",
+				__func__,
+				(int)sizeof(
+				struct fuel_gauge_table_custom_data),
+				prcv->idx, prcv->size);
+				return;
+			}
 
 			if (sizeof(struct fuel_gauge_table_custom_data)
 				!= prcv->total_size) {
@@ -1645,44 +1679,7 @@ void exec_BAT_EC(int cmd, int param)
 				cmd, param);
 		}
 		break;
-	case 804:
-		{
-			wakeup_fg_algo(gm, FG_INTR_FG_TIME);
-			wakeup_fg_algo(gm, FG_INTR_BAT_INT1_HT);
-			wakeup_fg_algo(gm, FG_INTR_BAT_INT1_LT);
-			wakeup_fg_algo(gm, FG_INTR_BAT_INT2_HT);
-			wakeup_fg_algo(gm, FG_INTR_BAT_INT2_LT);
-			wakeup_fg_algo(gm, FG_INTR_BAT_TIME_INT);
-			wakeup_fg_algo(gm, FG_INTR_IAVG);
-			wakeup_fg_algo(gm, FG_INTR_VBAT2_L);
-			wakeup_fg_algo(gm, FG_INTR_VBAT2_H);
-			wakeup_fg_algo(gm, FG_INTR_BAT_INT1_CHECK);
-			wakeup_fg_algo(gm, FG_INTR_BAT_INT2_CHECK);
-			gauge_set_nag_en(gm, 1);
-			battery_update(gm);
 
-			bm_err("exe_BAT_EC cmd %d for SET\n", cmd);
-		}
-		break;
-	case 805:
-		{
-			gm->algo.active = true;
-			battery_algo_init(gm);
-			wakeup_fg_algo(gm, FG_INTR_FG_TIME);
-			wakeup_fg_algo(gm, FG_INTR_BAT_INT1_HT);
-			wakeup_fg_algo(gm, FG_INTR_BAT_INT1_LT);
-			wakeup_fg_algo(gm, FG_INTR_BAT_INT2_HT);
-			wakeup_fg_algo(gm, FG_INTR_BAT_INT2_LT);
-			wakeup_fg_algo(gm, FG_INTR_BAT_TIME_INT);
-			wakeup_fg_algo(gm, FG_INTR_IAVG);
-			wakeup_fg_algo(gm, FG_INTR_VBAT2_L);
-			wakeup_fg_algo(gm, FG_INTR_VBAT2_H);
-			wakeup_fg_algo(gm, FG_INTR_BAT_INT1_CHECK);
-			wakeup_fg_algo(gm, FG_INTR_BAT_INT2_CHECK);
-			bm_err("exe_BAT_EC cmd %d for SET\n", cmd);
-			battery_update(gm);
-		}
-		break;
 
 
 	default:
@@ -2715,7 +2712,10 @@ static void mtk_battery_daemon_handler(struct mtk_battery *gm, void *nl_data,
 		/* todo */
 		int is_charger_exist = 0;
 
-		if (gm->bs_data.bat_status == POWER_SUPPLY_STATUS_CHARGING)
+		/*Tab A9 code for AX6739A-2504 by hualei at 20230801 start*/
+		if (gm->bs_data.bat_status == POWER_SUPPLY_STATUS_CHARGING ||
+			gm->bs_data.bat_status == POWER_SUPPLY_STATUS_FULL)
+		/*Tab A9 code for AX6739A-2504 by hualei at 20230801 end*/
 			is_charger_exist = true;
 		else
 			is_charger_exist = false;
@@ -2883,6 +2883,10 @@ static void mtk_battery_daemon_handler(struct mtk_battery *gm, void *nl_data,
 
 		fg_coulomb = gauge_get_int_property(GAUGE_PROP_COULOMB);
 
+		if (((int)sizeof(msg->fgd_data[0])) == 0) {
+			bm_err("[fr] FG_DAEMON_CMD_SET_FG_BAT_INT1_GAP is not filled\n");
+			break;
+		}
 		memcpy(&gm->coulomb_int_gap,
 			&msg->fgd_data[0], sizeof(gm->coulomb_int_gap));
 
@@ -3421,6 +3425,11 @@ static void mtk_battery_daemon_handler(struct mtk_battery *gm, void *nl_data,
 		memcpy(&daemon_soc, &msg->fgd_data[0], sizeof(daemon_soc));
 		if (soc_type == 0)
 			gm->soc = (daemon_soc + 50) / 100;
+		/*Tab A9 code for SR-AX6739A-01-505 by lina at 20230510 start*/
+		#ifdef CONFIG_ODM_CUSTOM_D85_BUILD
+		gm->soc = 50;
+		#endif
+		/*Tab A9 code for SR-AX6739A-01-505 by lina at 20230510 end*/
 
 		bm_debug(
 		"[K]FG_DAEMON_CMD_SET_KERNEL_SOC = %d %d, type:%d\n",
@@ -4798,21 +4807,13 @@ void fg_update_sw_iavg(struct mtk_battery *gm)
 	dtime = ktime_sub(ctime, gm->sw_iavg_time);
 	diff = ktime_to_timespec64(dtime);
 
-	bm_debug("[%s]diff time:%ld\n", __func__, diff.tv_sec);
+	bm_debug("[%s]diff time:%ld\n",
+		__func__,
+		diff.tv_sec);
 	if (diff.tv_sec >= 60) {
 		fg_coulomb = gauge_get_int_property(GAUGE_PROP_COULOMB);
-#if defined(__LP64__) || defined(_LP64)
 		gm->sw_iavg = (fg_coulomb - gm->sw_iavg_car)
 			* 3600 / diff.tv_sec;
-#else
-		if (diff.tv_sec < 65535)
-			gm->sw_iavg = (fg_coulomb - gm->sw_iavg_car)
-			* 3600 / (int)(diff.tv_sec);
-		else {
-			gm->sw_iavg = 0;
-			bm_err("[%s]diff.tv_sec:%d\n", __func__, diff.tv_sec);
-		}
-#endif
 		gm->sw_iavg_time = ctime;
 		gm->sw_iavg_car = fg_coulomb;
 		version = gauge_get_int_property(GAUGE_PROP_HW_VERSION);
@@ -4993,6 +4994,24 @@ static int mtk_battery_resume(struct mtk_battery *gm)
 	return 0;
 }
 
+/*Tab A9 code for SR-AX6739A-01-521 by shanxinkai at 20230601 start*/
+#if !defined(CONFIG_ODM_CUSTOM_FACTORY_BUILD)
+void gxy_set_reset_cycle(struct mtk_battery *gm, bool enable)
+{
+	gm = get_mtk_battery();
+
+	if (enable == 0) {
+		gm->is_reset_battery_cycle = false;
+	} else {
+		gm->is_reset_battery_cycle = true;
+		wakeup_fg_algo(gm, FG_INTR_BAT_CYCLE);
+	}
+
+	pr_err("%s: is_reset_battery_cycle = %d\n", __func__, gm->is_reset_battery_cycle);
+}
+#endif // !CONFIG_ODM_CUSTOM_FACTORY_BUILD
+/*Tab A9 code for SR-AX6739A-01-521 by shanxinkai at 20230601 end*/
+
 bool is_daemon_support(struct mtk_battery *gm)
 {
 	bool is_support = true;
@@ -5028,6 +5047,11 @@ int mtk_battery_daemon_init(struct platform_device *pdev)
 	gm->shutdown = mtk_battery_shutdown;
 	gm->suspend = mtk_battery_suspend;
 	gm->resume = mtk_battery_resume;
+	/*Tab A9 code for SR-AX6739A-01-521 by shanxinkai at 20230601 start*/
+	#if !defined(CONFIG_ODM_CUSTOM_FACTORY_BUILD)
+	gm->reset_cycle = gxy_set_reset_cycle;
+	#endif // !CONFIG_ODM_CUSTOM_FACTORY_BUILD
+	/*Tab A9 code for SR-AX6739A-01-521 by shanxinkai at 20230601 end*/
 	fg_cust_data = &gm->fg_cust_data;
 
 	if (hw_version == GAUGE_NO_HW) {

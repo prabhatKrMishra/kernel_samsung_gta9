@@ -43,7 +43,7 @@
 #define MT6360_ENABLE_TORCH 1
 #define MT6360_ENABLE_FLASH 2
 
-#define MT6360_LEVEL_NUM 32
+#define MT6360_LEVEL_NUM 38
 #define MT6360_LEVEL_TORCH 16
 #define MT6360_LEVEL_FLASH MT6360_LEVEL_NUM
 #define MT6360_WDT_TIMEOUT 1248 /* ms */
@@ -108,7 +108,7 @@ static const int mt6360_current[MT6360_LEVEL_NUM] = {
 	  25,   50,  75, 100, 125, 150, 175,  200,  225,  250,
 	 275,  300, 325, 350, 375, 400, 450,  500,  550,  600,
 	 650,  700, 750, 800, 850, 900, 950, 1000, 1050, 1100,
-	1150, 1200
+	1150, 1200, 1250, 1300, 1350, 1400, 1450, 1500
 };
 
 static const unsigned char mt6360_torch_level[MT6360_LEVEL_TORCH] = {
@@ -121,7 +121,7 @@ static const unsigned char mt6360_strobe_level[MT6360_LEVEL_FLASH] = {
 	0x00, 0x04, 0x08, 0x0C, 0x10, 0x14, 0x18, 0x1C, 0x20, 0x24,
 	0x28, 0x2C, 0x30, 0x34, 0x38, 0x3C, 0x44, 0x4C, 0x54, 0x5C,
 	0x64, 0x6C, 0x74, 0x78, 0x7C, 0x80, 0x84, 0x88, 0x8C, 0x90,
-	0x94, 0x98
+	0x94, 0x98, 0x9C, 0xA0, 0xA4, 0xA8, 0xAC, 0xB0
 };
 
 static int mt6360_decouple_mode;

@@ -404,6 +404,11 @@ static uint8_t dpm_reaction_update_pe_ready(struct pd_port *pd_port)
 	pd_dpm_dynamic_disable_vconn(pd_port);
 
 #if CONFIG_USB_PD_REV30_COLLISION_AVOID
+	/*Tab A9 code for AX6739A-1540 by shixuanxuan at 20230720 start*/
+	if (tcpc->tcp_event_count) {
+		return 0;
+	}
+	/*Tab A9 code for AX6739A-1540 by shixuanxuan at 20230720 end*/
 	pd_port->pe_data.pd_traffic_idle = true;
 	if (pd_check_rev30(pd_port) &&
 		(pd_port->power_role == PD_ROLE_SOURCE))

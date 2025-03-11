@@ -71,6 +71,57 @@ extern long BU6429AF_Ioctl(struct file *a_pstFile, unsigned int a_u4Command,
 extern int BU6429AF_Release(struct inode *a_pstInode, struct file *a_pstFile);
 extern int BU6429AF_GetFileName(unsigned char *pFileName);
 
+#define CN3927VAF_SetI2Cclient CN3927VAF_SetI2Cclient_Main
+#define CN3927VAF_Ioctl CN3927VAF_Ioctl_Main
+#define CN3927VAF_Release CN3927VAF_Release_Main
+#define CN3927VAF_GetFileName CN3927VAF_GetFileName_Main
+extern int CN3927VAF_SetI2Cclient(struct i2c_client *pstAF_I2Cclient,
+				 spinlock_t *pAF_SpinLock, int *pAF_Opened);
+extern long CN3927VAF_Ioctl(struct file *a_pstFile, unsigned int a_u4Command,
+			   unsigned long a_u4Param);
+extern int CN3927VAF_Release(struct inode *a_pstInode, struct file *a_pstFile);
+extern int CN3927VAF_GetFileName(unsigned char *pFileName);
+
+/*Tab A9 code for SR-AX6739A-01-214 by rongyi at 20230516 start*/
+#define CN3929AF_SetI2Cclient CN3929AF_SetI2Cclient_Main
+#define CN3929AF_Ioctl CN3929AF_Ioctl_Main
+#define CN3929AF_Release CN3929AF_Release_Main
+#define CN3929AF_GetFileName CN3929AF_GetFileName_Main
+extern int CN3929AF_SetI2Cclient(struct i2c_client *pstAF_I2Cclient,
+				 spinlock_t *pAF_SpinLock, int *pAF_Opened);
+extern long CN3929AF_Ioctl(struct file *a_pstFile, unsigned int a_u4Command,
+			   unsigned long a_u4Param);
+extern int CN3929AF_Release(struct inode *a_pstInode, struct file *a_pstFile);
+extern int CN3929AF_GetFileName(unsigned char *pFileName);
+/*Tab A9 code for SR-AX6739A-01-214 by rongyi at 20230516 end*/
+
+#define CN3927AF_SetI2Cclient CN3927AF_SetI2Cclient_Main
+#define CN3927AF_Ioctl CN3927AF_Ioctl_Main
+#define CN3927AF_Release CN3927AF_Release_Main
+#define CN3927AF_GetFileName CN3927AF_GetFileName_Main
+extern int CN3927AF_SetI2Cclient(struct i2c_client *pstAF_I2Cclient,
+				 spinlock_t *pAF_SpinLock, int *pAF_Opened);
+extern long CN3927AF_Ioctl(struct file *a_pstFile, unsigned int a_u4Command,
+			   unsigned long a_u4Param);
+extern int CN3927AF_Release(struct inode *a_pstInode, struct file *a_pstFile);
+extern int CN3927AF_GetFileName(unsigned char *pFileName);
+/*Tab A9 code for  AX6739A-442 by rongyi at 20230531 start */
+
+#define AW8601XAF_SetI2Cclient AW8601XAF_SetI2Cclient_Main
+#define AW8601XAF_Ioctl AW8601XAF_Ioctl_Main
+#define AW8601XAF_Release AW8601XAF_Release_Main
+#define AW8601XAF_GetFileName AW8601XAF_GetFileName_Main
+#define AW8601XAF_PowerDown AW8601XAF_PowerDown_Main
+extern int AW8601XAF_SetI2Cclient(struct i2c_client *pstAF_I2Cclient,
+				 spinlock_t *pAF_SpinLock, int *pAF_Opened);
+extern long AW8601XAF_Ioctl(struct file *a_pstFile, unsigned int a_u4Command,
+			   unsigned long a_u4Param);
+extern int AW8601XAF_Release(struct inode *a_pstInode, struct file *a_pstFile);
+extern int AW8601XAF_GetFileName(unsigned char *pFileName);
+extern int AW8601XAF_PowerDown(struct i2c_client *pstAF_I2Cclient,
+				int *pAF_Opened);
+/*Tab A9 code for  AX6739A-442 by rongyi at 20230531 end */
+
 #ifdef CONFIG_MTK_LENS_BU63165AF_SUPPORT
 #define BU63165AF_SetI2Cclient BU63165AF_SetI2Cclient_Main
 #define BU63165AF_Ioctl BU63165AF_Ioctl_Main
@@ -229,20 +280,6 @@ extern int GT9764AF_Release(struct inode *a_pstInode, struct file *a_pstFile);
 extern int GT9764AF_PowerDown(struct i2c_client *pstAF_I2Cclient,
 				int *pAF_Opened);
 extern int GT9764AF_GetFileName(unsigned char *pFileName);
-
-#define GT9768AF_SetI2Cclient GT9768AF_SetI2Cclient_Main
-#define GT9768AF_Ioctl GT9768AF_Ioctl_Main
-#define GT9768AF_Release GT9768AF_Release_Main
-#define GT9768AF_PowerDown GT9768AF_PowerDown_Main
-#define GT9768AF_GetFileName GT9768AF_GetFileName_Main
-extern int GT9768AF_SetI2Cclient(struct i2c_client *pstAF_I2Cclient,
-				spinlock_t *pAF_SpinLock, int *pAF_Opened);
-extern long GT9768AF_Ioctl(struct file *a_pstFile, unsigned int a_u4Command,
-				unsigned long a_u4Param);
-extern int GT9768AF_Release(struct inode *a_pstInode, struct file *a_pstFile);
-extern int GT9768AF_PowerDown(struct i2c_client *pstAF_I2Cclient,
-				int *pAF_Opened);
-extern int GT9768AF_GetFileName(unsigned char *pFileName);
 
 #define LC898122AF_SetI2Cclient LC898122AF_SetI2Cclient_Main
 #define LC898122AF_Ioctl LC898122AF_Ioctl_Main

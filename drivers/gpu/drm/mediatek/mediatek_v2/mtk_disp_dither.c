@@ -852,16 +852,6 @@ static int mtk_disp_dither_remove(struct platform_device *pdev)
 	return 0;
 }
 
-static const struct mtk_disp_dither_data mt6765_dither_driver_data = {
-	.support_shadow     = false,
-	.need_bypass_shadow = false,
-};
-
-static const struct mtk_disp_dither_data mt6768_dither_driver_data = {
-	.support_shadow     = false,
-	.need_bypass_shadow = false,
-};
-
 static const struct mtk_disp_dither_data mt6779_dither_driver_data = {
 	.support_shadow     = false,
 	.need_bypass_shadow = false,
@@ -908,10 +898,6 @@ static const struct mtk_disp_dither_data mt6855_dither_driver_data = {
 };
 
 static const struct of_device_id mtk_disp_dither_driver_dt_match[] = {
-	{ .compatible = "mediatek,mt6765-disp-dither",
-	  .data = &mt6765_dither_driver_data},
-	{ .compatible = "mediatek,mt6768-disp-dither",
-	  .data = &mt6768_dither_driver_data},
 	{ .compatible = "mediatek,mt6779-disp-dither",
 	  .data = &mt6779_dither_driver_data},
 	{ .compatible = "mediatek,mt6789-disp-dither",

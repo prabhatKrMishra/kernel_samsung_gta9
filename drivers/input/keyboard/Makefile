@@ -5,6 +5,14 @@
 
 # Each configuration option enables a list of files.
 
+# Tab A9 code for SR-AX6739A-01-345 by wenghailong at 20230424 start
+MTK_PLATFORM := $(subst ",,$(CONFIG_MTK_PLATFORM))
+subdir-ccflags-y += -Werror -I$(srctree)/drivers/misc/mediatek/include
+subdir-ccflags-y += -Werror -I$(srctree)/drivers/misc/mediatek/include/mt-plat/$(MTK_PLATFORM)/include
+subdir-ccflags-y += -Werror -I$(srctree)/drivers/misc/mediatek/include/mt-plat
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/eccci/inc/
+# Tab A9 code for SR-AX6739A-01-345 by wenghailong at 20230424 end
+
 obj-$(CONFIG_KEYBOARD_ADC)		+= adc-keys.o
 obj-$(CONFIG_KEYBOARD_ADP5520)		+= adp5520-keys.o
 obj-$(CONFIG_KEYBOARD_ADP5588)		+= adp5588-keys.o

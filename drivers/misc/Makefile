@@ -49,6 +49,9 @@ obj-$(CONFIG_SRAM_EXEC)		+= sram-exec.o
 obj-$(CONFIG_GENWQE)		+= genwqe/
 obj-$(CONFIG_ECHO)		+= echo/
 obj-$(CONFIG_CXL_BASE)		+= cxl/
+# Tab A9 code for SR-AX6739A-01-392 by gaochao at 20230426 start
+obj-$(CONFIG_GRDM_POWER)        += grdm/
+# Tab A9 code for SR-AX6739A-01-392 by gaochao at 20230426 end
 obj-$(CONFIG_PCI_ENDPOINT_TEST)	+= pci_endpoint_test.o
 obj-$(CONFIG_OCXL)		+= ocxl/
 obj-y				+= cardreader/
@@ -59,3 +62,13 @@ obj-$(CONFIG_XILINX_SDFEC)	+= xilinx_sdfec.o
 obj-$(CONFIG_HISI_HIKEY_USB)	+= hisi_hikey_usb.o
 obj-$(CONFIG_UID_SYS_STATS)	+= uid_sys_stats.o
 obj-y				+= mediatek/
+# Tab A9 code for SR-AX6739A-01-348 by Niebingling at 20230506 start
+obj-y				+= huaqin/
+# Tab A9 code for SR-AX6739A-01-348 by Niebingling at 20230506 end
+# Tab A9 code for SR-AX6739A-01-371 by tangyuhang at 20230526 start
+obj-$(CONFIG_TRIGGER_CRASH_BY_KEY)	+= combine_key/
+# Tab A9 code for SR-AX6739A-01-371 by tangyuhang at 20230526 end
+
+# TEEGRIS kernel driver
+#ccflags-$(CONFIG_TZDEV) += -I$(srctree)/drivers/misc/tzdev/include
+obj-$(CONFIG_TZDEV)		+= tzdev/

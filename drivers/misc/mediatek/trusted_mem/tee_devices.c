@@ -145,7 +145,8 @@ create_tee_smem_device(enum TRUSTED_MEM_TYPE mem_type,
 	}
 
 #if IS_ENABLED(CONFIG_TRUSTONIC_TEE_SUPPORT) || \
-	IS_ENABLED(CONFIG_MICROTRUST_TEE_SUPPORT)
+	IS_ENABLED(CONFIG_MICROTRUST_TEE_SUPPORT) || \
+	IS_ENABLED(CONFIG_TEEGRIS_TEE_SUPPORT)
 	get_tee_peer_ops(&t_device->peer_ops);
 #endif
 

@@ -117,10 +117,10 @@ static unsigned int do_2a_gain_imx766dual(struct EEPROM_DRV_FD_DATA *pdata,
 	int read_data_size;
 	unsigned int err = CamCalReturnErr[pCamCalData->Command];
 
-	long long CalGain = 0, FacGain = 0;
+	long long CalGain, FacGain;
 	unsigned char AWBAFConfig = 0xf;
 
-	unsigned short AFInf = 0, AFMacro = 0;
+	unsigned short AFInf, AFMacro;
 	int tempMax = 0;
 	int CalR = 1, CalGr = 1, CalGb = 1, CalG = 1, CalB = 1;
 	int FacR = 1, FacGr = 1, FacGb = 1, FacG = 1, FacB = 1;

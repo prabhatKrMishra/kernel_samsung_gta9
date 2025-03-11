@@ -282,7 +282,7 @@ static void reverse_nodes(struct device_node *parent)
  * @dad: Parent struct device_node
  * @nodepp: The device_node tree created by the call
  *
- * It returns the size of unflattened device tree or error code
+ * Return: The size of unflattened device tree or error code
  */
 static int unflatten_dt_nodes(const void *blob,
 			      void *mem,
@@ -315,7 +315,7 @@ static int unflatten_dt_nodes(const void *blob,
 	for (offset = 0;
 	     offset >= 0 && depth >= initial_depth;
 	     offset = fdt_next_node(blob, offset, &depth)) {
-		if (WARN_ON_ONCE(depth >= FDT_MAX_DEPTH))
+		if (WARN_ON_ONCE(depth >= FDT_MAX_DEPTH - 1))
 			continue;
 
 		if (!IS_ENABLED(CONFIG_OF_KOBJ) &&
@@ -349,11 +349,6 @@ static int unflatten_dt_nodes(const void *blob,
 
 /**
  * __unflatten_device_tree - create tree of device_nodes from flat blob
- *
- * unflattens a device-tree, creating the
- * tree of struct device_node. It also fills the "name" and "type"
- * pointers of the nodes so the normal device-tree walking functions
- * can be used.
  * @blob: The blob to expand
  * @dad: Parent device node
  * @mynodes: The device_node tree created by the call
@@ -361,7 +356,11 @@ static int unflatten_dt_nodes(const void *blob,
  * for the resulting tree
  * @detached: if true set OF_DETACHED on @mynodes
  *
- * Returns NULL on failure or the memory chunk containing the unflattened
+ * unflattens a device-tree, creating the tree of struct device_node. It also
+ * fills the "name" and "type" pointers of the nodes so the normal device-tree
+ * walking functions can be used.
+ *
+ * Return: NULL on failure or the memory chunk containing the unflattened
  * device tree on success.
  */
 void *__unflatten_device_tree(const void *blob,
@@ -442,7 +441,7 @@ static DEFINE_MUTEX(of_fdt_unflatten_mutex);
  * pointers of the nodes so the normal device-tree walking functions
  * can be used.
  *
- * Returns NULL on failure or the memory chunk containing the unflattened
+ * Return: NULL on failure or the memory chunk containing the unflattened
  * device tree on success.
  */
 void *of_fdt_unflatten_tree(const unsigned long *blob,
@@ -591,16 +590,21 @@ void __init early_init_fdt_scan_reserved_mem(void)
 	if (!initial_boot_params)
 		return;
 
+	memblock_memsize_disable_tracking();
+
 	/* Process header /memreserve/ fields */
 	for (n = 0; ; n++) {
 		fdt_get_mem_rsv(initial_boot_params, n, &base, &size);
 		if (!size)
 			break;
 		early_init_dt_reserve_memory_arch(base, size, false);
+		memblock_memsize_record("memreserve", base, size, false, false);
 	}
 
 	of_scan_flat_dt(__fdt_scan_reserved_mem, NULL);
 	fdt_init_reserved_mem();
+
+	memblock_memsize_enable_tracking();
 }
 
 /**
@@ -716,7 +720,7 @@ const void *__init of_get_flat_dt_prop(unsigned long node, const char *name,
  * @node: node to test
  * @compat: compatible string to compare with compatible list.
  *
- * On match, returns a non-zero value with smaller values returned for more
+ * Return: a non-zero value on match with smaller values returned for more
  * specific compatible values.
  */
 static int of_fdt_is_compatible(const void *blob,
@@ -1181,6 +1185,9 @@ int __init __weak early_init_dt_reserve_memory_arch(phys_addr_t base,
 		if (memblock_is_region_reserved(base, size))
 			return -EBUSY;
 
+		if (memblock_is_nomap_remove())
+			return memblock_remove(base, size);
+
 		return memblock_mark_nomap(base, size);
 	}
 	return memblock_reserve(base, size);
@@ -1227,7 +1234,10 @@ void __init early_init_dt_scan_nodes(void)
 	of_scan_flat_dt(early_init_dt_scan_root, NULL);
 
 	/* Setup memory, calling early_init_dt_add_memory_arch */
+	memblock_memsize_disable_tracking();
 	of_scan_flat_dt(early_init_dt_scan_memory, NULL);
+	memblock_memsize_enable_tracking();
+	memblock_memsize_detect_hole();
 }
 
 bool __init early_init_dt_scan(void *params)

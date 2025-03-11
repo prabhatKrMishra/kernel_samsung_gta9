@@ -17,11 +17,18 @@
 #include <linux/device.h>
 #include <linux/mutex.h>
 
+/*Tab A9 code for SR-AX6739A-01-499 by wenyaqi at 20230515 start*/
+#if defined(CONFIG_CUSTOM_PROJECT_OT11)
+#define AFC_ID   1 << 0
+#define PDC_ID   1 << 1
+#else
 #define PE_ID    1 << 0
 #define PE2_ID   1 << 1
 #define PDC_ID   1 << 2
 #define PE4_ID   1 << 3
 #define PE5_ID   1 << 4
+#endif // CONFIG_CUSTOM_PROJECT_OT11
+/*Tab A9 code for SR-AX6739A-01-499 by wenyaqi at 20230515 end*/
 
 struct chg_alg_properties {
 	const char *alias_name;

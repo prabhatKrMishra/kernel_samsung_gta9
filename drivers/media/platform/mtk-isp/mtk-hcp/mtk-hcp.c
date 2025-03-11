@@ -378,11 +378,9 @@ int mtk_hcp_register(struct platform_device *pdev,
 			scp_ipi_registration(ipi_id, hcp_ipi_handler, name);
 		}
 #endif
-		unsigned int idx = (unsigned int)id;
-
-		hcp_dev->hcp_desc_table[idx].name = name;
-		hcp_dev->hcp_desc_table[idx].handler = handler;
-		hcp_dev->hcp_desc_table[idx].priv = priv;
+		hcp_dev->hcp_desc_table[id].name = name;
+		hcp_dev->hcp_desc_table[id].handler = handler;
+		hcp_dev->hcp_desc_table[id].priv = priv;
 		return 0;
 	}
 
@@ -578,7 +576,7 @@ int mtk_hcp_set_apu_dc(struct platform_device *pdev,
 				return -1;
 			}
 
-			dev_dbg(hcp_dev->dev, "%s: SLB buffer base(0x%x), size(%ld): %x",
+			dev_info(hcp_dev->dev, "%s: SLB buffer base(0x%x), size(%ld): %x",
 				__func__, (uintptr_t)slb.paddr, slb.size);
 
 			ctrl.id    = CTRL_ID_SLB_BASE;
@@ -1189,7 +1187,7 @@ static int mtk_hcp_mmap(struct file *file, struct vm_area_struct *vma)
 
 	/* dealing with register remap */
 	length = vma->vm_end - vma->vm_start;
-	dev_dbg(hcp_dev->dev,
+	dev_info(hcp_dev->dev,
 		"start:0x%llx end:0x%llx offset:0x%llx, legth:0x%llx",
 		vma->vm_start, vma->vm_end, vma->vm_pgoff, length);
 	/*  */
@@ -1235,7 +1233,7 @@ static int mtk_hcp_mmap(struct file *file, struct vm_area_struct *vma)
 
 	if (pfn) {
 		mblock->mmap_cnt += 1;
-		dev_dbg(hcp_dev->dev, "reserved_memory_id:%d, pfn:0x%llx, mmap_cnt:%d\n",
+		dev_info(hcp_dev->dev, "reserved_memory_id:%d, pfn:0x%llx, mmap_cnt:%d\n",
 			reserved_memory_id, pfn,
 			mblock->mmap_cnt);
 
@@ -1293,7 +1291,7 @@ static int mtk_hcp_mmap(struct file *file, struct vm_area_struct *vma)
 		hcp_dev->extmem.d_va, hcp_dev->extmem.d_pa);
 		#endif
 remap:
-	dev_dbg(hcp_dev->dev, "remap info id(%d) start:0x%llx pgoff:0x%llx page_prot:0x%llx length:0x%llx",
+	dev_info(hcp_dev->dev, "remap info id(%d) start:0x%llx pgoff:0x%llx page_prot:0x%llx length:0x%llx",
 		reserved_memory_id, vma->vm_start, vma->vm_pgoff, vma->vm_page_prot, length);
 	if (remap_pfn_range(vma, vma->vm_start, vma->vm_pgoff,
 		length, vma->vm_page_prot) != 0) {
@@ -1369,16 +1367,12 @@ static long mtk_hcp_ioctl(struct file *file, unsigned int cmd,
 	switch (cmd) {
 	case HCP_GET_OBJECT:
 		(void)copy_from_user(&data, (void *)arg, sizeof(struct packet));
-		if (data.count > IPI_MAX_BUFFER_COUNT || data.count < 0) {
-			dev_info(hcp_dev->dev, "Get_OBJ # of buf:%d in cmd:%d exceed %u",
+		if (data.count > IPI_MAX_BUFFER_COUNT) {
+			dev_info(hcp_dev->dev, "Get_OBJ # of buf:%u in cmd:%d exceed %u",
 				data.count, cmd, IPI_MAX_BUFFER_COUNT);
 			return -EINVAL;
 		}
-		for (index = 0; index < IPI_MAX_BUFFER_COUNT; index++) {
-			if (index >= data.count) {
-				break;
-			}
-
+		for (index = 0; index < data.count; index++) {
 			if (data.buffer[index] == NULL) {
 				dev_info(hcp_dev->dev, "Get_OBJ buf[%u] is NULL", index);
 				return -EINVAL;
@@ -1391,7 +1385,7 @@ static long mtk_hcp_ioctl(struct file *file, unsigned int cmd,
 			} else if (buffer.info.cmd == HCP_NOTIFY) {
 				module_notify(hcp_dev, &buffer);
 			} else {
-				pr_info("[HCP] Unknown command of packet[%u] cmd:%d", index,
+				pr_info("[HCP] Unknown commands 0x%p, %d", data.buffer[index],
 					buffer.info.cmd);
 				return ret;
 			}
@@ -1502,7 +1496,7 @@ int hcp_reserve_mem_of_init(struct reserved_mem *rmem)
 {
 	rmem_base_phys = (phys_addr_t) rmem->base;
 	rmem_size = (phys_addr_t) rmem->size;
-	pr_debug("%s: phys_addr is 0x%lx with size(0x%lx)",
+	pr_info("%s: phys_addr is 0x%lx with size(0x%lx)",
 				__func__, rmem_base_phys, rmem_size);
 
 	return 0;
@@ -1578,10 +1572,10 @@ int allocate_working_buffer_helper(struct platform_device *pdev)
 					return -1;
 				}
 				mblock[id].start_virt = buf_ptr;
-				get_dma_buf(mblock[id].d_buf);
 				mblock[id].fd =
 				dma_buf_fd(mblock[id].d_buf,
 				O_RDWR | O_CLOEXEC);
+				dma_buf_get(mblock[id].fd);
 				break;
 			default:
 
@@ -1629,10 +1623,10 @@ int allocate_working_buffer_helper(struct platform_device *pdev)
 					return -1;
 				}
 				mblock[id].start_virt = buf_ptr;
-				get_dma_buf(mblock[id].d_buf);
 				mblock[id].fd =
 				dma_buf_fd(mblock[id].d_buf,
 				O_RDWR | O_CLOEXEC);
+				dma_buf_get(mblock[id].fd);
 				break;
 			}
 		} else {

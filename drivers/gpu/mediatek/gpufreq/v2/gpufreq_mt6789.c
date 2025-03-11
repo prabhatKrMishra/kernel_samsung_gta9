@@ -59,6 +59,9 @@
 #include <clk-fmeter.h>
 #include <clk-mt6789-fmeter.h>
 #endif
+#if IS_ENABLED(CONFIG_THERMAL)
+#include <linux/thermal.h>
+#endif
 
 /**
  * ===============================================
@@ -320,6 +323,12 @@ unsigned int __gpufreq_get_max_pgpu(void)
 	return g_gpu.working_table[g_gpu.max_oppidx].power;
 }
 
+unsigned int __gpufreq_get_seg_max_opp_index(void)
+{
+	return g_gpu.segment_upbound;
+}
+EXPORT_SYMBOL(__gpufreq_get_seg_max_opp_index);
+
 /* API: get max Power of STACK */
 unsigned int __gpufreq_get_max_pstack(void)
 {
@@ -463,6 +472,30 @@ unsigned int __gpufreq_get_fgpu_by_idx(int oppidx)
 	else
 		return 0;
 }
+
+/* API : get current GPU temperature */
+int __gpufreq_get_gpu_temp(void)
+{
+#if IS_ENABLED(CONFIG_THERMAL)
+	struct thermal_zone_device *zone;
+	int ret, temp = 0;
+
+	zone = thermal_zone_get_zone_by_name("gpu2");
+	if (IS_ERR(zone))
+		return 0;
+
+	ret = thermal_zone_get_temp(zone, &temp);
+	if (ret != 0)
+		return 0;
+
+	temp /= 1000;
+
+	return temp;
+#else
+	return 0;
+#endif
+}
+EXPORT_SYMBOL(__gpufreq_get_gpu_temp);
 
 /* API: get Freq of STACK via OPP index */
 unsigned int __gpufreq_get_fstack_by_idx(int oppidx)

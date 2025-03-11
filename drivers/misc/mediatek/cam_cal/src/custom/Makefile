@@ -17,14 +17,6 @@ CAM_CAL_CUSTOM_SRC_PATH := $(CAM_CAL_SRC_PATH)/custom
 CAM_CAL_CUSTOM_SRC_LAYOUT_PATH := $(CAM_CAL_CUSTOM_SRC_PATH)/layout
 COMMON_VERSION := v2
 
-ifeq ($(CONFIG_MTK_SENSOR_PROJECT), "tb8781p2_64")
-KBUILD_CFLAGS += -DSUPPORT_S5K4H7
-endif
-
-ifeq ($(CONFIG_MTK_SENSOR_PROJECT), "tb8781p3_64_wifi_7902")
-KBUILD_CFLAGS += -DSUPPORT_S5K4H7
-endif
-
 subdir-ccflags-y += -I$(MTK_CUSTOM_PATH)/imgsensor/inc \
                     -I$(MTK_CUSTOM_PATH)/cam_cal/inc \
                     -I$(CAM_CAL_CUSTOM_SRC_PATH) \
@@ -40,7 +32,10 @@ camera_eeprom-objs += ../common/$(COMMON_VERSION)/eeprom_utils.o
 # Platform code
 camera_eeprom-objs += eeprom_i2c_custom_driver.o
 camera_eeprom-objs += cam_cal_list.o
-
+# Tab A9 code for SR-AX6739A-01-762 by liluling at 20230703 start
+camera_eeprom-objs += eeprom_i2c_a0902backhi846st_driver.o
+camera_eeprom-objs += eeprom_i2c_a0904backsc820csst_driver.o
+# Tab A9 code for SR-AX6739A-01-762 by liluling at 20230703 end
 comma := ,
 empty :=
 space := $(empty) $(empty)

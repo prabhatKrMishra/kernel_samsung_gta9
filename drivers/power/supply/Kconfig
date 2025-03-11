@@ -167,19 +167,16 @@ config BATTERY_LEGO_EV3
 	depends on OF && IIO && GPIOLIB && (ARCH_DAVINCI_DA850 || COMPILE_TEST)
 	help
 	  Say Y here to enable support for the LEGO MINDSTORMS EV3 battery.
-
-config BATTERY_MT6357
-	tristate "MT6357 fuel gauge support"
-	depends on MFD_MT6397
-	help
-	  Say Y to enable support for MT6357 battery driver.
-	  it measure battery current and temperature to provide
-	  battery information , It issues interrupt when trigger
-	  threshold is met.
-
+# Tab A9 code for SR-AX6739A-01-515 by lina at 20230505 start
+config BATTERY_ID_ADC
+ 	tristate "BATTERY_ID_ADC"
+ 	help
+ 	  BATTERY_ID_ADC
+# Tab A9 code for SR-AX6739A-01-515 by lina at 20230505 end
 config BATTERY_MT6358
 	tristate "MT6358 fuel gauge support"
 	depends on MFD_MT6397
+	default m
 	help
 	  Say Y to enable support for MT6358 battery driver.
 	  it measure battery current and temperature to provide
@@ -189,19 +186,11 @@ config BATTERY_MT6358
 config BATTERY_MT6359P
 	tristate "MT6359P fuel gauge support"
 	depends on MFD_MT6397
+	default m
 	help
 	  Say Y to enable support for MT6359P battery driver.
 	  it measure battery current and temperature to provide
 	  battery information , It issues interrupt when trigger
-	  threshold is met.
-
-config BATTERY_MM8013
-	tristate "MM8013 gauge ic support"
-	default m
-	help
-	  Say Y to enable support for MM8013 gauge driver.
-	  it measure battery current and temperature to provide
-	  battery information, It issues interrupt when trigger
 	  threshold is met.
 
 config BATTERY_PMU
@@ -682,17 +671,6 @@ config CHARGER_BQ25980
 	  Say Y to enable support for the TI BQ25980, BQ25975 and BQ25960
 	  series of fast battery chargers.
 
-config CHARGER_BQ2589X
-	tristate "TI BQ2589X battery charger driver"
-	depends on I2C
-	depends on GPIOLIB || COMPILE_TEST
-	select REGMAP_I2C
-	help
-	  This adds support for charger IC bq2589x.
-	  Say Y to include support for Texas Instruments
-	  bq2589x charger IC Battery Charger. The base name for this driver is
-	  'bq2589x_charger.c'.
-
 config CHARGER_SMB347
 	tristate "Summit Microelectronics SMB3XX Battery Charger"
 	depends on I2C
@@ -815,17 +793,6 @@ config CHARGER_WILCO
 	  information can be found in
 	  Documentation/ABI/testing/sysfs-class-power-wilco
 
-config CHARGER_MT6370
-        tristate "Mediatek MT6370 Charger Driver"
-        #depends on MFD_MT6370
-        #depends on REGULATOR
-        select EXTCON
-        help
-          Say Y here to enable MT6370 Charger Part.
-          support High-Accuracy Voltage/Current Regulation,
-          Average Input Current Regulation, Battery Tempature Sensing,
-          Over-Temperature Protection, DPDM Detection for BC1.2
-
 config CHARGER_MT6360
 	tristate "Mediatek MT6360 Charger Driver"
 	depends on MFD_MT6360
@@ -856,6 +823,28 @@ config CHARGER_MT6375
 	  The device is compliant with the USB Battery Charging Specification
 	  Revision 1.2.
 
+# Tab A9 code for SR-AX6739A-01-494 by qiaodan at 20230502 start
+config CHARGER_UPM6910X
+	tristate "UPM6910X charger driver"
+	help
+	  Say Y to enable support for the UPM6910X charger.
+	  The driver supports controlling switching charger and OTG
+	  with high-accuracy current and voltage regulation.
+	  The device is compliant with the USB Battery Charging Specification
+	  Revision 1.2.
+# Tab A9 code for SR-AX6739A-01-494 by qiaodan at 20230502 end
+
+# Tab A9 code for SR-AX6739A-01-493 by wenyaqi at 20230502 start
+config CHARGER_SC89601D
+	tristate "SC89601D charger driver"
+	help
+	  Say Y to enable support for the SC89601D charger.
+	  The driver supports controlling switching charger and OTG
+	  with high-accuracy current and voltage regulation.
+	  The device is compliant with the USB Battery Charging Specification
+	  Revision 1.2.
+# Tab A9 code for SR-AX6739A-01-493 by wenyaqi at 20230502 end
+
 config GAUGE_MT6375
 	tristate "MT6375 fuel gauge driver"
 	depends on MFD_MT6375
@@ -880,15 +869,6 @@ config MTK_CHARGER
 	  This driver contains charging control flow and
 	  maintains charging status.
 	  Say no if not using MediaTek charging driver.
-
-config CHARGER_RT9465
-	tristate "Charger Driver for Richtek RT9465 Charger IC"
-	depends on MTK_CHARGER
-	help
-	  Say Yes to enable Richtek RT9465 driver.
-	  It is mainly used as slave IC for dual charger
-	  application.
-	  It depends on config MTK_CHARGER.
 
 config MTK_PUMP_EXPRESS_PLUS_SUPPORT
 	tristate "MediaTek PUMP EXPRESS PLUS"
@@ -955,5 +935,42 @@ config GAUGE_MT6983_ALPHA_SUPPORT
 	  To compile this dirver for used touch IC.
 	  Set Y or M to select this feature for specific platform-mt6983,
 	  and set N to disable.
+
+# Tab A9 code for SR-AX6739A-01-490 by qiaodan at 20230504 start
+config GXY_PSY_SYSFS
+	tristate "gxy psy sysfs register API"
+	help
+	  This options enables API to register gxy psy sysfs.
+	  Say 'Y' here if you want gxy psy sysfs
+# Tab A9 code for SR-AX6739A-01-490 by qiaodan at 20230504 end
+
+# Tab A9 code for SR-AX6739A-01-499 by wenyaqi at 20230515 start
+config AFC_CHARGER
+	tristate "Using AFC device driver"
+	default n
+	help
+	  If you say yes here you will get support for
+	  the AFC device driver.
+# Tab A9 code for SR-AX6739A-01-499 by wenyaqi at 20230515 end
+
+# Tab A9 code for SR-AX6739A-01-461 by qiaodan at 20230607 start
+config GXY_VBUS_CTRL
+	tristate "Using vbus ctrl driver"
+	default n
+	help
+	  If you say yes here you will get support for
+	  the vbus ctrl driver.
+# Tab A9 code for SR-AX6739A-01-461 by qiaodan at 20230607 end
+
+# Tab A9 code for AX6739A-1334 by gaozhengwei at 20230620 start
+config CHARGER_SGM415XX
+	tristate "SGM415XX charger driver"
+	help
+	  Say Y to enable support for the SGM415XX charger.
+	  The driver supports controlling switching charger and OTG
+	  with high-accuracy current and voltage regulation.
+	  The device is compliant with the USB Battery Charging Specification
+	  Revision 1.2.
+# Tab A9 code for AX6739A-1334 by gaozhengwei at 20230620 end
 
 endif # POWER_SUPPLY

@@ -95,15 +95,18 @@ static int vibr_power_set(struct reg_vibr *vibr)
 	return ret;
 }
 
+/*Tab A9 code for AX6739A-581 by zhangziyi at 20230602 start*/
 static void vibr_enable(struct reg_vibr *vibr)
 {
 	pr_info("vibr enable\n");
 
 	if (!atomic_read(&vibr->reg_status)) {
-		if (regulator_enable(vibr->vibr_conf.reg))
+		if (regulator_enable(vibr->vibr_conf.reg)) {
 			pr_notice("set vibr_reg enable failed!\n");
-		else
+		} else {
 			atomic_set(&vibr->reg_status, 1);
+			regulator_is_enabled(vibr->vibr_conf.reg);
+		}
 	} else {
 		pr_notice("vibr_reg already enabled.\n");
 	}
@@ -114,14 +117,17 @@ static void vibr_disable(struct reg_vibr *vibr)
 	pr_info("vibr disable\n");
 
 	if (atomic_read(&vibr->reg_status)) {
-		if (regulator_disable(vibr->vibr_conf.reg))
+		if (regulator_disable(vibr->vibr_conf.reg)) {
 			pr_notice("set vibr_reg disable failed!\n");
-		else
+		} else {
 			atomic_set(&vibr->reg_status, 0);
+			regulator_is_enabled(vibr->vibr_conf.reg);
+		}
 	} else {
 		pr_notice("vibr_reg already disabled.\n");
 	}
 }
+/*Tab A9 code for AX6739A-581 by zhangziyi at 20230602 end*/
 
 static void update_vibrator(struct work_struct *work)
 {

@@ -231,7 +231,7 @@ static void *xgf_render_sector_alloc(void)
 
 	if (xgf_render_sector_cachep)
 		pvBuf = kmem_cache_alloc(xgf_render_sector_cachep,
-			GFP_ATOMIC | __GFP_ZERO);
+			GFP_KERNEL | __GFP_ZERO);
 
 	return pvBuf;
 }
@@ -248,7 +248,7 @@ static void *xgf_pid_rec_alloc(void)
 
 	if (xgf_pid_rec_cachep)
 		pvBuf = kmem_cache_alloc(xgf_pid_rec_cachep,
-			GFP_ATOMIC | __GFP_ZERO);
+			GFP_KERNEL | __GFP_ZERO);
 
 	return pvBuf;
 }
@@ -265,7 +265,7 @@ static void *xgf_dep_alloc(void)
 
 	if (xgf_dep_cachep)
 		pvBuf = kmem_cache_alloc(xgf_dep_cachep,
-			GFP_ATOMIC | __GFP_ZERO);
+			GFP_KERNEL | __GFP_ZERO);
 
 	return pvBuf;
 }
@@ -282,7 +282,7 @@ static void *xgf_runtime_sect_alloc(void)
 
 	if (xgf_runtime_sect_cachep)
 		pvBuf = kmem_cache_alloc(xgf_runtime_sect_cachep,
-			GFP_ATOMIC | __GFP_ZERO);
+			GFP_KERNEL | __GFP_ZERO);
 
 	return pvBuf;
 }
@@ -299,7 +299,7 @@ static void *xgf_spid_alloc(void)
 
 	if (xgf_spid_cachep)
 		pvBuf = kmem_cache_alloc(xgf_spid_cachep,
-			GFP_ATOMIC | __GFP_ZERO);
+			GFP_KERNEL | __GFP_ZERO);
 
 	return pvBuf;
 }
@@ -515,8 +515,7 @@ int xgf_check_main_sf_pid(int pid, int process_id)
 	int ret = 0;
 	int tmp_process_id;
 	char tmp_process_name[16];
-	char tmp_thread_name[16];
-	struct task_struct *gtsk, *tsk;
+	struct task_struct *gtsk;
 
 	tmp_process_id = xgf_get_process_id(pid);
 	if (tmp_process_id < 0)
@@ -536,23 +535,6 @@ int xgf_check_main_sf_pid(int pid, int process_id)
 	if ((tmp_process_id == process_id) ||
 		strstr(tmp_process_name, "surfaceflinger"))
 		ret = 1;
-
-	if (ret) {
-		rcu_read_lock();
-		tsk = find_task_by_vpid(pid);
-		if (tsk) {
-			get_task_struct(tsk);
-			strncpy(tmp_thread_name, tsk->comm, 16);
-			tmp_thread_name[15] = '\0';
-			put_task_struct(tsk);
-		} else
-			tmp_thread_name[0] = '\0';
-		rcu_read_unlock();
-
-		if (strstr(tmp_thread_name, "RTHeartBeat") ||
-			strstr(tmp_thread_name, "mali-"))
-			ret = 0;
-	}
 
 	return ret;
 }
@@ -2467,11 +2449,7 @@ static char *xgf_strcat(char *dest, const char *src,
 
 static void xgf_log_trace(const char *fmt, ...)
 {
-#if IS_ENABLED(CONFIG_ARM64)
 	char log[1024];
-#else
-	char log[512];
-#endif
 	va_list args;
 	int len;
 
@@ -2481,13 +2459,8 @@ static void xgf_log_trace(const char *fmt, ...)
 	va_start(args, fmt);
 	len = vsnprintf(log, sizeof(log), fmt, args);
 
-#if IS_ENABLED(CONFIG_ARM64)
 	if (unlikely(len == 1024))
 		log[1023] = '\0';
-#else
-	if (unlikely(len == 512))
-		log[511] = '\0';
-#endif
 	va_end(args);
 	trace_printk(log);
 }
@@ -2495,22 +2468,14 @@ static void xgf_log_trace(const char *fmt, ...)
 static void xgf_print_debug_log(int rpid,
 	struct xgf_render *render, unsigned long long runtime)
 {
+	char total_pid_list[1024] = {"\0"};
+	char pid[20] = {"\0"};
 	int overflow = 0;
 	int len = 0;
 
 	struct xgf_render_sector *xrs;
 	struct hlist_node *s, *p;
 	struct xgf_pid_rec *pids_iter;
-	char pid[20] = {"\0"};
-#if IS_ENABLED(CONFIG_ARM64)
-	char total_pid_list[1024] = {"\0"};
-#else
-	char *total_pid_list = kmalloc(1024, GFP_KERNEL);
-
-	if (!total_pid_list)
-		return;
-	memset(total_pid_list, '\0', 1024);
-#endif
 
 	xgf_lockprove(__func__);
 
@@ -2524,13 +2489,9 @@ static void xgf_print_debug_log(int rpid,
 			goto error;
 
 		overflow = 0;
-#if IS_ENABLED(CONFIG_ARM64)
 		xgf_strcat(total_pid_list, pid,
 			sizeof(total_pid_list), &overflow);
-#else
-		xgf_strcat(total_pid_list, pid,
-		1024, &overflow);
-#endif
+
 		if (overflow)
 			goto out;
 
@@ -2542,14 +2503,8 @@ static void xgf_print_debug_log(int rpid,
 				goto error;
 
 			overflow = 0;
-#if IS_ENABLED(CONFIG_ARM64)
 			xgf_strcat(total_pid_list, pid,
 				sizeof(total_pid_list), &overflow);
-#else
-			xgf_strcat(total_pid_list, pid,
-					1024, &overflow);
-
-#endif
 			if (overflow)
 				goto out;
 		}
@@ -2562,17 +2517,12 @@ out:
 	else
 		xgf_log_trace("xgf_debug_log r:%d runtime:%llu pid_list:%s",
 		rpid, runtime, total_pid_list);
-#if !IS_ENABLED(CONFIG_ARM64)
-	kfree(total_pid_list);
-#endif
+
 	return;
 
 error:
 	xgf_log_trace("xgf_debug_log(pid of) r:%d runtime:%llu",
 		rpid, runtime);
-#if !IS_ENABLED(CONFIG_ARM64)
-	kfree(total_pid_list);
-#endif
 	return;
 }
 
@@ -2873,10 +2823,6 @@ int fpsgo_comp2xgf_qudeq_notify(int rpid, unsigned long long bufID, int cmd,
 	unsigned long long time_scale = 1000;
 	long long ema2_offset = 0;
 	char buf[256] = {0};
-#if !IS_ENABLED(CONFIG_ARM64)
-	unsigned long long temp_data_raw;
-	unsigned long long temp_data_ema;
-#endif
 
 	if (rpid <= 0 || ts == 0)
 		return XGF_PARAM_ERR;
@@ -2963,48 +2909,25 @@ int fpsgo_comp2xgf_qudeq_notify(int rpid, unsigned long long bufID, int cmd,
 			if (xgf_ema2_enable && !xgf_camera_flag && (r->hwui_flag == 2)) {
 				if (!r->ema2_pt)
 					r->ema2_pt = xgf_ema2_get_pred();
-#if IS_ENABLED(CONFIG_ARM64)
+
 				//calculate mse
 				delta = abs((long long)(raw_runtime/time_scale) -
 					(long long)(r->ema_runtime/time_scale));
-#else
-				temp_data_raw = raw_runtime;
-				temp_data_ema = r->ema_runtime;
-				do_div(temp_data_raw, time_scale);
-				do_div(temp_data_ema, time_scale);
-				delta = abs(temp_data_raw - temp_data_ema);
-#endif
 				xgf_ema_mse += delta*delta;
-#if IS_ENABLED(CONFIG_ARM64)
+
 				if (r->ema2_pt)
 					delta = abs((long long)(raw_runtime/time_scale) -
 						(long long)(r->ema2_pt->xt_last));
-#else
-				temp_data_raw = raw_runtime;
-				if (r->ema2_pt) {
-					do_div(temp_data_raw, time_scale);
-					delta = abs((long long)temp_data_raw -
-						(long long)(r->ema2_pt->xt_last));
-				}
-#endif
 				xgf_ema2_mse += delta*delta;
 
 				//predict next frame
 				r->ema_runtime = xgf_ema_cal(raw_runtime, r->ema_runtime);
 				if (xgf_ema2_predict_fp && r->ema2_pt) {
 					ema2_offset = raw_runtime - r->ema2_pt->xt_last*time_scale;
-#if IS_ENABLED(CONFIG_ARM64)
 					tmp_runtime =
 						xgf_ema2_predict_fp(r->ema2_pt,
 							raw_runtime/time_scale)
 						* time_scale;
-#else
-					temp_data_raw = raw_runtime;
-					do_div(temp_data_raw, time_scale);
-					tmp_runtime =
-						xgf_ema2_predict_fp(r->ema2_pt, temp_data_raw)
-						* time_scale;
-#endif
 					xgf_ema2_dump_info_frames(r->ema2_pt, buf);
 					xgf_trace("xgf ema2 sts t:%d err:%d ei:%d eo:%d",
 						r->ema2_pt->t, r->ema2_pt->err_code,
@@ -3025,19 +2948,13 @@ int fpsgo_comp2xgf_qudeq_notify(int rpid, unsigned long long bufID, int cmd,
 						xgf_ema2_dump_rho(r->ema2_pt, buf);
 						xgf_trace("xgf ema2 oneshot:%d rho-L:%s ",
 							r->ema2_pt->ar_coeff_valid, buf);
-#if IS_ENABLED(CONFIG_ARM64)
 						xgf_ema_mse = xgf_ema_mse/
 							(r->ema2_pt->ar_coeff_frames*
 								time_scale*time_scale);
 						xgf_ema2_mse = xgf_ema2_mse/
 							(r->ema2_pt->ar_coeff_frames*
 								time_scale*time_scale);
-#else
-						do_div(xgf_ema_mse, (r->ema2_pt->ar_coeff_frames*
-							time_scale*time_scale));
-						do_div(xgf_ema2_mse, (r->ema2_pt->ar_coeff_frames*
-							time_scale*time_scale));
-#endif
+
 						xgf_trace("xgf ema2 mse_alpha:%lld mse_ema2:%lld",
 							xgf_ema_mse, xgf_ema2_mse);
 						fpsgo_systrace_c_fbt(rpid, bufID, xgf_ema_mse,

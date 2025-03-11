@@ -30,8 +30,12 @@
 #include <linux/suspend.h>
 #include "mtk_battery.h"
 #include "mtk_battery_table.h"
-
-
+/*Tab A9 code for SR-AX6739A-01-515 by lina at 20230505 start*/
+#include "battery_id_adc.h"
+#include <linux/power/gxy_psy_sysfs.h>
+extern void gxy_bat_set_batterytype(enum gxy_battery_type binfo_data);
+extern int battery_get_profile_id(void);
+/*Tab A9 code for SR-AX6739A-01-515 by lina at 20230505 end*/
 struct tag_bootmode {
 	u32 size;
 	u32 tag;
@@ -151,12 +155,15 @@ bool is_algo_active(struct mtk_battery *gm)
 {
 	return gm->algo.active;
 }
-
+/*Tab A9 code for SR-AX6739A-01-515 by lina at 20230505 start*/
 int fgauge_get_profile_id(void)
 {
-	return 0;
+	int id = 0;
+	id = battery_get_profile_id();
+	bm_err("[%s] bat_id = %d\n",__func__, id);
+	return id;
 }
-
+/*Tab A9 code for SR-AX6739A-01-515 by lina at 20230505 end*/
 int wakeup_fg_algo_cmd(
 	struct mtk_battery *gm, unsigned int flow_state, int cmd, int para1)
 {
@@ -234,6 +241,12 @@ bool is_kernel_power_off_charging(void)
 	struct mtk_battery *gm;
 
 	gm = get_mtk_battery();
+	/*Tab A9 code for AX6739A-1350  by hualei at 20230620 start*/
+	if (!gm){
+		bm_err("%s gm is NULL\n", __func__);
+		return false;
+	}
+	/*Tab A9 code for AX6739A-1350  by hualei at 20230620 end*/
 	bm_debug("%s, bootmdoe = %d\n", gm->bootmode);
 
 	/* KERNEL_POWER_OFF_CHARGING_BOOT */
@@ -242,6 +255,51 @@ bool is_kernel_power_off_charging(void)
 
 	return false;
 }
+
+/*Tab A9 code for SR-AX6739A-01-528 by hualei at 20230531 start*/
+#ifndef CONFIG_ODM_CUSTOM_FACTORY_BUILD
+static void get_prop_batt_online(union power_supply_propval *val)
+{
+	struct power_supply *psy = NULL;
+	union power_supply_propval prop_type = {0};
+	int ret = 0;
+
+	psy = power_supply_get_by_name("charger");
+	if (!psy) {
+		bm_err("%s psy is NULL\n", __func__);
+		val->intval = POWER_SUPPLY_TYPE_BATTERY;
+		return;
+	}
+
+	ret = power_supply_get_property(psy,
+			POWER_SUPPLY_PROP_ONLINE, &prop_type);
+	if (!prop_type.intval) {
+		val->intval = POWER_SUPPLY_TYPE_BATTERY;
+	} else {
+		power_supply_get_property(psy,
+			POWER_SUPPLY_PROP_USB_TYPE, val);
+		switch (val->intval) {
+			case POWER_SUPPLY_USB_TYPE_SDP:
+				val->intval = POWER_SUPPLY_TYPE_USB;
+				break;
+			case POWER_SUPPLY_USB_TYPE_DCP:
+				val->intval = POWER_SUPPLY_TYPE_USB_DCP;
+				break;
+			case POWER_SUPPLY_USB_TYPE_CDP:
+				val->intval = POWER_SUPPLY_TYPE_USB_CDP;
+				break;
+			case POWER_SUPPLY_USB_TYPE_UNKNOWN:
+				val->intval = POWER_SUPPLY_TYPE_UNKNOWN;
+				break;
+		default:
+			val->intval = POWER_SUPPLY_TYPE_UNKNOWN;
+			break;
+		}
+		bm_err("%s: Charger Type: %d\n", __func__, val->intval);
+	}
+}
+#endif//!CONFIG_ODM_CUSTOM_FACTORY_BUILD
+/*Tab A9 code for SR-AX6739A-01-528 by hualei at 20230531 end*/
 
 /* ============================================================ */
 /* power supply: battery */
@@ -263,6 +321,11 @@ int check_cap_level(int uisoc)
 }
 
 static enum power_supply_property battery_props[] = {
+	/*Tab A9 code for SR-AX6739A-01-528 by hualei at 20230531 start*/
+	#ifndef CONFIG_ODM_CUSTOM_FACTORY_BUILD
+	POWER_SUPPLY_PROP_ONLINE,
+	#endif//!CONFIG_ODM_CUSTOM_FACTORY_BUILD
+	/*Tab A9 code for SR-AX6739A-01-528 by hualei at 20230531 end*/
 	POWER_SUPPLY_PROP_STATUS,
 	POWER_SUPPLY_PROP_HEALTH,
 	POWER_SUPPLY_PROP_PRESENT,
@@ -276,7 +339,11 @@ static enum power_supply_property battery_props[] = {
 	POWER_SUPPLY_PROP_CHARGE_COUNTER,
 	POWER_SUPPLY_PROP_TEMP,
 	POWER_SUPPLY_PROP_CAPACITY_LEVEL,
+	/*Tab A9 code for SR-AX6739A-01-519 by hualei at 20230529 start*/
+	#ifdef CONFIG_TIME_TO_FULL_NOW
 	POWER_SUPPLY_PROP_TIME_TO_FULL_NOW,
+	#endif //CONFIG_TIME_TO_FULL_NOW
+	/*Tab A9 code for SR-AX6739A-01-519 by hualei at 20230529 end*/
 	POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN,
 	POWER_SUPPLY_PROP_CONSTANT_CHARGE_VOLTAGE,
 };
@@ -300,8 +367,21 @@ static int battery_psy_get_property(struct power_supply *psy,
 	/* to avoid i2c suspend but query by other module */
 
 	switch (psp) {
+	/*Tab A9 code for SR-AX6739A-01-528 by hualei at 20230531 start*/
+	#ifndef CONFIG_ODM_CUSTOM_FACTORY_BUILD
+	case POWER_SUPPLY_PROP_ONLINE:
+		get_prop_batt_online(val);
+		break;
+	#endif//!CONFIG_ODM_CUSTOM_FACTORY_BUILD
+	/*Tab A9 code for SR-AX6739A-01-528 by hualei at 20230531 end*/
 	case POWER_SUPPLY_PROP_STATUS:
 		val->intval = bs_data->bat_status;
+		/*Tab A9 code for SR-AX6739A-01-513 by lina at 20230530 start*/
+		if (is_kernel_power_off_charging() &&
+			val->intval == POWER_SUPPLY_STATUS_NOT_CHARGING) {
+			val->intval = POWER_SUPPLY_STATUS_CHARGING;
+		}
+		/*Tab A9 code for SR-AX6739A-01-513 by lina at 20230530 end*/
 		break;
 	case POWER_SUPPLY_PROP_HEALTH:
 		val->intval = bs_data->bat_health;
@@ -381,13 +461,18 @@ static int battery_psy_get_property(struct power_supply *psy,
 			val->intval = 4000000;
 			break;
 		}
-
+		/*Tab A9 code for AX6739A-2244 by lina at 20230712 start*/
+		#ifdef CONFIG_ODM_CUSTOM_D85_BUILD
+		ret = gauge_get_property(GAUGE_PROP_BATTERY_VOLTAGE,
+			&bs_data->bat_batt_vol);
+		#else
 		if (gm->disableGM30)
 			bs_data->bat_batt_vol = 4000;
 		else
 			ret = gauge_get_property(GAUGE_PROP_BATTERY_VOLTAGE,
 				&bs_data->bat_batt_vol);
-
+		#endif//CONFIG_ODM_CUSTOM_D85_BUILD
+		/*Tab A9 code for AX6739A-2244 by lina at 20230712 end*/
 		if (ret == -EHOSTDOWN)
 			val->intval = gm->vbat;
 		else {
@@ -402,6 +487,8 @@ static int battery_psy_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_CAPACITY_LEVEL:
 		val->intval = check_cap_level(bs_data->bat_capacity);
 		break;
+	/*Tab A9 code for SR-AX6739A-01-519 by hualei at 20230529 start*/
+	#ifdef CONFIG_TIME_TO_FULL_NOW
 	case POWER_SUPPLY_PROP_TIME_TO_FULL_NOW:
 		/* full or unknown must return 0 */
 		ret = check_cap_level(bs_data->bat_capacity);
@@ -432,6 +519,8 @@ static int battery_psy_get_property(struct power_supply *psy,
 		}
 		ret = 0;
 		break;
+	#endif //CONFIG_TIME_TO_FULL_NOW
+	/*Tab A9 code for SR-AX6739A-01-519 by hualei at 20230529 end*/
 	case POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN:
 		if (check_cap_level(bs_data->bat_capacity) ==
 			POWER_SUPPLY_CAPACITY_LEVEL_UNKNOWN)
@@ -889,7 +978,12 @@ int force_get_tbat_internal(struct mtk_battery *gm, bool update)
 int force_get_tbat(struct mtk_battery *gm, bool update)
 {
 	int bat_temperature_val = 0;
-
+	/*Tab A9 code for SR-AX6739A-01-505 by lina at 20230510 start*/
+	#ifdef CONFIG_ODM_CUSTOM_D85_BUILD
+	gm->cur_bat_temp = 25;
+	return 25;
+	#endif
+	/*Tab A9 code for SR-AX6739A-01-505 by lina at 20230510 end*/
 	if (gm->is_probe_done == false) {
 		gm->cur_bat_temp = 25;
 		return 25;
@@ -928,11 +1022,19 @@ int gauge_get_property(enum gauge_property gp,
 
 	gauge = (struct mtk_gauge *)power_supply_get_drvdata(psy);
 	gm = gauge->gm;
+	/*Tab A9 code for AX6739A-2244 by lina at 20230712 start*/
+	#ifdef CONFIG_ODM_CUSTOM_D85_BUILD
+	if (gm == NULL) {
+		bm_debug("%s gm = NULL", __func__);
+		return -EOPNOTSUPP;
+	}
+	#else
 	if (gm != NULL && gm->disableGM30) {
 		bm_debug("%s disable GM30", __func__);
 		return -EOPNOTSUPP;
 	}
-
+	#endif//CONFIG_ODM_CUSTOM_D85_BUILD
+	/*Tab A9 code for AX6739A-2244 by lina at 20230712 end*/
 	attr = gauge->attr;
 	if (attr == NULL) {
 		bm_err("%s attr =NULL\n", __func__);
@@ -1509,7 +1611,9 @@ void fg_custom_init_from_dts(struct platform_device *dev,
 	fg_table_cust_data = &gm->fg_table_cust_data;
 
 	bm_err("%s\n", __func__);
-
+	/*Tab A9 code for SR-AX6739A-01-515 by lina at 20230505 start*/
+	gxy_bat_set_batterytype(gm->battery_id);
+	/*Tab A9 code for SR-AX6739A-01-515 by lina at 20230505 end*/
 	if (gm->ptim_lk_v == 0) {
 		fg_read_dts_val(np, "fg_swocv_v", &(lk_v), 1);
 		gm->ptim_lk_v = lk_v;
@@ -2106,15 +2210,26 @@ void fg_custom_init_from_dts(struct platform_device *dev,
 void battery_update_psd(struct mtk_battery *gm)
 {
 	struct battery_data *bat_data = &gm->bs_data;
-
+	/*Tab A9 code for AX6739A-2244 by lina at 20230712 start*/
+	#ifdef CONFIG_ODM_CUSTOM_D85_BUILD
+	gauge_get_property(GAUGE_PROP_BATTERY_VOLTAGE,
+		&bat_data->bat_batt_vol);
+	#else
 	if (gm->disableGM30)
 		bat_data->bat_batt_vol = 4000;
 	else
 		gauge_get_property(GAUGE_PROP_BATTERY_VOLTAGE,
 			&bat_data->bat_batt_vol);
-
+	#endif//CONFIG_ODM_CUSTOM_D85_BUILD
+	/*Tab A9 code for AX6739A-2244 by lina at 20230712 end*/
 	bat_data->bat_batt_temp = force_get_tbat(gm, true);
 }
+/*Tab A9 code for SR-AX6739A-01-527 by lina at 20230523 start*/
+#ifndef CONFIG_ODM_CUSTOM_FACTORY_BUILD
+	#define SS_BAT_COLD_TEMP	0
+	#define SS_BAT_HOT_TEMP		50
+#endif //!CONFIG_ODM_CUSTOM_FACTORY_BUILD
+/*Tab A9 code for SR-AX6739A-01-527 by lina at 20230523 end*/
 void battery_update(struct mtk_battery *gm)
 {
 	struct battery_data *bat_data = &gm->bs_data;
@@ -2132,11 +2247,39 @@ void battery_update(struct mtk_battery *gm)
 	bat_data->bat_present =
 		gauge_get_int_property(GAUGE_PROP_BATTERY_EXIST);
 
+        /*Tab A9 code for SR-AX6739A-01-531 by hualei at 20230523 start*/
+	if (bat_data->bat_capacity == 100 &&
+		bat_data->bat_status != POWER_SUPPLY_STATUS_NOT_CHARGING &&
+		bat_data->bat_status != POWER_SUPPLY_STATUS_DISCHARGING) {
+		bat_data->bat_status = POWER_SUPPLY_STATUS_FULL;
+		bm_err("battery_update set FULL! ui:%d status:%d\n",
+			bat_data->bat_capacity, bat_data->bat_capacity);
+	}
+	bm_trace("battery_update status: ui:%d status:%d\n",
+		bat_data->bat_capacity, bat_data->bat_capacity);
+	/*Tab A9 code for SR-AX6739A-01-531 by hualei at 20230523 end*/
+
 	if (battery_get_int_property(BAT_PROP_DISABLE))
 		bat_data->bat_capacity = 50;
 
 	if (gm->algo.active == true)
 		bat_data->bat_capacity = gm->ui_soc;
+
+	/*Tab A9 code for SR-AX6739A-01-505 by lina at 20230510 start*/
+	#ifdef CONFIG_ODM_CUSTOM_D85_BUILD
+	bat_data->bat_present = 1;
+	bat_data->bat_capacity = 50;
+	#endif
+	/*Tab A9 code for SR-AX6739A-01-505 by lina at 20230510 end*/
+	/*Tab A9 code for SR-AX6739A-01-527 by lina at 20230523 start*/
+	#ifndef CONFIG_ODM_CUSTOM_FACTORY_BUILD
+	if (bat_data->bat_batt_temp >= SS_BAT_HOT_TEMP) {
+		bat_data->bat_health = POWER_SUPPLY_HEALTH_OVERHEAT;
+	} else if (bat_data->bat_batt_temp <= SS_BAT_COLD_TEMP) {
+		bat_data->bat_health = POWER_SUPPLY_HEALTH_COLD;
+	}
+	#endif //!CONFIG_ODM_CUSTOM_FACTORY_BUILD
+	/*Tab A9 code for SR-AX6739A-01-527 by lina at 20230523 end*/
 
 	power_supply_changed(bat_psy);
 
@@ -2156,6 +2299,12 @@ void disable_fg(struct mtk_battery *gm)
 
 bool fg_interrupt_check(struct mtk_battery *gm)
 {
+	/*Tab A9 code for SR-AX6739A-01-505 by lina at 20230510 start*/
+	#ifdef CONFIG_ODM_CUSTOM_D85_BUILD
+	disable_fg(gm);
+	return false;
+	#endif
+	/*Tab A9 code for SR-AX6739A-01-505 by lina at 20230510 end*/
 	if (gm->disableGM30) {
 		disable_fg(gm);
 		return false;
@@ -2380,6 +2529,11 @@ static int uisoc_set(struct mtk_battery *gm,
 	else
 		gm->ui_soc = (daemon_ui_soc + 50) / 100;
 
+	/*Tab A9 code for SR-AX6739A-01-505 by lina at 20230505 start*/
+	#ifdef CONFIG_ODM_CUSTOM_D85_BUILD
+	gm->ui_soc = 50;
+	#endif
+	/*Tab A9 code for SR-AX6739A-01-505 by lina at 20230505 end*/
 	/* when UISOC changes, check the diff time for smooth */
 	if (old_uisoc != gm->ui_soc) {
 		now_time = ktime_get_boottime();
@@ -2394,6 +2548,11 @@ static int uisoc_set(struct mtk_battery *gm,
 		gm->uisoc_oldtime = now_time;
 
 		gm->bs_data.bat_capacity = gm->ui_soc;
+		/*Tab A9 code for SR-AX6739A-01-505 by lina at 20230505 start*/
+		#ifdef CONFIG_ODM_CUSTOM_D85_BUILD
+		gm->bs_data.bat_capacity = 50;
+		#endif
+		/*Tab A9 code for SR-AX6739A-01-505 by lina at 20230505 end*/
 		battery_update(gm);
 	} else {
 		bm_debug("[%s] FG_DAEMON_CMD_SET_KERNEL_UISOC = %d %d GM3:%d\n",
@@ -2401,6 +2560,11 @@ static int uisoc_set(struct mtk_battery *gm,
 			daemon_ui_soc, gm->ui_soc, gm->disableGM30);
 		/* ac_update(&ac_main); */
 		gm->bs_data.bat_capacity = gm->ui_soc;
+		/*Tab A9 code for SR-AX6739A-01-505 by lina at 20230505 start*/
+		#ifdef CONFIG_ODM_CUSTOM_D85_BUILD
+		gm->bs_data.bat_capacity = 50;
+		#endif
+		/*Tab A9 code for SR-AX6739A-01-505 by lina at 20230505 end*/
 		battery_update(gm);
 	}
 	return 0;
@@ -2474,25 +2638,6 @@ static int reset_set(struct mtk_battery *gm,
 	return 0;
 }
 
-static int temp_th_set(struct mtk_battery *gm,
-	struct mtk_battery_sysfs_field_info *attr,
-	int val)
-{
-	int gap = val;
-	int tmp = force_get_tbat(gm, true);
-
-	gm->bat_tmp_c_ht = tmp + gap;
-	gm->bat_tmp_c_lt = tmp - gap;
-
-	bm_debug(
-		"[%s]FG_DAEMON_CMD_SET_FG_BAT_TMP_C_GAP=%d ht:%d lt:%d\n",
-		__func__, gap,
-		gm->bat_tmp_c_ht,
-		gm->bat_tmp_c_lt);
-
-	return 0;
-}
-
 static ssize_t bat_sysfs_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
 {
@@ -2551,7 +2696,6 @@ static struct mtk_battery_sysfs_field_info battery_sysfs_field_tbl[] = {
 	BAT_SYSFS_FIELD_RW(init_done, BAT_PROP_INIT_DONE),
 	BAT_SYSFS_FIELD_WO(reset, BAT_PROP_FG_RESET),
 	BAT_SYSFS_FIELD_RW(log_level, BAT_PROP_LOG_LEVEL),
-	BAT_SYSFS_FIELD_WO(temp_th, BAT_PROP_TEMP_TH_GAP),
 };
 
 int battery_get_property(enum battery_property bp,
@@ -2737,7 +2881,6 @@ in_sleep:
 	}
 }
 
-#ifdef CONFIG_PM
 static int system_pm_notify(struct notifier_block *nb,
 			    unsigned long mode, void *_unused)
 {
@@ -2771,7 +2914,6 @@ static int system_pm_notify(struct notifier_block *nb,
 
 	return NOTIFY_DONE;
 }
-#endif /* CONFIG_PM */
 
 void fg_update_routine_wakeup(struct mtk_battery *gm)
 {
@@ -3418,8 +3560,15 @@ int battery_psy_init(struct platform_device *pdev)
 	gm->gauge = gauge;
 	mutex_init(&gm->ops_lock);
 
+/*Tab A9 code for SR-AX6739A-01-494 by qiaodan at 20230502 start*/
+#if defined(CONFIG_CUSTOM_PROJECT_OT11)
+	gm->bs_data.chg_psy = power_supply_get_by_name("charger");
+#else
 	gm->bs_data.chg_psy = devm_power_supply_get_by_phandle(&pdev->dev,
 							 "charger");
+#endif
+/*Tab A9 code for SR-AX6739A-01-494 by qiaodan at 20230502 end*/
+
 	if (IS_ERR_OR_NULL(gm->bs_data.chg_psy))
 		bm_err("[BAT_probe] %s: fail to get chg_psy !!\n", __func__);
 
@@ -3526,6 +3675,11 @@ int battery_init(struct platform_device *pdev)
 	gm->log_level = BMLOG_ERROR_LEVEL;
 	gm->sw_iavg_gap = 3000;
 	gm->in_sleep = false;
+	/*Tab A9 U code for AX6739AU-112 by wenyaqi at 20240125 start*/
+	#if !defined(CONFIG_ODM_CUSTOM_FACTORY_BUILD)
+	gm->bat_cycle_debug = 0;
+	#endif // !CONFIG_ODM_CUSTOM_FACTORY_BUILD
+	/*Tab A9 U code for AX6739AU-112 by wenyaqi at 20240125 end*/
 	mutex_init(&gm->fg_update_lock);
 
 	init_waitqueue_head(&gm->wait_que);
@@ -3561,14 +3715,10 @@ int battery_init(struct platform_device *pdev)
 	if (!gm->disableGM30)
 		kthread_run(battery_update_routine, gm, "battery_thread");
 
-#ifdef CONFIG_PM
 	gm->pm_nb.notifier_call = system_pm_notify;
 	ret = register_pm_notifier(&gm->pm_nb);
-	if (ret) {
+	if (ret)
 		bm_err("%s failed to register system pm notify\n", __func__);
-		unregister_pm_notifier(&gm->pm_nb);
-	}
-#endif /* CONFIG_PM */
 
 	fg_drv_thread_hrtimer_init(gm);
 	battery_sysfs_create_group(gm->bs_data.psy);

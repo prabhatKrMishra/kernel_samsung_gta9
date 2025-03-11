@@ -43,7 +43,17 @@
 /* PD */
 #include <tcpm.h>
 #include "adapter_class.h"
+/*Tab A9 code for AX6739A-723 by qiaodan at 20230606 start*/
+#include <linux/power/gxy_psy_sysfs.h>
+/*Tab A9 code for AX6739A-723 by qiaodan at 20230606 end*/
 
+/*Tab A9 code for SR-AX6739A-01-514 by qiaodan at 20230601 start*/
+#if defined(CONFIG_CUSTOM_PROJECT_OT11)
+	#include "mtk_charger.h"
+
+	#define PORT_OVP_THRESHOLD 6000
+#endif //CONFIG_CUSTOM_PROJECT_OT11
+/*Tab A9 code for SR-AX6739A-01-514 by qiaodan at 20230601 end*/
 #define PHY_MODE_DPDMPULLDOWN_SET 3
 #define PHY_MODE_DPDMPULLDOWN_CLR 4
 
@@ -118,6 +128,37 @@ static int pd_adapter_high_voltage_enable(int enable)
 
 	return ret;
 }
+
+/*Tab A9 code for SR-AX6739A-01-514 by qiaodan at 20230601 start*/
+#if defined(CONFIG_CUSTOM_PROJECT_OT11)
+static int pd_adapter_hv_voltage_status(bool en)
+{
+	static struct mtk_charger *s_info = NULL;
+	struct power_supply *chg_psy = NULL;
+	int ret = 0;
+
+	if (s_info == NULL) {
+		if (chg_psy == NULL) {
+			chg_psy = power_supply_get_by_name("mtk-master-charger");
+		}
+		if (chg_psy == NULL || IS_ERR(chg_psy)) {
+			pr_notice("%s Couldn't get chg_psy\n", __func__);
+			return -EPERM;
+		}
+
+		s_info = (struct mtk_charger *)power_supply_get_drvdata(chg_psy);
+		if (s_info == NULL) {
+			pr_notice("%s Couldn't get s_info\n", __func__);
+			return -EPERM;
+		}
+	}
+
+	s_info->hv_voltage_switch1 = en;
+
+	return ret;
+}
+#endif //CONFIG_CUSTOM_PROJECT_OT11
+/*Tab A9 code for SR-AX6739A-01-514 by qiaodan at 20230601 end*/
 
 static inline int to_mtk_adapter_ret(int tcpm_ret)
 {
@@ -270,6 +311,15 @@ static int pd_tcp_notifier_call(struct notifier_block *pnb,
 		sink_ma = noti->vbus_state.ma;
 		pr_info("%s: sink vbus %dmV %dmA type(0x%02x)\n", __func__,
 			sink_mv, sink_ma, noti->vbus_state.type);
+		/*Tab A9 code for SR-AX6739A-01-514 | AX6739A-723 by qiaodan at 20230606 start*/
+		#if defined(CONFIG_CUSTOM_PROJECT_OT11)
+		if (sink_mv > PORT_OVP_THRESHOLD || (gxy_usb_get_pdhub_flag() == true)) {
+			pd_adapter_hv_voltage_status(true);
+		} else {
+			pd_adapter_hv_voltage_status(false);
+		}
+		#endif //CONFIG_CUSTOM_PROJECT_OT11
+		/*Tab A9 code for SR-AX6739A-01-514 | AX6739A-723 by qiaodan at 20230606 end*/
 		if (!pinfo->enable_pp) {
 			if (sink_mv && sink_ma) {
 				pinfo->enable_pp = true;
@@ -416,13 +466,13 @@ static int pd_get_cap(struct adapter_device *dev,
 	enum adapter_cap_type type,
 	struct adapter_power_cap *tacap)
 {
-	struct tcpm_power_cap_val apdo_cap = {};
-	struct tcpm_remote_power_cap pd_cap = {};
-	struct pd_source_cap_ext cap_ext = {};
+	struct tcpm_power_cap_val apdo_cap;
+	struct tcpm_remote_power_cap pd_cap;
+	struct pd_source_cap_ext cap_ext;
 
 	uint8_t cap_i = 0;
 	int ret;
-	unsigned int idx = 0;
+	int idx = 0;
 	unsigned int i, j;
 	struct mtk_pd_adapter_info *info;
 
@@ -465,15 +515,15 @@ static int pd_get_cap(struct adapter_device *dev,
 			tacap->minwatt[idx] = apdo_cap.min_mv * apdo_cap.ma;
 			tacap->type[idx] = MTK_PD_APDO;
 
-			idx++;
 			pr_notice("pps_boundary[%d], %d mv ~ %d mv, %d ma pl:%d\n",
 				cap_i,
 				apdo_cap.min_mv, apdo_cap.max_mv,
 				apdo_cap.ma, apdo_cap.pwr_limit);
-			if (idx >= ADAPTER_CAP_MAX_NR) {
+			if (idx >= ADAPTER_CAP_MAX_NR - 1) {
 				pr_notice("CAP NR > %d\n", ADAPTER_CAP_MAX_NR);
 				break;
-			}
+			} else
+				idx++;
 		}
 		tacap->nr = idx;
 
@@ -502,6 +552,7 @@ static int pd_get_cap(struct adapter_device *dev,
 			pr_notice("adapter cap: nr:%d\n", pd_cap.nr);
 			for (i = 0; i < pd_cap.nr; i++) {
 				if (!pd_cap.type[i] &&
+					j >= 0 &&
 					j < ADAPTER_CAP_MAX_NR) {
 					tacap->type[j] = MTK_PD;
 					tacap->ma[j] = pd_cap.ma[i];

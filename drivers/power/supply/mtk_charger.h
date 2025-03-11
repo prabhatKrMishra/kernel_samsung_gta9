@@ -12,6 +12,9 @@
 #include "mtk_charger_algorithm_class.h"
 #include <linux/power_supply.h>
 #include "mtk_smartcharging.h"
+/*Tab A9 code for SR-AX6739A-01-482 by qiaodan at 20230516 start*/
+#include <linux/power/gxy_psy_sysfs.h>
+/*Tab A9 code for SR-AX6739A-01-482 by qiaodan at 20230516 end*/
 
 #define CHARGING_INTERVAL 10
 #define CHARGING_FULL_INTERVAL 20
@@ -50,6 +53,11 @@ struct charger_data;
 #define BATTERY_CV 4350000
 #define V_CHARGER_MAX 6500000 /* 6.5 V */
 #define V_CHARGER_MIN 4600000 /* 4.6 V */
+/*Tab A9 code for SR-AX6739A-01-514 by qiaodan at 20230601 start*/
+#if defined(CONFIG_CUSTOM_PROJECT_OT11)
+	#define V_FAST_CHARGER_MAX 10900000 /* 10.9 V */
+#endif //CONFIG_CUSTOM_PROJECT_OT11
+/*Tab A9 code for SR-AX6739A-01-514 by qiaodan at 20230601 end*/
 
 #define USB_CHARGER_CURRENT_SUSPEND		0 /* def CONFIG_USB_IF */
 #define USB_CHARGER_CURRENT_UNCONFIGURED	70000 /* 70mA */
@@ -86,6 +94,95 @@ struct charger_data;
 
 #define MAX_ALG_NO 10
 
+/*Tab A9 code for SR-AX6739A-01-522 by gaozhengwei at 20230607 start*/
+#if !defined(CONFIG_ODM_CUSTOM_FACTORY_BUILD)
+#define MAX_CV_ENTRIES	8
+#define MAX_CYCLE_COUNT	0xFFFF
+#define is_between(left, right, value) \
+	(((left) >= (right) && (left) >= (value) && \
+	(value) >= (right)) || \
+	((left) <= (right) && (left) <= (value) && \
+	(value) <= (right)))
+
+struct range_data {
+	u32 low_threshold;
+	u32 high_threshold;
+	u32 value;
+};
+#endif //!CONFIG_ODM_CUSTOM_FACTORY_BUILD
+/*Tab A9 code for SR-AX6739A-01-522 by gaozhengwei at 20230607 start*/
+
+/*Tab A9 code for SR-AX6739A-01-505 by lina at 20230510 start*/
+/*D85 setting */
+#ifdef CONFIG_ODM_CUSTOM_D85_BUILD
+#define D85_BATTERY_CV 4000000
+#define D85_JEITA_TEMP_CV 4000000
+#endif
+/*Tab A9 code for SR-AX6739A-01-505 by lina at 20230510 end*/
+
+/*Tab A9 code for SR-AX6739A-01-487 by qiaodan at 20230515 start*/
+#if defined(CONFIG_ODM_CUSTOM_FACTORY_BUILD)
+	#define BATT_CAP_CONTROL_CAPACITY 80
+#endif //CONFIG_ODM_CUSTOM_FACTORY_BUILD
+/*Tab A9 code for SR-AX6739A-01-487 by qiaodan at 20230515 end*/
+
+/*Tab A9 code for SR-AX6739A-01-455 by qiaodan at 20230524 start*/
+#if !defined(CONFIG_ODM_CUSTOM_FACTORY_BUILD)
+	#define STORE_MODE_CAPACITY_MAX 70
+	#define STORE_MODE_CAPACITY_MIN 60
+	#define STORE_MODE_FCC_MAX 500000 /*uA*/
+#endif //!CONFIG_ODM_CUSTOM_FACTORY_BUILD
+/*Tab A9 code for SR-AX6739A-01-455 by qiaodan at 20230524 end*/
+
+/*Tab A9 code for SR-AX6739A-01-486 by qiaodan at 20230512 start*/
+/* Discharge controller Info*/
+#define GXY_NORMAL_CHARGING 0
+#define GXY_DISCHARGE_INPUT_SUSPEND (1 << 0)
+/*Tab A9 code for SR-AX6739A-01-486 by qiaodan at 20230512 end*/
+/*Tab A9 code for SR-AX6739A-01-487 by qiaodan at 20230515 start*/
+#define GXY_DISCHARGE_BATT_CAP_CONTROL (1 << 1)
+/*Tab A9 code for SR-AX6739A-01-487 by qiaodan at 20230515 end*/
+/*Tab A9 code for SR-AX6739A-01-457 by qiaodan at 20230522 start*/
+#define GXY_DISCHARGE_BATT_FULL_CAPACITY (1 << 2)
+/*Tab A9 code for SR-AX6739A-01-457 by qiaodan at 20230522 end*/
+/*Tab A9 code for SR-AX6739A-01-455 by qiaodan at 20230524 start*/
+#define GXY_DISCHARGE_STORE_MODE (1 << 3)
+/*Tab A9 code for SR-AX6739A-01-455 by qiaodan at 20230524 end*/
+/*Tab A9 U code for AX6739AU-127 by wenyaqi at 20240102 start*/
+#define GXY_DISCHARGE_SOC_RECHG (1 << 4)
+/*Tab A9 U code for AX6739AU-127 by wenyaqi at 20240102 end*/
+/*Tab A9 code for SR-AX6739A-01-523 by hualei at 20230516 start*/
+#define GXY_SHIP_CYCLE 3
+/*Tab A9 code for SR-AX6739A-01-523 by hualei at 20230516 end*/
+
+/*Tab A9 code for SR-AX6739A-01-263 by zhawei at 20230522 start*/
+#define TP_USB_PLUGOUT_STATE      0
+#define TP_USB_PLUGIN_STATE       1
+/*Tab A9 code for SR-AX6739A-01-263 by zhawei at 20230522 end*/
+/*Tab A9 code for SR-AX6739A-01-530 by lina at 20230530 start*/
+#ifndef CONFIG_ODM_CUSTOM_FACTORY_BUILD
+enum batt_misc_event_ss {
+	BATT_MISC_EVENT_NONE = 0x000000,			/* Default value, nothing will be happen */
+	BATT_MISC_EVENT_UNDEFINED_RANGE_TYPE = 0x00000001,	/* water detection - not support */
+	BATT_MISC_EVENT_TIMEOUT_OPEN_TYPE = 0x00000004,		/* DCD timeout */
+	BATT_MISC_EVENT_HICCUP_TYPE = 0x00000020,		/* not use, it happens when water is detected in a interface port */
+	BATT_MISC_EVENT_FULL_CAPACITY = 0x01000000,
+};
+#endif//!CONFIG_ODM_CUSTOM_FACTORY_BUILD
+/*Tab A9 code for SR-AX6739A-01-530 by lina at 20230530 end*/
+/*Tab A9 code for SR-AX6739A-01-453 by lina at 20230601 start*/
+#ifndef CONFIG_ODM_CUSTOM_FACTORY_BUILD
+enum batt_current_event_ss {
+	SEC_BAT_CURRENT_EVENT_NONE = 0x00000,               /* Default value, nothing will be happen */
+	SEC_BAT_CURRENT_EVENT_AFC = 0x00001,                /* Do not use this*/
+	SEC_BAT_CURRENT_EVENT_CHARGE_DISABLE = 0x00002,     /* This event is for a head mount VR, It is not need */
+	SEC_BAT_CURRENT_EVENT_LOW_TEMP_SWELLING = 0x00010,  /* battery temperature is lower than 18 celsius degree */
+	SEC_BAT_CURRENT_EVENT_HIGH_TEMP_SWELLING = 0x00020, /* battery temperature is higher than 41 celsius degree */
+	SEC_BAT_CURRENT_EVENT_USB_100MA = 0x00040,          /* USB 2.0 device under test is set in unconfigured state, not enumerate */
+	SEC_BAT_CURRENT_EVENT_SLATE = 0x00800,
+};
+#endif //!CONFIG_ODM_CUSTOM_FACTORY_BUILD
+/*Tab A9 code for SR-AX6739A-01-453 by lina at 20230601 end*/
 enum bat_temp_state_enum {
 	BAT_TEMP_LOW = 0,
 	BAT_TEMP_NORMAL,
@@ -114,6 +211,16 @@ struct battery_thermal_protection_data {
 #define JEITA_TEMP_T1_TO_T2_CV	4240000
 #define JEITA_TEMP_T0_TO_T1_CV	4040000
 #define JEITA_TEMP_BELOW_T0_CV	4040000
+/*Tab A9 code for SR-AX6739A-01-504 by qiaodan at 20230508 start*/
+#if defined(CONFIG_CUSTOM_PROJECT_OT11)
+#define JEITA_TEMP_ABOVE_T4_CUR  0
+#define JEITA_TEMP_T3_TO_T4_CUR  1750000
+#define JEITA_TEMP_T2_TO_T3_CUR  2700000
+#define JEITA_TEMP_T1_TO_T2_CUR  1500000
+#define JEITA_TEMP_T0_TO_T1_CUR  500000
+#define JEITA_TEMP_BELOW_T0_CUR  0
+#endif
+/*Tab A9 code for SR-AX6739A-01-504 by qiaodan at 20230508 end*/
 #define TEMP_T4_THRES  50
 #define TEMP_T4_THRES_MINUS_X_DEGREE 47
 #define TEMP_T3_THRES  45
@@ -155,6 +262,9 @@ struct mtk_charger_algorithm {
 
 	int (*do_algorithm)(struct mtk_charger *info);
 	int (*enable_charging)(struct mtk_charger *info, bool en);
+	/*Tab A9 code for SR-AX6739A-01-486 by qiaodan at 20230512 start*/
+	int (*enable_port_charging)(struct mtk_charger *info, bool en);
+	/*Tab A9 code for SR-AX6739A-01-486 by qiaodan at 20230512 end*/
 	int (*do_event)(struct notifier_block *nb, unsigned long ev, void *v);
 	int (*do_dvchg1_event)(struct notifier_block *nb, unsigned long ev,
 			       void *v);
@@ -167,6 +277,11 @@ struct mtk_charger_algorithm {
 struct charger_custom_data {
 	int battery_cv;	/* uv */
 	int max_charger_voltage;
+	/*Tab A9 code for SR-AX6739A-01-514 by qiaodan at 20230601 start*/
+	#if defined(CONFIG_CUSTOM_PROJECT_OT11)
+	int max_fast_charger_voltage;
+	#endif //CONFIG_CUSTOM_PROJECT_OT11
+	/*Tab A9 code for SR-AX6739A-01-514 by qiaodan at 20230601 end*/
 	int max_charger_voltage_setting;
 	int min_charger_voltage;
 
@@ -182,6 +297,16 @@ struct charger_custom_data {
 	int jeita_temp_t1_to_t2_cv;
 	int jeita_temp_t0_to_t1_cv;
 	int jeita_temp_below_t0_cv;
+	/*Tab A9 code for SR-AX6739A-01-504 by qiaodan at 20230508 start*/
+	#if defined(CONFIG_CUSTOM_PROJECT_OT11)
+	int jeita_temp_above_t4_cur;
+	int jeita_temp_t3_to_t4_cur;
+	int jeita_temp_t2_to_t3_cur;
+	int jeita_temp_t1_to_t2_cur;
+	int jeita_temp_t0_to_t1_cur;
+	int jeita_temp_below_t0_cur;
+	#endif
+	/*Tab A9 code for SR-AX6739A-01-504 by qiaodan at 20230508 end*/
 	int temp_t4_thres;
 	int temp_t4_thres_minus_x_degree;
 	int temp_t3_thres;
@@ -206,6 +331,12 @@ struct charger_custom_data {
 	int min_charger_voltage_2;
 	int max_dmivr_charger_current;
 
+	/*Tab A9 code for SR-AX6739A-01-522 by gaozhengwei at 20230607 start*/
+	#if !defined(CONFIG_ODM_CUSTOM_FACTORY_BUILD)
+	bool gxy_batt_aging_enable;
+	struct range_data batt_cv_data[MAX_CV_ENTRIES];
+	#endif //!CONFIG_ODM_CUSTOM_FACTORY_BUILD
+	/*Tab A9 code for SR-AX6739A-01-522 by gaozhengwei at 20230607 end*/
 };
 
 struct charger_data {
@@ -228,6 +359,34 @@ enum chg_data_idx_enum {
 	DVCHG2_SETTING,
 	CHGS_SETTING_MAX,
 };
+/*Tab A9 code for SR-AX6739A-01-486 by qiaodan at 20230514 start*/
+struct gxy_charger_interface {
+	void (*wake_up_charger)(struct mtk_charger *info);
+	/*Tab A9 code for SR-AX6739A-01-523 by hualei at 20230516 start*/
+	int (*set_ship_mode)(struct mtk_charger *info, bool en);
+	int (*get_ship_mode)(struct mtk_charger *info);
+	/*Tab A9 code for SR-AX6739A-01-523 by hualei at 20230516 end*/
+	/*Tab A9 code for SR-AX6739A-01-506 by hualei at 20230519 start*/
+	int (*dump_charger_ic)(struct mtk_charger *info);
+	/*Tab A9 code for SR-AX6739A-01-506 by hualei at 20230519 end*/
+	/*Tab A9 code for SR-AX6739A-01-530 by lina at 20230530 start*/
+	#ifndef CONFIG_ODM_CUSTOM_FACTORY_BUILD
+	int (*batt_misc_event)(struct mtk_charger *info);
+	#endif//!CONFIG_ODM_CUSTOM_FACTORY_BUILD
+	/*Tab A9 code for SR-AX6739A-01-530 by lina at 20230530 end*/
+	/*Tab A9 code for SR-AX6739A-01-453 by lina at 20230601 start*/
+	#ifndef CONFIG_ODM_CUSTOM_FACTORY_BUILD
+	int (*batt_current_event)(struct mtk_charger *info);
+	#endif//!CONFIG_ODM_CUSTOM_FACTORY_BUILD
+	/*Tab A9 code for SR-AX6739A-01-453 by lina at 20230601 end*/
+	/*Tab A9  U code for AX6739AU-114 by wenyaqi at 20231212 start*/
+	#ifndef CONFIG_ODM_CUSTOM_FACTORY_BUILD
+	void (*set_slate_mode)(struct mtk_charger *info, int slate_mode);
+	#endif//!CONFIG_ODM_CUSTOM_FACTORY_BUILD
+	/*Tab A9  U code for AX6739AU-114 by wenyaqi at 20231212 end*/
+	int (*batt_timetofull)(void);
+};
+/*Tab A9 code for SR-AX6739A-01-486 by qiaodan at 20230514 end*/
 
 struct mtk_charger {
 	struct platform_device *pdev;
@@ -259,6 +418,29 @@ struct mtk_charger {
 	struct power_supply_config psy_dvchg_cfg2;
 	struct power_supply *psy_dvchg2;
 
+	/*Tab A9 code for AX6739A-12 by wenyaqi at 20230421 start*/
+	struct power_supply_desc psy_pmic_desc;
+	struct power_supply_config psy_pmic_cfg;
+	struct power_supply *psy_pmic;
+	struct iio_channel *chan_vbus;
+	/*Tab A9 code for AX6739A-12 by wenyaqi at 20230421 end*/
+
+	/*Tab A9 code for SR-AX6739A-01-488 by qiaodan at 20230503 start*/
+	struct power_supply_desc psy_main1_desc;
+	struct power_supply_config psy_main1_cfg;
+	struct power_supply *psy_main1;
+
+	struct power_supply_desc psy_main2_desc;
+	struct power_supply_config psy_main2_cfg;
+	struct power_supply *psy_main2;
+	/*Tab A9 code for SR-AX6739A-01-488 by qiaodan at 20230503 end*/
+
+	/*Tab A9 code for SR-AX6739A-01-473 by hualei at 20230525 start*/
+	struct power_supply_desc psy_main3_desc;
+	struct power_supply_config psy_main3_cfg;
+	struct power_supply *psy_main3;
+	/*Tab A9 code for SR-AX6739A-01-473 by hualei at 20230525 end*/
+
 	struct power_supply  *chg_psy;
 	struct power_supply  *bat_psy;
 	struct adapter_device *pd_adapter;
@@ -273,6 +455,15 @@ struct mtk_charger {
 	int chr_type;
 	int usb_type;
 	int usb_state;
+
+	/*Tab A9 code for SR-AX6739A-01-488 by qiaodan at 20230503 start*/
+	int ac_online;
+	int usb_online;
+	/*Tab A9 code for SR-AX6739A-01-488 by qiaodan at 20230503 end*/
+
+	/*Tab A9 code for SR-AX6739A-01-473 by hualei at 20230525 start*/
+	int otg_online;
+	/*Tab A9 code for SR-AX6739A-01-473 by hualei at 20230525 end*/
 
 	struct mutex cable_out_lock;
 	int cable_out_cnt;
@@ -311,11 +502,60 @@ struct mtk_charger {
 	int safety_timer_cmd;
 	bool vbusov_stat;
 	bool is_chg_done;
+	/*Tab A9 code for SR-AX6739A-01-486 by qiaodan at 20230512 start*/
+	bool port_can_charging;
+	int gxy_discharge_info;
+	int gxy_discharge_input_suspend;
+	/*Tab A9 code for SR-AX6739A-01-486 by qiaodan at 20230512 end*/
+	/*Tab A9 code for SR-AX6739A-01-523 by hualei at 20230516 start*/
+	int gxy_shipmode_flag;
+	/*Tab A9 code for SR-AX6739A-01-523 by hualei at 20230516 end*/
+	/*Tab A9  U code for AX6739AU-114 by wenyaqi at 20231212 start*/
+	int gxy_tcpc_info;
+	/*Tab A9  U code for AX6739AU-114 by wenyaqi at 20231212 end*/
+	/*Tab A9 code for SR-AX6739A-01-487 by qiaodan at 20230515 start*/
+	#if defined(CONFIG_ODM_CUSTOM_FACTORY_BUILD)
+	bool gxy_discharge_batt_cap_control;
+	#endif //CONFIG_ODM_CUSTOM_FACTORY_BUILD
+	/*Tab A9 code for SR-AX6739A-01-487 by qiaodan at 20230515 end*/
+	/*Tab A9 code for SR-AX6739A-01-457 by qiaodan at 20230522 start*/
+	#if !defined(CONFIG_ODM_CUSTOM_FACTORY_BUILD)
+	int gxy_discharge_batt_full_capacity;
+	int gxy_discharge_batt_full_flag;
+	#endif //!CONFIG_ODM_CUSTOM_FACTORY_BUILD
+	/*Tab A9 code for SR-AX6739A-01-457 by qiaodan at 20230522 end*/
+	/*Tab A9 U code for AX6739AU-127 by wenyaqi at 20240102 start*/
+	#if !defined(CONFIG_ODM_CUSTOM_FACTORY_BUILD)
+	bool gxy_batt_soc_rechg;
+	bool gxy_batt_soc_rechg_flag;
+	#endif //!CONFIG_ODM_CUSTOM_FACTORY_BUILD
+	int afc_result;
+	/*Tab A9 U code for AX6739AU-127 by wenyaqi at 20240102 end*/
+	/*Tab A9 code for SR-AX6739A-01-455 by qiaodan at 20230524 start*/
+	#if !defined(CONFIG_ODM_CUSTOM_FACTORY_BUILD)
+	bool gxy_discharge_store_mode;
+	bool gxy_discharge_store_mode_flag;
+	int store_mode_charging_max;
+	int store_mode_charging_min;
+	#endif //!CONFIG_ODM_CUSTOM_FACTORY_BUILD
+	/*Tab A9 code for SR-AX6739A-01-455 by qiaodan at 20230524 end*/
+
+	/*Tab A9 code for SR-AX6739A-01-514 by qiaodan at 20230601 start*/
+	#if defined(CONFIG_CUSTOM_PROJECT_OT11)
+	bool hv_voltage_switch1;
+	bool ovp_status;
+	#endif //CONFIG_CUSTOM_PROJECT_OT11
+	/*Tab A9 code for SR-AX6739A-01-514 by qiaodan at 20230601 end*/
+
 	/* ATM */
 	bool atm_enabled;
 
 	const char *algorithm_name;
 	struct mtk_charger_algorithm algo;
+
+	/*Tab A9 code for SR-AX6739A-01-486 by qiaodan at 20230514 start*/
+	struct gxy_charger_interface gxy_cint;
+	/*Tab A9 code for SR-AX6739A-01-486 by qiaodan at 20230514 end*/
 
 	/* dtsi custom data */
 	struct charger_custom_data data;
@@ -421,6 +661,11 @@ extern void _wake_up_charger(struct mtk_charger *info);
 
 /* functions for other */
 extern int mtk_chg_enable_vbus_ovp(bool enable);
+/*Tab A9 code for SR-AX6739A-01-263 by zhawei at 20230522 start*/
+extern int g_tp_detect_usb_flag;
+extern int tp_usb_notifier_register(struct notifier_block *nb);
+extern int tp_usb_notifier_unregister(struct notifier_block *nb);
+/*Tab A9 code for SR-AX6739A-01-263 by zhawei at 20230522 end*/
 
 
 #endif /* __MTK_CHARGER_H */

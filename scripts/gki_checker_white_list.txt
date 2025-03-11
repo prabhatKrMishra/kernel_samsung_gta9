@@ -7,6 +7,7 @@ f drivers/scsi/scsi_lib.c
 f drivers/scsi/scsi_scan.c
 f drivers/scsi/ufs/ufshcd.c
 f fs/coredump.c
+f fs/f2fs/f2fs.h
 f fs/f2fs/super.c
 f include/linux/dev_printk.h
 f include/linux/dynamic_debug.h
@@ -31,7 +32,6 @@ f kernel/trace/trace_events.c
 f lib/dynamic_debug.c
 f mm/swap.c
 f net/core/rtnetlink.c
-f net/netfilter/nf_conntrack_core.c
 f security/selinux/avc.c
 f security/selinux/include/avc.h
 f drivers/iommu/iova.c

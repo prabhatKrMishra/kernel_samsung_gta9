@@ -13,6 +13,11 @@
 #define DRM_TRACE_FENCE_ID (DRM_TRACE_ID + 2)
 #define DRM_TRACE_VSYNC_ID (DRM_TRACE_ID + 3)
 
+enum TRACE_PATTERN {
+	TRACE_OFF = 0,
+	TRACE_ON,
+	TRACE_MARK
+};
 
 /* MTK_DRM FTRACE */
 extern bool g_trace_log;
@@ -50,12 +55,15 @@ extern bool g_trace_log;
 	} \
 } while (0)
 
+#define mtk_drm_trace_default(fmt, args...) mtk_drm_print_trace("C|"fmt"\n", ##args)
+
 void mtk_drm_print_trace(char *fmt, ...);
 void drm_trace_tag_start(const char *tag);
 void drm_trace_tag_end(const char *tag);
 void drm_trace_tag_mark(const char *tag);
 void mtk_drm_refresh_tag_start(struct mtk_ddp_comp *ddp_comp);
 void mtk_drm_refresh_tag_end(struct mtk_ddp_comp *ddp_comp);
+void mtk_drm_default_tag(struct mtk_ddp_comp *ddp_comp, const char *tag, enum TRACE_PATTERN pat);
 void MMPathTraceDRM(struct mtk_ddp_comp *ddp_comp);
 int MMPathTraceRDMA(struct mtk_ddp_comp *ddp_comp, char *str,
 	unsigned int strlen, unsigned int n);

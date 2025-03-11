@@ -57,11 +57,6 @@ obj-$(CONFIG_DRM_PANEL_TPO_TPG110) += panel-tpo-tpg110.o
 obj-$(CONFIG_DRM_PANEL_TRULY_NT35597_WQXGA) += panel-truly-nt35597.o
 obj-$(CONFIG_DRM_PANEL_VISIONOX_RM69299) += panel-visionox-rm69299.o
 obj-$(CONFIG_DRM_PANEL_XINPENG_XPP055C272) += panel-xinpeng-xpp055c272.o
-ifneq ($(wildcard $(srctree)/$(src)/k6983v1_64_ref),)
-obj-$(CONFIG_DRM_PANEL_K6983V1_64_REF_FHD_CMD) += k6983v1_64_ref/panel-k6983v1-64-ref-fhd-cmd.o
-obj-$(CONFIG_DRM_PANEL_K6983V1_64_REF_WQHD_CMD) += k6983v1_64_ref/panel-k6983v1-64-ref-wqhd-cmd.o
-endif
-
 obj-$(CONFIG_DRM_PANEL_SAMSUNG_ANA6705_CMD) += panel-samsung-ana6705-cmd.o
 obj-$(CONFIG_DRM_PANEL_SAMSUNG_ANA6705_CMD_FHDP) += panel-samsung-ana6705-cmd-fhdp.o
 obj-$(CONFIG_DRM_PANEL_HX_NT37701_DPHY_CMD) += panel-hx-nt37701-dphy-cmd.o
@@ -91,12 +86,31 @@ obj-$(CONFIG_DRM_PANEL_SAMSUNG_S68FC01_VDO_AOD) += panel-samsung-s68fc01-vdo-aod
 obj-$(CONFIG_DRM_PANEL_ALPHA_SAMSUNG_S6E3HAE_CMD_120HZ) += panel-alpha-samsung-s6e3hae-wqhd-dphy-cmd-120hz.o
 obj-$(CONFIG_DRM_PANEL_TIANMA_NT36672C_CPHY_VDO_90HZ_RT4801) += panel-tianma-nt36672c-cphy-vdo-90hz-rt4801.o
 obj-$(CONFIG_DRM_PANEL_NT37801_MSYNC2_RTE) += panel-nt37801-msync2-rte.o
-obj-$(CONFIG_DRM_PANEL_HX83112B_AUO_CMD_RT5081) += panel-hx83112b-auo-cmd-60hz-rt5081.o
-obj-$(CONFIG_DRM_PANEL_BOE_HX83102J_VDO) += panel-boe-hx83102j-vdo.o
-obj-$(CONFIG_DRM_PANEL_TIANMA_HX83102J_VDO) += panel-tianma-hx83102j-vdo.o
-
-obj-$(CONFIG_BACKLIGHT_KTZ8866)         += ktz8866.o
-obj-$(CONFIG_DRM_PANEL_EDO_HX5329_CMD_120) += panel-edo-hx5329-cmd-120hz.o
+obj-$(CONFIG_DRM_PANEL_NT36672C_S2DPS01_VDO) += panel-nt36672c-s2dps01-vdo.o
+obj-$(CONFIG_DRM_PANEL_S6E3FC3_S2DOS15_CMD) += panel-s6e3fc3-s2dos15-cmd.o
+obj-$(CONFIG_DRM_PANEL_S6E3FC3_S2DOS15_CMD_2340) += panel-s6e3fc3-s2dos15-cmd-2340.o
+obj-$(CONFIG_DRM_PANEL_S6E8FC3_S2DOS15A01_VDO) += panel-s6e8fc3-s2dos15a01-vdo.o
+# Tab A9 code for SR-AX6739A-01-282 by wenghailong at 20230502 start
+obj-$(CONFIG_DRM_PANEL_BIAS_VDO) += panel-bias.o
+obj-$(CONFIG_DRM_LCD_HX83102E_XX_INX_VIDEO) += ot11/lcd_hx83102e_xx_inx_video.o
+# Tab A9 code for SR-AX6739A-01-713 by suyurui at 20230601 start
+obj-$(CONFIG_DRM_LCD_NL9951_GX_BOE_VIDEO) += ot11/lcd_nl9951_gx_boe_video.o
+# Tab A9 code for SR-AX6739A-01-713 by suyurui at 20230601 end
+# Tab A9 code for SR-AX6739A-01-719 by zhawei at 20230610 start
+obj-$(CONFIG_DRM_LCD_HX83102E_LC_HKC_VIDEO) += ot11/lcd_hx83102e_lc_hkc_video.o
+# Tab A9 code for SR-AX6739A-01-719 by zhawei at 20230610 end
+# Tab A9 code for SR-AX6739A-01-725 by hehaoran5 at 20230609 start
+obj-$(CONFIG_DRM_LCD_JD9366TC_XX_HKC_VIDEO) += ot11/lcd_jd9366tc_xx_hkc_video.o
+# Tab A9 code for SR-AX6739A-01-725 by hehaoran5 at 20230609 end
+# Tab A9 code for SR-AX6739A-01-619 by yuli at 20230602 start
+obj-$(CONFIG_DRM_LCD_NT36523D_LC_HSD_VIDEO) += ot11/lcd_nt36523d_lc_hsd_video.o
+# Tab A9 code for SR-AX6739A-01-619 by yuli at 20230602 end
+# Tab A9 code for SR-AX6739A-01-768 by liudi at 20230715 start
+obj-$(CONFIG_DRM_LCD_HX83102E_CD_INX_VIDEO) += ot11/lcd_hx83102e_cd_inx_video.o
+# Tab A9 code for SR-AX6739A-01-768 by liudi at 20230715 end
+obj-$(CONFIG_DRM_LCD_HX83102E_GX_HSD_INCELL_VIDEO) += ot11/lcd_hx83102e_gx_hsd_incell_video.o
+obj-$(CONFIG_DRM_LCD_DEFAULT_MIPI_FHD_VIDEO) += ot11/lcd_default_mipi_fhd_video.o
+# Tab A9 code for SR-AX6739A-01-282 by wenghailong at 20230502 end
 
 mediatek-drm-gateic-y := mtk_drm_panel_i2c.o \
 		  mtk_drm_gateic_rt4801h.o \

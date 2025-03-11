@@ -80,6 +80,16 @@
 #define IS_RESTARTSYS_ERROR(err) (err == -ERESTARTSYS)
 #define RETRY_REQUIRED(cnt) (cnt <= TIPC_RETRY_MAX_COUNT)
 
+#if defined(CONFIG_TEEGRIS_TEE_SUPPORT)
+#define TYPE_STRUCT
+#define teec_context TEEC_Context
+#define teec_session TEEC_Session
+#define teec_uuid TEEC_UUID
+#define teec_operation TEEC_Operation
+#else
+#define TYPE_STRUCT struct
+#endif
+
 DEFINE_MUTEX(fd_mutex);
 DEFINE_MUTEX(session_mutex);
 
@@ -792,6 +802,53 @@ static int ree_service_threads(uint32_t type, uint32_t val_a, uint32_t val_b,
 	return 0;
 }
 
+#if IS_ENABLED(CONFIG_TEE)
+/* teec weak functions are used when teec function are unavailable. */
+__weak u32 teec_initialize_context(const char *name, TYPE_STRUCT teec_context *context)
+{
+	(void)name;
+	(void)context;
+	return 0;
+}
+
+__weak void teec_finalize_context(TYPE_STRUCT teec_context *context)
+{
+	(void)context;
+}
+
+__weak u32 teec_open_session(TYPE_STRUCT teec_context *context,
+			     TYPE_STRUCT teec_session *session,
+			     const TYPE_STRUCT teec_uuid *destination,
+			     u32 connection_method, const void *connection_data,
+			     TYPE_STRUCT teec_operation *operation,
+			     u32 *return_origin)
+{
+	(void)context;
+	(void)session;
+	(void)destination;
+	(void)connection_data;
+	(void)operation;
+	(void)return_origin;
+	return 0;
+}
+
+__weak void teec_close_session(TYPE_STRUCT teec_session *session)
+{
+	(void)session;
+}
+
+__weak u32 teec_invoke_command(TYPE_STRUCT teec_session *session,
+			       u32 command_id,
+			       TYPE_STRUCT teec_operation *operation,
+			       u32 *return_origin)
+{
+	(void)session;
+	(void)operation;
+	(void)return_origin;
+	return 0;
+}
+#endif
+
 TZ_RESULT _Gz_KreeServiceCall_body(KREE_SESSION_HANDLE handle, uint32_t command,
 				   uint32_t paramTypes,
 				   union MTEEC_PARAM param[4])
@@ -839,7 +896,7 @@ TZ_RESULT _Gz_KreeServiceCall_body(KREE_SESSION_HANDLE handle, uint32_t command,
 	case REE_SERVICE_CMD_TEE_INIT_CTX:
 		ret = TEEC_InitializeContext(
 			(char *)param[0].mem.buffer,
-			(struct TEEC_Context *)param[1].mem.buffer);
+			(TYPE_STRUCT TEEC_Context *)param[1].mem.buffer);
 		if (ret != TEEC_SUCCESS)
 			KREE_ERR("[ERROR] TEEC_InitializeContext failed: %x\n",
 				 ret);
@@ -848,14 +905,14 @@ TZ_RESULT _Gz_KreeServiceCall_body(KREE_SESSION_HANDLE handle, uint32_t command,
 
 	case REE_SERVICE_CMD_TEE_FINAL_CTX:
 		TEEC_FinalizeContext(
-			(struct TEEC_Context *)param[0].mem.buffer);
+			(TYPE_STRUCT TEEC_Context *)param[0].mem.buffer);
 		break;
 
 	case REE_SERVICE_CMD_TEE_OPEN_SE:
 		ret = TEEC_OpenSession(
-			(struct TEEC_Context *)param[0].mem.buffer,
-			(struct TEEC_Session *)param[1].mem.buffer,
-			(struct TEEC_UUID *)param[2].mem.buffer,
+			(TYPE_STRUCT TEEC_Context *)param[0].mem.buffer,
+			(TYPE_STRUCT TEEC_Session *)param[1].mem.buffer,
+			(TYPE_STRUCT TEEC_UUID *)param[2].mem.buffer,
 			TEEC_LOGIN_PUBLIC, NULL, NULL, NULL);
 		if (ret != TEEC_SUCCESS)
 			KREE_ERR("[ERROR] TEEC_OpenSession failed: %x\n", ret);
@@ -863,14 +920,14 @@ TZ_RESULT _Gz_KreeServiceCall_body(KREE_SESSION_HANDLE handle, uint32_t command,
 		break;
 
 	case REE_SERVICE_CMD_TEE_CLOSE_SE:
-		TEEC_CloseSession((struct TEEC_Session *)param[0].mem.buffer);
+		TEEC_CloseSession((TYPE_STRUCT TEEC_Session *)param[0].mem.buffer);
 		break;
 
 	case REE_SERVICE_CMD_TEE_INVOK_CMD:
 		ret = TEEC_InvokeCommand(
-			(struct TEEC_Session *)param[0].mem.buffer,
+			(TYPE_STRUCT TEEC_Session *)param[0].mem.buffer,
 			param[1].value.a,
-			(struct TEEC_Operation *)param[2].mem.buffer, NULL);
+			(TYPE_STRUCT TEEC_Operation *)param[2].mem.buffer, NULL);
 		if (ret != TEEC_SUCCESS)
 			KREE_ERR("[ERROR] TEEC_InvokeCommand failed: %x\n",
 				 ret);
@@ -896,7 +953,7 @@ TZ_RESULT _GzServiceCall_body(int32_t Fd, unsigned int cmd,
 	int rc, copied = 0;
 	KREE_SESSION_HANDLE session;
 	struct tipc_dn_chan *chan_p;
-	struct gz_syscall_cmd_param *ree_param = NULL;
+	struct gz_syscall_cmd_param ree_param = { 0 };
 
 	/* get session from Fd */
 	chan_p = _HandleToChanInfo(_FdToHandle(Fd));
@@ -930,30 +987,23 @@ TZ_RESULT _GzServiceCall_body(int32_t Fd, unsigned int cmd,
 		return TZ_RESULT_ERROR_COMMUNICATION;
 	}
 
-	/*  Allocate cmd param */
-	ree_param = kzalloc(sizeof(struct gz_syscall_cmd_param), GFP_KERNEL);
-	if (!ree_param) {
-		KREE_ERR("%s: alloc ree_param failed\n", __func__);
-		return TZ_RESULT_ERROR_OUT_OF_MEMORY;
-	}
-
 	/* keeps serving REE call until ends */
 	while (1) {
-		rc = _gz_client_wait_ret(Fd, ree_param);
+		rc = _gz_client_wait_ret(Fd, &ree_param);
 		if (rc < 0) {
 			KREE_ERR("%s: wait ret failed(%d)\n", __func__, rc);
 			ret = TZ_RESULT_ERROR_COMMUNICATION;
 			break;
 		}
 		KREE_DEBUG("=====> %s, ree service %d\n", __func__,
-			   ree_param->ree_service);
+			   ree_param.ree_service);
 
-		/* TODO: ret = ree_param->ret */
+		/* TODO: ret = ree_param.ret */
 
 		/* check if REE service */
-		if (ree_param->ree_service == 0) {
+		if (ree_param.ree_service == 0) {
 			KREE_DEBUG("=====> %s, general return!!!!\n", __func__);
-			memcpy(param, ree_param, sizeof(*param));
+			memcpy(param, &ree_param, sizeof(*param));
 			recover_64_params(param->param, origin,
 					  param->paramTypes);
 
@@ -963,33 +1013,33 @@ TZ_RESULT _GzServiceCall_body(int32_t Fd, unsigned int cmd,
 				ret = TZ_RESULT_ERROR_BAD_PARAMETERS;
 			}
 			break;
-		} else if (ree_param->ree_service != 1) {
+		} else if (ree_param.ree_service != 1) {
 			KREE_ERR("invalid ree_service value\n");
 			break;
 		}
 
 		/* REE service main function */
-		GZ_RewriteParamMemAddr(ree_param);
-		_Gz_KreeServiceCall_body(ree_param->handle, ree_param->command,
-					 ree_param->paramTypes,
-					 ree_param->param);
+		GZ_RewriteParamMemAddr(&ree_param);
+		_Gz_KreeServiceCall_body(ree_param.handle, ree_param.command,
+					 ree_param.paramTypes,
+					 ree_param.param);
 
 		/* return param to GZ */
-		copied = GZ_CopyMemToBuffer(ree_param);
+		copied = GZ_CopyMemToBuffer(&ree_param);
 		if (copied < 0) {
 			KREE_ERR(" invalid gp params\n");
 			break;
 		}
-		ree_param->payload_size = copied;
+		ree_param.payload_size = copied;
 
-		make_64_params_local(ree_param->param, ree_param->paramTypes);
+		make_64_params_local(ree_param.param, ree_param.paramTypes);
 #ifdef DYNAMIC_TIPC_LEN
-		rc = _gz_client_cmd(Fd, session, 0, ree_param,
+		rc = _gz_client_cmd(Fd, session, 0, &ree_param,
 				    GZ_MSG_HEADER_LEN
-					    + ree_param->payload_size);
+					    + ree_param.payload_size);
 #else
-		rc = _gz_client_cmd(Fd, session, 0, ree_param,
-				    sizeof(struct gz_syscall_cmd_param));
+		rc = _gz_client_cmd(Fd, session, 0, &ree_param,
+				    sizeof(ree_param));
 #endif
 		if (rc < 0) {
 			KREE_ERR("%s: gz client cmd failed\n", __func__);
@@ -999,8 +1049,6 @@ TZ_RESULT _GzServiceCall_body(int32_t Fd, unsigned int cmd,
 
 		KREE_DEBUG("=========> %s _GzRounter done\n", __func__);
 	}
-
-	kfree(ree_param);
 
 	return ret;
 }
@@ -1168,7 +1216,7 @@ TZ_RESULT KREE_TeeServiceCallPlus(KREE_SESSION_HANDLE handle, uint32_t command,
 				  int32_t cpumask)
 {
 	int iret;
-	struct gz_syscall_cmd_param *cparam = NULL;
+	struct gz_syscall_cmd_param cparam;
 	int32_t Fd;
 	struct tipc_dn_chan *chan_p;
 
@@ -1183,18 +1231,14 @@ TZ_RESULT KREE_TeeServiceCallPlus(KREE_SESSION_HANDLE handle, uint32_t command,
 	/* pass cpumask to channel */
 	chan_p->cpumask = cpumask;
 
-	cparam = kzalloc(sizeof(struct gz_syscall_cmd_param), GFP_KERNEL);
-	if (!cparam) {
-		KREE_ERR("%s: alloc cparam failed\n", __func__);
-		return TZ_RESULT_ERROR_OUT_OF_MEMORY;
-	}
+	memset(&cparam, 0, sizeof(cparam));
 
-	cparam->command = command;
-	cparam->paramTypes = paramTypes;
-	memcpy(cparam->param, param, sizeof(union MTEEC_PARAM) * 4);
+	cparam.command = command;
+	cparam.paramTypes = paramTypes;
+	memcpy(cparam.param, param, sizeof(union MTEEC_PARAM) * 4);
 
 	KREE_DEBUG(" ===> KREE Tee Service Call cmd = %d / %d\n", command,
-		   cparam->command);
+		   cparam.command);
 
 	if (cpumask == -1)
 		mutex_lock(&servicecall_lock);
@@ -1202,7 +1246,7 @@ TZ_RESULT KREE_TeeServiceCallPlus(KREE_SESSION_HANDLE handle, uint32_t command,
 	KREE_SESSION_LOCK(Fd);
 	kree_perf_boost(1);
 
-	iret = _GzServiceCall_body(Fd, command, cparam, param);
+	iret = _GzServiceCall_body(Fd, command, &cparam, param);
 
 	kree_perf_boost(0);
 	KREE_SESSION_UNLOCK(Fd);
@@ -1210,9 +1254,7 @@ TZ_RESULT KREE_TeeServiceCallPlus(KREE_SESSION_HANDLE handle, uint32_t command,
 	if (cpumask == -1)
 		mutex_unlock(&servicecall_lock);
 
-	memcpy(param, cparam->param, sizeof(union MTEEC_PARAM) * 4);
-
-	kfree(cparam);
+	memcpy(param, cparam.param, sizeof(union MTEEC_PARAM) * 4);
 
 	return iret;
 }

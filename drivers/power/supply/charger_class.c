@@ -348,6 +348,30 @@ int charger_dev_is_powerpath_enabled(struct charger_device *chg_dev, bool *en)
 }
 EXPORT_SYMBOL(charger_dev_is_powerpath_enabled);
 
+/*Tab A9 code for SR-AX6739A-01-486 by qiaodan at 20230512 start*/
+int charger_dev_enable_port_charging(struct charger_device *chg_dev, bool en)
+{
+	if (chg_dev != NULL && chg_dev->ops != NULL &&
+	    chg_dev->ops->enable_port_charging) {
+		return chg_dev->ops->enable_port_charging(chg_dev, en);
+	}
+
+	return -EOPNOTSUPP;
+}
+EXPORT_SYMBOL(charger_dev_enable_port_charging);
+
+int charger_dev_is_port_charging_enabled(struct charger_device *chg_dev, bool *en)
+{
+	if (chg_dev != NULL && chg_dev->ops != NULL &&
+	    chg_dev->ops->is_port_charging_enabled) {
+		return chg_dev->ops->is_port_charging_enabled(chg_dev, en);
+	}
+
+	return -EOPNOTSUPP;
+}
+EXPORT_SYMBOL(charger_dev_is_port_charging_enabled);
+/*Tab A9 code for SR-AX6739A-01-486 by qiaodan at 20230512 end*/
+
 int charger_dev_enable_safety_timer(struct charger_device *chg_dev, bool en)
 {
 	if (chg_dev != NULL && chg_dev->ops != NULL &&
@@ -806,6 +830,40 @@ int unregister_charger_device_notifier(struct charger_device *chg_dev,
 	return srcu_notifier_chain_unregister(&chg_dev->evt_nh, nb);
 }
 EXPORT_SYMBOL(unregister_charger_device_notifier);
+
+/*Tab A9 code for SR-AX6739A-01-523 by hualei at 20230516 start*/
+int charger_dev_set_shipmode(struct charger_device *chg_dev, bool enable)
+{
+	if (chg_dev != NULL && chg_dev->ops != NULL &&
+		chg_dev->ops->set_ship_mode) {
+		return chg_dev->ops->set_ship_mode(chg_dev, enable);
+	}
+	return -ENOTSUPP;
+}
+EXPORT_SYMBOL(charger_dev_set_shipmode);
+
+int charger_dev_get_shipmode(struct charger_device *chg_dev)
+{
+	if (chg_dev != NULL && chg_dev->ops != NULL &&
+		chg_dev->ops->get_ship_mode) {
+		return chg_dev->ops->get_ship_mode(chg_dev);
+	}
+	return -ENOTSUPP;
+}
+EXPORT_SYMBOL(charger_dev_get_shipmode);
+/*Tab A9 code for SR-AX6739A-01-523 by hualei at 20230516 end*/
+
+/*Tab A9 code for AX6739A-409 by wenyaqi at 20230530 start*/
+int charger_dev_get_hvdcp_status(struct charger_device *chg_dev)
+{
+	if (chg_dev != NULL && chg_dev->ops != NULL &&
+		chg_dev->ops->get_hvdcp_status) {
+		return chg_dev->ops->get_hvdcp_status(chg_dev);
+	}
+	return -ENOTSUPP;
+}
+EXPORT_SYMBOL(charger_dev_get_hvdcp_status);
+/*Tab A9 code for AX6739A-409 by wenyaqi at 20230530 end*/
 
 /**
  * charger_device_register - create and register a new object of

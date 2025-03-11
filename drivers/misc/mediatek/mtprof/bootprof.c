@@ -161,6 +161,14 @@ out:
 }
 EXPORT_SYMBOL_GPL(bootprof_log_boot);
 
+
+#if IS_ENABLED(CONFIG_SEC_BOOTSTAT)
+int bootingtime_preloader;
+EXPORT_SYMBOL(bootingtime_preloader);
+int bootingtime_lk;
+EXPORT_SYMBOL(bootingtime_lk);
+#endif
+
 static void bootprof_bootloader(void)
 {
 	struct device_node *node;
@@ -178,6 +186,10 @@ static void bootprof_bootloader(void)
 		of_property_read_s32(node, "sec_os_t", &bf_sec_os_t);
 		of_property_read_s32(node, "gz_t", &bf_gz_t);
 
+#if IS_ENABLED(CONFIG_SEC_BOOTSTAT)
+		bootingtime_preloader = bf_pl_t;
+		bootingtime_lk = bf_lk_t;
+#endif
 		pr_info("BOOTPROF: pl=%d, bl2ext=%d ,lk=%d, logo=%d, tfa=%d, sec_os=%d, gz=%d\n",
 			bf_pl_t, bf_bl2ext_t, bf_lk_t, bf_logo_t, bf_tfa_t,
 			bf_sec_os_t,  bf_gz_t);

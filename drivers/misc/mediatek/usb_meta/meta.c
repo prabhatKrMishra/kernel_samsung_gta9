@@ -39,7 +39,6 @@ static const char longname[] = "Gadget Android";
 extern void bootprof_log_boot(char *str);
 #endif
 
-#if !IS_BUILTIN(CONFIG_MTK_USB_META)
 /****************************************************
  *   Begin - copy function from composite.c
  ****************************************************/
@@ -92,7 +91,6 @@ void usb_remove_config(struct usb_composite_dev *cdev,
 
 	remove_config(cdev, config);
 }
-#endif
 /****************************************************
  *   End - copy function from composite.c
  ****************************************************/

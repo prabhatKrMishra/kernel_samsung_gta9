@@ -845,6 +845,8 @@ static inline void *kvcalloc(size_t n, size_t size, gfp_t flags)
 	return kvmalloc_array(n, size, flags | __GFP_ZERO);
 }
 
+extern void *kvrealloc(const void *p, size_t oldsize, size_t newsize,
+		gfp_t flags);
 extern void kvfree(const void *addr);
 extern void kvfree_sensitive(const void *addr, size_t len);
 
@@ -1758,6 +1760,12 @@ int generic_access_phys(struct vm_area_struct *vma, unsigned long addr,
 #ifdef CONFIG_SPECULATIVE_PAGE_FAULT
 static inline void vm_write_begin(struct vm_area_struct *vma)
 {
+        /*
+         * Isolated vma might be freed without exclusive mmap_lock but
+         * speculative page fault handler still needs to know it was changed.
+         */
+        if (!RB_EMPTY_NODE(&vma->vm_rb))
+	       mmap_assert_write_locked(vma->vm_mm);
 	/*
 	 * The reads never spins and preemption
 	 * disablement is not required.
@@ -2735,6 +2743,7 @@ extern int install_special_mapping(struct mm_struct *mm,
 				   unsigned long flags, struct page **pages);
 
 unsigned long randomize_stack_top(unsigned long stack_top);
+unsigned long randomize_page(unsigned long start, unsigned long range);
 
 extern unsigned long get_unmapped_area(struct file *, unsigned long, unsigned long, unsigned long, unsigned long);
 
@@ -3340,6 +3349,8 @@ void __init setup_nr_node_ids(void);
 static inline void setup_nr_node_ids(void) {}
 #endif
 
+extern inline bool need_memory_boosting(void);
+
 extern int memcmp_pages(struct page *page1, struct page *page2);
 
 static inline int pages_identical(struct page *page1, struct page *page2)
@@ -3394,6 +3405,32 @@ static inline int seal_check_future_write(int seals, struct vm_area_struct *vma)
 
 	return 0;
 }
+
+struct seq_file;
+void seq_printf(struct seq_file *m, const char *f, ...);
+
+static inline void show_val_meminfo(struct seq_file *m,
+				    const char *str, long size)
+{
+	char name[17];
+	int len = strlen(str);
+
+	if (len <= 15) {
+		sprintf(name, "%s:", str);
+	} else {
+		strncpy(name, str, 15);
+		name[15] = ':';
+		name[16] = '\0';
+	}
+
+	seq_printf(m, "%-16s%8ld kB\n", name, size);
+}
+
+extern bool am_app_launch;
+
+extern phys_addr_t memmapsize;
+extern unsigned long physpages, codesize, datasize, rosize, bss_size;
+extern unsigned long init_code_size, init_data_size;
 
 #endif /* __KERNEL__ */
 #endif /* _LINUX_MM_H */

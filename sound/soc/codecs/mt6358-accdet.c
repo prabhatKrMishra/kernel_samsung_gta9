@@ -30,6 +30,17 @@
 #include <linux/mfd/mt6358/core.h>
 #include "mt6358-accdet.h"
 #include "mt6358.h"
+/*Tab A9 code for SR-AX6739A-01-611 by zhawei at 20230516 start*/
+#include "touch_feature.h"
+/*Tab A9 code for SR-AX6739A-01-611 by zhawei at 20230516 end*/
+/*Tab A9 code for AX6739A-1679 by wenghailong at 20230704 start*/
+#include "extcon-mtk-usb.h"
+/*Tab A9 code for AX6739A-1679 by wenghailong at 20230704 end*/
+/*Tab A9 code for SR-AX6739A-01-194 by yingboyang at 20230425 start*/
+#ifdef CONFIG_EARJACK_NODE_SWITCH
+#include <linux/sysfs.h>
+#endif //CONFIG_EARJACK_NODE_SWITCH
+/*Tab A9 code for SR-AX6739A-01-194 by yingboyang at 20230425 end*/
 
 /* grobal variable definitions */
 #define REGISTER_VAL(x)	(x - 1)
@@ -56,6 +67,19 @@
 
 #define ACCDET_MOISTURE_DETECTED	BIT(15)
 
+/* for headset pole type definition  */
+#define TYPE_AB_00		(0x00)/* 3-pole or hook_switch */
+#define TYPE_AB_01		(0x01)/* 4-pole */
+#define TYPE_AB_11		(0x03)/* plug-out */
+#define TYPE_AB_10		(0x02)/* Illegal state */
+struct Vol_Set {/* mv */
+	unsigned int vol_min_3pole;
+	unsigned int vol_max_3pole;
+	unsigned int vol_min_4pole;
+	unsigned int vol_max_4pole;
+	unsigned int vol_bias;/* >2500: 2800; others: 2500 */
+};
+static struct Vol_Set cust_vol_set;
 #define RET_LT_5K			(-1)
 #define RET_GT_5K			(0)
 
@@ -171,7 +195,21 @@ static bool debug_thread_en;
 static bool dump_reg;
 static struct task_struct *thread;
 
+#define ACCDET_OPEN_CABLE_TIMER   (1 * HZ)
+static struct timer_list  accdet_open_cable_timer;
+static void check_open_cable_timerhandler(struct timer_list *t);
+
 static u32 button_press_debounce = 0x400;
+/*Tab A9 code for SR-AX6739A-01-194 by yingboyang at 20230425 start*/
+#ifdef CONFIG_EARJACK_NODE_SWITCH
+//add for switch to show the headset plug status
+#define EARJACK_MAX 8
+struct class *g_audio = NULL;
+struct device *g_earjack = NULL;
+static int s_earjack_flag[EARJACK_MAX] = {0};
+static u32 s_earjack_state = 0;
+#endif //CONFIG_EARJACK_NODE_SWITCH
+/*Tab A9 code for SR-AX6739A-01-194 by yingboyang at 20230425 end*/
 
 /* local function declaration */
 static void accdet_init_once(void);
@@ -181,6 +219,9 @@ static void config_eint_init_by_mode(void);
 static u32 get_triggered_eint(void);
 static void send_status_event(u32 cable_type, u32 status);
 static inline void accdet_eint_high_level_support(void);
+static inline void check_cable_type(void);
+static unsigned int check_pole_type(void);
+
 /* global function declaration */
 inline u32 accdet_read(u32 addr)
 {
@@ -549,6 +590,24 @@ static int accdet_create_attr(struct device_driver *driver)
 	}
 	return err;
 }
+/*Tab A9 code for SR-AX6739A-01-194 by yingboyang at 20230425 start*/
+#ifdef CONFIG_EARJACK_NODE_SWITCH
+static ssize_t earjack_show(struct device *dev,
+                        struct device_attribute *attr, char *buf)
+{
+	pr_err("%s: status :%d\n", __func__, s_earjack_state);
+
+	return sprintf(buf,"%d\n",s_earjack_state);
+}
+
+static DEVICE_ATTR(state, 0444, earjack_show, NULL);
+
+static struct device_attribute *s_earjack_attrs[] = {
+	&dev_attr_state,
+	NULL,
+};
+#endif //CONFIG_EARJACK_NODE_SWITCH
+/*Tab A9 code for SR-AX6739A-01-194 by yingboyang at 20230425 end*/
 
 /* get plug-in Resister for audio call */
 int mt6358_accdet_read_audio_res(unsigned int res_value)
@@ -693,14 +752,16 @@ static void accdet_get_efuse(void)
 		pr_info("%s internal moisture_vm=%d mv\n", __func__,
 			accdet->moisture_vm);
 	} else if (accdet_dts.moisture_use_ext_res == 0x1) {
-		accdet->moisture_vm = (2800 + accdet->moisture_vdd_offset);
-		accdet->moisture_vm = accdet->moisture_vm * accdet->water_r;
-		accdet->moisture_vm /=
-			(accdet->water_r + accdet->moisture_ext_r);
-		accdet->moisture_vm +=
-			(accdet->moisture_offset >> 1);
-		pr_info("%s external moisture_vm=%d mv\n", __func__,
-			accdet->moisture_vm);
+		if (accdet->moisture_vm == 0x0) {
+			accdet->moisture_vm = (2800 + accdet->moisture_vdd_offset);
+			accdet->moisture_vm = accdet->moisture_vm * accdet->water_r;
+			accdet->moisture_vm /=
+				(accdet->water_r + accdet->moisture_ext_r);
+			accdet->moisture_vm +=
+				(accdet->moisture_offset >> 1);
+			pr_info("%s external moisture_vm=%d mv\n", __func__,
+				accdet->moisture_vm);
+		}
 	}
 	pr_info("%s efuse=0x%x,auxadc_val=%dmv\n", __func__, efuseval,
 		accdet->auxadc_offset);
@@ -828,6 +889,20 @@ static void send_status_event(u32 cable_type, u32 status)
 		}
 		pr_info("accdet HEADPHONE(3-pole) %s\n",
 			status ? "PlugIn" : "PlugOut");
+		/*Tab A9 code for SR-AX6739A-01-194 by yingboyang at 20230425 start*/
+		#ifdef CONFIG_EARJACK_NODE_SWITCH
+		s_earjack_state = (status ? cable_type : NO_DEVICE);
+		#endif //CONFIG_EARJACK_NODE_SWITCH
+		/*Tab A9 code for SR-AX6739A-01-194 by yingboyang at 20230425 end*/
+		/*Tab A9 code for AX6739A-1679 by wenghailong at 20230704 start*/
+		if (status) {
+			g_tp_round_earphone_in = true;
+			earphone_notifier_call_chain(EARPHONE_PLUGIN_STATE, NULL);
+		} else {
+			g_tp_round_earphone_in = false;
+			earphone_notifier_call_chain(EARPHONE_PLUGOUT_STATE, NULL);
+		}
+		/*Tab A9 code for AX6739A-1679 by wenghailong at 20230704 end*/
 		break;
 	case HEADSET_MIC:
 		/* when plug 4-pole out, 3-pole plug out should also be
@@ -847,6 +922,11 @@ static void send_status_event(u32 cable_type, u32 status)
 				SND_JACK_MICROPHONE);
 		pr_info("accdet MICROPHONE(4-pole) %s\n",
 			status ? "PlugIn" : "PlugOut");
+		/*Tab A9 code for SR-AX6739A-01-194 by yingboyang at 20230425 start*/
+		#ifdef CONFIG_EARJACK_NODE_SWITCH
+		s_earjack_state = (status ? cable_type : NO_DEVICE);
+		#endif //CONFIG_EARJACK_NODE_SWITCH
+		/*Tab A9 code for SR-AX6739A-01-194 by yingboyang at 20230425 end*/
 		/* when press key for a long time then plug in
 		 * even recoginized as 4-pole
 		 * disable micbias timer still timeout after 6s
@@ -854,6 +934,15 @@ static void send_status_event(u32 cable_type, u32 status)
 		 * micbias, it will cause key no response
 		 */
 		del_timer_sync(&micbias_timer);
+		/*Tab A9 code for AX6739A-1679 by wenghailong at 20230704 start*/
+		if (status) {
+			g_tp_round_earphone_in = true;
+			earphone_notifier_call_chain(EARPHONE_PLUGIN_STATE, NULL);
+		} else {
+			g_tp_round_earphone_in = false;
+			earphone_notifier_call_chain(EARPHONE_PLUGOUT_STATE, NULL);
+		}
+		/*Tab A9 code for AX6739A-1679 by wenghailong at 20230704 end*/
 		break;
 	case LINE_OUT_DEVICE:
 		if (status)
@@ -865,6 +954,16 @@ static void send_status_event(u32 cable_type, u32 status)
 				SND_JACK_LINEOUT);
 		pr_info("accdet LineOut %s\n",
 			status ? "PlugIn" : "PlugOut");
+		/*Tab A9 code for SR-AX6739A-01-611 by zhawei at 20230516 start*/
+		/*Tab A9 code for AX6739A-1679 by wenghailong at 20230704 start*/
+		if (status) {
+			g_tp_round_earphone_in = true;
+			earphone_notifier_call_chain(EARPHONE_PLUGIN_STATE, NULL);
+		} else {
+			g_tp_round_earphone_in = false;
+			earphone_notifier_call_chain(EARPHONE_PLUGOUT_STATE, NULL);
+		}
+		/*Tab A9 code for AX6739A-1679 by wenghailong at 20230704 end*/
 		break;
 	default:
 		pr_info("%s Invalid cableType\n", __func__);
@@ -1154,6 +1253,16 @@ static void eint_work_callback(struct work_struct *work)
 				ACCDET_CMP_PWM_EN_SFT, 0x7, 0x7);
 
 		enable_accdet(0);
+
+		if (accdet_dts.no_use_comparator == 0x1) {
+			msleep(180);/* may be need delay more, relevant to Bias vol. */
+			check_cable_type();
+			if (accdet->accdet_status  == MIC_BIAS)
+				accdet->cali_voltage = accdet_get_auxadc();
+			mod_timer(&accdet_open_cable_timer,
+				jiffies + ACCDET_OPEN_CABLE_TIMER);
+		}
+
 	} else {
 		mutex_lock(&accdet->res_lock);
 		accdet->eint_sync_flag = false;
@@ -1212,12 +1321,37 @@ void accdet_set_debounce(int state, unsigned int debounce)
 	}
 }
 
+static unsigned int check_pole_type(void)
+{
+	unsigned int vol = 0;
+
+	vol = accdet_get_auxadc();
+	if ((vol < (cust_vol_set.vol_max_4pole + 1)) &&
+		(vol > (cust_vol_set.vol_min_4pole - 1))) {
+		pr_notice("[accdet] pole check:%d mv, AB=%d\n",
+			vol, TYPE_AB_01);
+		return TYPE_AB_01;
+	} else if ((vol < (cust_vol_set.vol_max_3pole + 1)) &&
+			(vol > cust_vol_set.vol_min_3pole)) {
+		pr_notice("[accdet] pole check:%d mv, AB=%d\n",
+			vol, TYPE_AB_00);
+		return TYPE_AB_00;
+	}
+	/* illegal state */
+	pr_notice("[accdet] pole check:%d mv, AB=%d\n", vol, TYPE_AB_10);
+	return TYPE_AB_10;
+}
+
 static inline void check_cable_type(void)
 {
 	u32 cur_AB = 0;
 
-	cur_AB = accdet_read(ACCDET_MEM_IN_ADDR) >> ACCDET_STATE_MEM_IN_OFFSET;
+	if (accdet_dts.no_use_comparator == 0x1) {
+		cur_AB = check_pole_type();
+	} else {
+		cur_AB = accdet_read(ACCDET_MEM_IN_ADDR) >> ACCDET_STATE_MEM_IN_OFFSET;
 		cur_AB = cur_AB & ACCDET_STATE_AB_MASK;
+	}
 
 	accdet->button_status = 0;
 
@@ -1337,7 +1471,8 @@ static void accdet_work_callback(struct work_struct *work)
 
 	mutex_lock(&accdet->res_lock);
 	if (accdet->eint_sync_flag) {
-		if (pre_cable_type != accdet->cable_type)
+		if ((pre_cable_type != accdet->cable_type) ||
+			(accdet->cable_type == HEADSET_MIC))
 			send_status_event(accdet->cable_type, 1);
 	}
 	mutex_unlock(&accdet->res_lock);
@@ -1364,7 +1499,7 @@ static int pmic_eint_queue_work(int eintID)
 		if (eintID == PMIC_EINT0) {
 			if (accdet->cur_eint_state == EINT_PLUG_IN) {
 				accdet_set_debounce(eint_state000,
-						ACCDET_EINT0_DEB_IN_256);
+						ACCDET_EINT0_DEB_512);
 				accdet_set_debounce(accdet_state011,
 					cust_pwm_deb->debounce3);
 				accdet->cur_eint_state = EINT_PLUG_OUT;
@@ -1517,6 +1652,8 @@ void accdet_irq_handle(void)
 	eint_sts = accdet_read(ACCDET_EINT0_MEM_IN_ADDR);
 
 	if ((irq_status & ACCDET_IRQ_MASK_SFT) && (eintID == 0)) {
+		/* delete open cable timer if normal HP in */
+		del_timer_sync(&accdet_open_cable_timer);
 		clear_accdet_int();
 		accdet_queue_work();
 		clear_accdet_int_check();
@@ -1575,6 +1712,14 @@ static irqreturn_t mtk_accdet_irq_handler_thread(int irq, void *data)
 	accdet_irq_handle();
 
 	return IRQ_HANDLED;
+}
+static void check_open_cable_timerhandler(struct timer_list *t)
+{
+	int ret;
+
+	ret = queue_work(accdet->accdet_workqueue, &accdet->accdet_work);
+	if (!ret)
+		pr_info("%s return:%d!\n", __func__, ret);
 }
 
 static irqreturn_t ex_eint_handler(int irq, void *data)
@@ -1672,8 +1817,9 @@ static int accdet_get_dts_data(void)
 {
 	int ret = 0;
 	struct device_node *node = NULL;
-	int pwm_deb[15] = {0};
+	int pwm_deb[8] = {0};
 	int three_key[4] = {0};
+	unsigned int vol_thresh[5] = { 0 };
 	u32 tmp = 0;
 
 	node = of_find_matching_node(node, accdet_of_match);
@@ -1686,6 +1832,12 @@ static int accdet_get_dts_data(void)
 	ret = of_property_read_u32(node, "mediatek,accdet-pmic", &accdet_pmic);
 	if (ret)
 		accdet_pmic = 0x0;
+
+	ret = of_property_read_u32(node, "moisture-vm", &accdet->moisture_vm);
+	if (ret) {
+		/* moisture_vm threshold */
+		accdet->moisture_vm = 0x0;
+	}
 
 	ret = of_property_read_u32(node,
 			"accdet-mic-vol", &accdet_dts.mic_vol);
@@ -1788,6 +1940,34 @@ static int accdet_get_dts_data(void)
 					sizeof(struct three_key_threshold));
 	}
 	dis_micbias_done = false;
+
+	ret = of_property_read_u32(node, "no-use-comparator", &accdet_dts.no_use_comparator);
+	if (ret) {
+		/* use accdet comparator */
+		accdet_dts.no_use_comparator = 0x0;
+	}
+	pr_notice("accdet_dts.no_use_comparator = %d\n", accdet_dts.no_use_comparator);
+
+	if (accdet_dts.no_use_comparator == 0x1) {
+		ret = of_property_read_u32_array(node, "headset-vol-threshold",
+			vol_thresh, ARRAY_SIZE(vol_thresh));
+		if (!ret)
+			memcpy(&cust_vol_set, vol_thresh, sizeof(vol_thresh));
+		else
+			pr_info("accdet get headset-vol-thrsh fail\n");
+
+		pr_info("[Accdet] min_3pole = %d, max_3pole = %d\n",
+			cust_vol_set.vol_min_3pole, cust_vol_set.vol_max_3pole);
+		pr_info("[Accdet] min_4pole = %d, max_4pole = %d\n",
+			cust_vol_set.vol_min_4pole, cust_vol_set.vol_max_4pole);
+		if (cust_vol_set.vol_bias > 2600) {
+			cust_vol_set.vol_bias = 2600;/* 2600mv */
+			pr_notice("[Accdet]bias vol set %d mv--->2600 mv\n",
+					cust_vol_set.vol_bias);
+		} else {
+			pr_info("[Accdet]bias vol set %d mv\n", cust_vol_set.vol_bias);
+		}
+	}
 
 	ret = of_property_read_u32(node, "moisture-water-r", &accdet->water_r);
 	if (ret) {
@@ -1987,6 +2167,8 @@ static void accdet_init_once(void)
 	}
 	accdet_eint_high_level_support();
 
+	/* extend plug in debounce time to 512ms, default is 256ms */
+	accdet_set_debounce(eint_state000, ACCDET_EINT0_DEB_512);
 	/* accdet eint enable*/
 	accdet_write(0x250a, 0x4);
 
@@ -2073,7 +2255,7 @@ int mt6358_accdet_init(struct snd_soc_component *component,
 	}
 
 	accdet->jack.jack->input_dev->id.bustype = BUS_HOST;
-	snd_jack_set_key(accdet->jack.jack, SND_JACK_BTN_0, KEY_PLAYPAUSE);
+	snd_jack_set_key(accdet->jack.jack, SND_JACK_BTN_0, KEY_MEDIA);
 	snd_jack_set_key(accdet->jack.jack, SND_JACK_BTN_1, KEY_VOLUMEDOWN);
 	snd_jack_set_key(accdet->jack.jack, SND_JACK_BTN_2, KEY_VOLUMEUP);
 	snd_jack_set_key(accdet->jack.jack, SND_JACK_BTN_3, KEY_VOICECOMMAND);
@@ -2088,6 +2270,11 @@ static int mt6358_accdet_probe(struct platform_device *pdev)
 {
 
 	int ret = 0;
+	/*Tab A9 code for SR-AX6739A-01-194 by yingboyang at 20230425 start*/
+	#ifdef CONFIG_EARJACK_NODE_SWITCH
+	int i = 0;
+	#endif //CONFIG_EARJACK_NODE_SWITCH
+	/*Tab A9 code for SR-AX6739A-01-194 by yingboyang at 20230425 end*/
 	struct resource *res;
 	struct mt6397_chip *mt6397_chip = dev_get_drvdata(pdev->dev.parent);
 	const struct of_device_id *of_id =
@@ -2104,6 +2291,37 @@ static int mt6358_accdet_probe(struct platform_device *pdev)
 
 	accdet->data = (struct accdet_priv *)of_id->data;
 	accdet->pdev = pdev;
+
+	/*Tab A9 code for SR-AX6739A-01-194 by yingboyang at 20230425 start*/
+	#ifdef CONFIG_EARJACK_NODE_SWITCH
+	//sys/class/audio/
+	g_audio = class_create(THIS_MODULE, "audio");
+	if (IS_ERR(g_audio)) {
+		pr_err("%s: create audio is failed.\n", __func__);
+		return PTR_ERR(g_audio);
+	}
+
+	//sys/class/audio/earjack/
+	g_earjack = device_create(g_audio, NULL, 0, NULL, "earjack");
+	if (IS_ERR(g_earjack)) {
+		pr_err("%s: device_create failed!\n", __func__);
+		device_destroy(g_audio, 0);
+		class_destroy(g_audio);
+		return PTR_ERR(g_earjack);
+	}
+
+	for (i = 0; s_earjack_attrs[i] != NULL; i++) {
+		s_earjack_flag[i] = device_create_file(g_earjack, s_earjack_attrs[i]);
+
+		if (s_earjack_flag[i]) {
+			pr_err("%s: fail device_create_file (s_earjack_flag, s_earjack_attrs[%d])\n", __func__, i);
+			device_destroy(g_audio, 0);
+			class_destroy(g_audio);
+			return s_earjack_flag[i];
+		}
+	}
+	#endif //CONFIG_EARJACK_NODE_SWITCH
+	/*Tab A9 code for SR-AX6739A-01-194 by yingboyang at 20230425 end*/
 
 	/* parse dts attributes */
 	ret = accdet_get_dts_data();
@@ -2267,6 +2485,10 @@ static int mt6358_accdet_probe(struct platform_device *pdev)
 	micbias_timer.expires = jiffies + MICBIAS_DISABLE_TIMER;
 	timer_setup(&accdet_init_timer, delay_init_timerhandler, 0);
 	accdet_init_timer.expires = jiffies + ACCDET_INIT_WAIT_TIMER;
+	timer_setup(&accdet_open_cable_timer,
+			check_open_cable_timerhandler, 0);
+	accdet_open_cable_timer.expires = jiffies + ACCDET_OPEN_CABLE_TIMER;
+	/* the third argument may include TIMER_* flags */
 
 	/* Create workqueue */
 	accdet->delay_init_workqueue =
@@ -2333,6 +2555,11 @@ err_chrdevregion:
 
 static int mt6358_accdet_remove(struct platform_device *pdev)
 {
+	/*Tab A9 code for SR-AX6739A-01-194 by yingboyang at 20230425 start*/
+	#ifdef CONFIG_EARJACK_NODE_SWITCH
+	int i = 0;
+	#endif //CONFIG_EARJACK_NODE_SWITCH
+	/*Tab A9 code for SR-AX6739A-01-194 by yingboyang at 20230425 end*/
 	destroy_workqueue(accdet->eint_workqueue);
 	destroy_workqueue(accdet->dis_micbias_workqueue);
 	destroy_workqueue(accdet->accdet_workqueue);
@@ -2340,6 +2567,16 @@ static int mt6358_accdet_remove(struct platform_device *pdev)
 	class_destroy(accdet->accdet_class);
 	unregister_chrdev_region(accdet->accdet_devno, 1);
 	devm_kfree(&pdev->dev, accdet);
+	/*Tab A9 code for SR-AX6739A-01-194 by yingboyang at 20230425 start*/
+	#ifdef CONFIG_EARJACK_NODE_SWITCH
+	for (i = 0; s_earjack_attrs[i] != NULL; i++) {
+		device_remove_file(g_earjack, s_earjack_attrs[i]);
+	}
+	device_destroy(g_audio, 0);
+	class_destroy(g_audio);
+	g_audio = NULL;
+	#endif //CONFIG_EARJACK_NODE_SWITCH
+	/*Tab A9 code for SR-AX6739A-01-194 by yingboyang at 20230425 end*/
 	return 0;
 }
 

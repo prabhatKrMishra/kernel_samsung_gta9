@@ -17,9 +17,15 @@
 #include <linux/ktime.h>
 #include <linux/delay.h>
 #include <linux/vmalloc.h>
-#include "mt-plat/mtk_ccci_common.h"
+#include <linux/of.h>
+#include <linux/of_fdt.h>
+#include <linux/of_reserved_mem.h>
+#include <mt-plat/mtk_ccci_common.h>
 #include <linux/rtc.h>
 #include "ccci_util_log.h"
+#include "ccci_util_lib_reserved_mem.h"
+
+#define CUST_FT_DUMP_BUF_FROM_DT
 
 /******************************************************************************/
 /* Ring buffer part, this type log is block read, used for temp debug purpose */
@@ -293,6 +299,7 @@ struct ccci_dump_buffer {
 	unsigned int write_pos;
 	unsigned int max_num;
 	unsigned int attr;
+	unsigned long long buf_pa;
 	spinlock_t lock;
 };
 
@@ -346,6 +353,7 @@ static int get_plat_capbility(int md_id)
 	return (en_flag & (1<<md_id));
 }
 
+/* sub total size must sync with DTS reserved total size */
 static struct buffer_node node_array[2][CCCI_DUMP_MAX+1] = {
 	{
 		{&init_setting_ctlb[0], CCCI_INIT_SETTING_BUF,
@@ -882,6 +890,15 @@ static const struct proc_ops ccci_dump_fops = {
 	.proc_poll = ccci_dump_fops_poll,
 };
 
+#ifdef CUST_FT_DUMP_BUF_FROM_DT
+phys_addr_t cccimdee_reserved_phy_addr;
+void *cccimdee_reserved_vir_addr;
+unsigned int cccimdee_reserved_size;
+static int cccimdee_reserve_memory_alloc(unsigned int zone,
+	unsigned int id, unsigned int size, struct ccci_dump_buffer *ctlb_ptr);
+static int cccimdee_reserve_memory_init(void);
+#endif
+
 static void ccci_dump_buffer_init(void)
 {
 	int i = 0;
@@ -889,12 +906,29 @@ static void ccci_dump_buffer_init(void)
 	struct proc_dir_entry *ccci_dump_proc;
 	struct buffer_node *node_ptr = NULL;
 	struct ccci_dump_buffer *ptr = NULL;
+#ifdef CUST_FT_DUMP_BUF_FROM_DT
+	pgprot_t prot;
+#endif
 
 	ccci_dump_proc = proc_create("ccci_dump", 0664, NULL, &ccci_dump_fops);
 	if (ccci_dump_proc == NULL) {
 		pr_notice("[ccci0/util]fail to create proc entry for dump\n");
 		return;
 	}
+
+#ifdef CUST_FT_DUMP_BUF_FROM_DT
+	cccimdee_reserved_phy_addr &= PAGE_MASK;
+	if (!pfn_valid(__phys_to_pfn(cccimdee_reserved_phy_addr)))
+		cccimdee_reserved_vir_addr =
+			ioremap_wc(cccimdee_reserved_phy_addr,
+				cccimdee_reserved_size);
+	else {
+		prot = pgprot_writecombine(PAGE_KERNEL);
+		cccimdee_reserved_vir_addr =
+			vmap_reserved_mem(cccimdee_reserved_phy_addr,
+				cccimdee_reserved_size, prot);
+	}
+#endif
 
 	spin_lock_init(&file_lock);
 
@@ -912,6 +946,31 @@ static void ccci_dump_buffer_init(void)
 	}
 
 	for (i = 0; i < 2; i++) {
+#ifdef CUST_FT_DUMP_BUF_FROM_DT
+		node_ptr = &node_array[i][0];
+		j = 0;
+		while (node_ptr->ctlb_ptr != NULL) {
+			ptr = node_ptr->ctlb_ptr;
+			spin_lock_init(&ptr->lock);
+			if (buff_en_bit_map & (1U<<i) && node_ptr->init_size) {
+				/* sub total size must sync with DTS reserved total size */
+				if (cccimdee_reserve_memory_alloc(i, j, node_ptr->init_size, ptr)) {
+					/* allocate buffer */
+					ptr->buffer = kmalloc(node_ptr->init_size, GFP_KERNEL);
+					ptr->buf_pa = 0;
+					pr_notice("[ccci]alloc ee dump memory:zone %d,id:%d, size:0x%x\n",
+						i, j, node_ptr->init_size);
+				}
+				if (ptr->buffer != NULL) {
+					ptr->buf_size = node_ptr->init_size;
+					ptr->attr = node_ptr->init_attr;
+				} else
+					pr_notice("[ccci0/util]fail to allocate buff index %d\n",
+						node_ptr->index);
+			}
+			node_ptr++;
+			j++;
+#else
 		node_ptr = &node_array[i][0];
 		while (node_ptr->ctlb_ptr != NULL) {
 			ptr = node_ptr->ctlb_ptr;
@@ -928,14 +987,34 @@ static void ccci_dump_buffer_init(void)
 						node_ptr->index);
 			}
 			node_ptr++;
+#endif
 		}
 	}
+
+/*
+ *kernel __pa is available for LM VA
+ *so, if it's belongs to ioremap/vmap for DTS reserved memory
+ *it should not use mrdump_mini_add_misc() directly
+ *instead of it, it should fill pa explicitly
+ */
+#ifdef CUST_FT_DUMP_BUF_FROM_DT
+	if (reg_dump_ctlb[0].buf_pa)
+		mrdump_mini_add_extra_file((unsigned long)reg_dump_ctlb[0].buffer,
+			(unsigned long)reg_dump_ctlb[0].buf_pa,
+			CCCI_REG_DUMP_BUF, "_EXTRA_MD_");
+
+	if (ke_dump_ctlb[0].buf_pa)
+		mrdump_mini_add_extra_file((unsigned long)ke_dump_ctlb[0].buffer,
+			(unsigned long)ke_dump_ctlb[0].buf_pa,
+			CCCI_KE_DUMP_BUF, "_EXTRA_CCCI_");
+#else
 	mrdump_mini_add_extra_file((unsigned long)reg_dump_ctlb[0].buffer,
 		__pa_nodebug(reg_dump_ctlb[0].buffer),
 		CCCI_REG_DUMP_BUF, "EXTRA_MD");
 	mrdump_mini_add_extra_file((unsigned long)ke_dump_ctlb[0].buffer,
 		__pa_nodebug(ke_dump_ctlb[0].buffer),
 		CCCI_KE_DUMP_BUF, "EXTRA_CCCI");
+#endif
 }
 
 /* functions will be called by external */
@@ -987,8 +1066,8 @@ void ccci_util_mem_dump(int md_id, int buf_type, void *start_addr, int len)
 		return;
 	}
 
-	ccci_dump_write(md_id, buf_type, 0, "Base: %lx\n",
-		(unsigned long)start_addr);
+	ccci_dump_write(md_id, buf_type, 0, "Base:%lx\n",
+					(unsigned long)start_addr);
 	/* Fix section */
 	for (i = 0; i < _16_fix_num; i++) {
 		ccci_dump_write(md_id, buf_type, 0,
@@ -1252,6 +1331,61 @@ void ccci_log_init(void)
 	init_waitqueue_head(&ccci_log_buf.log_wq);
 	ccci_log_buf.ch_num = 0;
 	atomic_set(&ccci_log_buf.reader_cnt, 0);
+	cccimdee_reserve_memory_init();
 	ccci_dump_buffer_init();
 	ccci_event_buffer_init();
 }
+
+#ifdef CUST_FT_DUMP_BUF_FROM_DT
+static int cccimdee_reserve_memory_init(void)
+{
+	struct device_node  *rmem_node = NULL;
+	struct reserved_mem *rmem = NULL;
+
+	/* for reserved memory  */
+	rmem_node = of_find_compatible_node(NULL, NULL, "mediatek,ccci-md-ee-dump");
+	if (!rmem_node) {
+		pr_notice("[%s] error: find node fail.\n", __func__);
+		return -1;
+	}
+
+	rmem = of_reserved_mem_lookup(rmem_node);
+	if (!rmem) {
+		pr_notice("[%s] error: cannot lookup reserved cache memory.\n", __func__);
+		return -1;
+	}
+
+	cccimdee_reserved_phy_addr = rmem->base;
+	cccimdee_reserved_size = rmem->size;
+
+	pr_notice("[memblock]%s: 0x%llx - 0x%llx (0x%llx)\n",
+		"ccci-md-ee-dump", (unsigned long long)rmem->base,
+		(unsigned long long)rmem->base + (unsigned long long)rmem->size,
+		(unsigned long long)rmem->size);
+
+	return 0;
+}
+
+static int cccimdee_reserve_memory_alloc(unsigned int zone,
+	unsigned int id, unsigned int size, struct ccci_dump_buffer *ctlb_ptr)
+{
+	static unsigned int total_size;
+
+	total_size += size;
+
+	if (total_size > cccimdee_reserved_size || !cccimdee_reserved_vir_addr) {
+		pr_notice("[ccci]err:alloc total_size(0x%x) > cccimdee_reserved_size(0x%x)|| cccimdee_reserved_vir_addr = 0x%lx\n",
+			total_size, cccimdee_reserved_size,
+			(unsigned long)cccimdee_reserved_vir_addr);
+		return -1;
+	}
+	ctlb_ptr->buffer = cccimdee_reserved_vir_addr;
+	ctlb_ptr->buf_pa = cccimdee_reserved_phy_addr;
+	pr_notice("[ccci]%s:zone %d,id:%d, size:0x%x, virt:0x%lx, phy:0x%llx\n",
+		__func__, zone, id, size, (unsigned long)ctlb_ptr->buffer, ctlb_ptr->buf_pa);
+	cccimdee_reserved_vir_addr += size;
+	cccimdee_reserved_phy_addr += size;
+	return 0;
+}
+
+#endif

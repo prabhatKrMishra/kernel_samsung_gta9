@@ -125,6 +125,10 @@ struct charger_ops {
 	/* enable/disable powerpath */
 	int (*is_powerpath_enabled)(struct charger_device *dev, bool *en);
 	int (*enable_powerpath)(struct charger_device *dev, bool en);
+	/*Tab A9 code for SR-AX6739A-01-486 by qiaodan at 20230512 start*/
+	int (*is_port_charging_enabled)(struct charger_device *dev, bool *en);
+	int (*enable_port_charging)(struct charger_device *dev, bool en);
+	/*Tab A9 code for SR-AX6739A-01-486 by qiaodan at 20230512 end*/
 
 	/* enable/disable vbus ovp */
 	int (*enable_vbus_ovp)(struct charger_device *dev, bool en);
@@ -193,6 +197,14 @@ struct charger_ops {
 	int (*enable_hidden_mode)(struct charger_device *dev, bool en);
 	int (*get_ctd_dischg_status)(struct charger_device *dev, u8 *status);
 	int (*enable_hz)(struct charger_device *dev, bool en);
+
+	/*Tab A9 code for SR-AX6739A-01-523 by hualei at 20230516 start*/
+	int (*get_ship_mode)(struct charger_device *chg_dev);
+	int (*set_ship_mode)(struct charger_device *chg_dev, bool en);
+	/*Tab A9 code for SR-AX6739A-01-523 by hualei at 20230516 end*/
+	/*Tab A9 code for AX6739A-409 by wenyaqi at 20230530 start*/
+	int (*get_hvdcp_status)(struct charger_device *chg_dev);
+	/*Tab A9 code for AX6739A-409 by wenyaqi at 20230530 end*/
 
 	int (*set_property)(struct charger_device *dev,
 			    enum charger_property prop,
@@ -273,6 +285,10 @@ extern int charger_dev_enable_6pin_battery_charging(
 	struct charger_device *charger_dev, bool en);
 extern int charger_dev_is_powerpath_enabled(
 	struct charger_device *charger_dev, bool *en);
+/*Tab A9 code for SR-AX6739A-01-486 by qiaodan at 20230512 start*/
+extern int charger_dev_is_port_charging_enabled(
+	struct charger_device *charger_dev, bool *en);
+/*Tab A9 code for SR-AX6739A-01-486 by qiaodan at 20230512 end*/
 extern int charger_dev_is_safety_timer_enabled(
 	struct charger_device *charger_dev, bool *en);
 extern int charger_dev_enable_termination(
@@ -281,6 +297,10 @@ extern int charger_dev_is_charging_done(
 	struct charger_device *charger_dev, bool *done);
 extern int charger_dev_enable_powerpath(
 	struct charger_device *charger_dev, bool en);
+/*Tab A9 code for SR-AX6739A-01-486 by qiaodan at 20230512 start*/
+extern int charger_dev_enable_port_charging(
+	struct charger_device *charger_dev, bool en);
+/*Tab A9 code for SR-AX6739A-01-486 by qiaodan at 20230512 end*/
 extern int charger_dev_enable_safety_timer(
 	struct charger_device *charger_dev, bool en);
 extern int charger_dev_enable_chg_type_det(
@@ -386,5 +406,12 @@ extern int unregister_charger_device_notifier(
 extern int charger_dev_notify(
 	struct charger_device *charger_dev, int event);
 
+/*Tab A9 code for SR-AX6739A-01-523 by hualei at 20230516 start*/
+extern int charger_dev_set_shipmode(struct charger_device *chg_dev, bool enable);
+extern int charger_dev_get_shipmode(struct charger_device *chg_dev);
+/*Tab A9 code for SR-AX6739A-01-523 by hualei at 20230516  end*/
+/*Tab A9 code for AX6739A-409 by wenyaqi at 20230530 start*/
+extern int charger_dev_get_hvdcp_status(struct charger_device *chg_dev);
+/*Tab A9 code for AX6739A-409 by wenyaqi at 20230530 end*/
 
 #endif /*LINUX_POWER_CHARGER_CLASS_H*/

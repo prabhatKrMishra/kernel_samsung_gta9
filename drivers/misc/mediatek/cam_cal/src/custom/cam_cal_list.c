@@ -3,49 +3,28 @@
  * Copyright (c) 2019 MediaTek Inc.
  */
 
+/* Tab A9 code for SR-AX6739A-01-762 by liluling at 20230703 start */
 #include <linux/kernel.h>
 #include "cam_cal_list.h"
 #include "eeprom_i2c_common_driver.h"
 #include "eeprom_i2c_custom_driver.h"
 #include "kd_imgsensor.h"
-
+#include "eeprom_i2c_a0902backhi846st_driver.h"
+#include "eeprom_i2c_a0904backsc820csst_driver.h"
 #define MAX_EEPROM_SIZE_32K 0x8000
 #define MAX_EEPROM_SIZE_16K 0x4000
 
 struct stCAM_CAL_LIST_STRUCT g_camCalList[] = {
 	/*Below is commom sensor */
-	{HI1339_SENSOR_ID, 0xB0, Common_read_region},
-	{OV13B10MAIN_SENSOR_ID, 0xB0, Common_read_region},
-	{SC800CS_LY_SENSOR_ID, 0xA0, Common_read_region},
-	{OV48B_SENSOR_ID, 0xA0, Common_read_region, MAX_EEPROM_SIZE_16K},
-	{IMX766_SENSOR_ID, 0xA0, Common_read_region, MAX_EEPROM_SIZE_32K},
-	{IMX766DUAL_SENSOR_ID, 0xA2, Common_read_region, MAX_EEPROM_SIZE_16K},
-	{GC8054_SENSOR_ID, 0xA2, Common_read_region, MAX_EEPROM_SIZE_16K},
-	{S5K3P9SP_SENSOR_ID, 0xA0, Common_read_region},
-	{IMX481_SENSOR_ID, 0xA2, Common_read_region},
-	{GC02M0_SENSOR_ID, 0xA8, Common_read_region},
-	{IMX586_SENSOR_ID, 0xA0, Common_read_region, MAX_EEPROM_SIZE_16K},
-	{IMX576_SENSOR_ID, 0xA2, Common_read_region},
-	{IMX519_SENSOR_ID, 0xA0, Common_read_region},
-	{IMX319_SENSOR_ID, 0xA2, Common_read_region, MAX_EEPROM_SIZE_16K},
-	{S5K3M5SX_SENSOR_ID, 0xA0, Common_read_region, MAX_EEPROM_SIZE_16K},
-	{IMX686_SENSOR_ID, 0xA0, Common_read_region, MAX_EEPROM_SIZE_16K},
-	{HI846_SENSOR_ID, 0xA0, Common_read_region, MAX_EEPROM_SIZE_16K},
-	{S5KGD1SP_SENSOR_ID, 0xA8, Common_read_region, MAX_EEPROM_SIZE_16K},
-	{S5K2T7SP_SENSOR_ID, 0xA4, Common_read_region},
-	{IMX386_SENSOR_ID, 0xA0, Common_read_region},
-	{S5K2L7_SENSOR_ID, 0xA0, Common_read_region},
-	{IMX398_SENSOR_ID, 0xA0, Common_read_region},
-	{IMX350_SENSOR_ID, 0xA0, Common_read_region},
-	{IMX386_MONO_SENSOR_ID, 0xA0, Common_read_region},
-	{IMX499_SENSOR_ID, 0xA0, Common_read_region},
-	#ifdef SUPPORT_S5K4H7
-	{S5K4H7FRONT_SENSOR_ID, 0x20, s5k4h7_read_otpdata},
-	#endif
+	{A0902_BACK_HI846ST_SENSOR_ID,0x40,a0902backhi846st_read_region},
+	{A0901_BACK_SC800CSLY_SENSOR_ID, 0xA0, Common_read_region},
+	{A0903_BACK_C8490XSJ_SENSOR_ID, 0xA0, Common_read_region},
+	{A0904_BACK_SC820CSST_SENSOR_ID, 0x6c, a0904backsc820csst_read_region},
 	/*  ADD before this line */
 	{0, 0, 0}       /*end of list */
 };
 
+/* Tab A9 code for SR-AX6739A-01-762 by liluling at 20230703 end */
 unsigned int cam_cal_get_sensor_list(
 	struct stCAM_CAL_LIST_STRUCT **ppCamcalList)
 {

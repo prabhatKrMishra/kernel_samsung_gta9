@@ -58,6 +58,9 @@
 #include <linux/reboot.h>
 
 #include "mtk_charger.h"
+/*Tab A9 code for SR-AX6739A-01-522 by gaozhengwei at 20230607 start*/
+#include "mtk_battery.h"
+/*Tab A9 code for SR-AX6739A-01-522 by gaozhengwei at 20230607 end*/
 
 static int _uA_to_mA(int uA)
 {
@@ -67,13 +70,122 @@ static int _uA_to_mA(int uA)
 		return uA / 1000;
 }
 
+/*Tab A9 code for SR-AX6739A-01-522 by gaozhengwei at 20230607 start*/
+#if !defined(CONFIG_ODM_CUSTOM_FACTORY_BUILD)
+static int get_val(struct range_data *range, int threshold, int *val)
+{
+	int i = 0;
+
+	/* First try to find the matching index without hysteresis */
+	for (i = 0; i < MAX_CV_ENTRIES; i++) {
+		if (!range[i].high_threshold && !range[i].low_threshold) {
+			/* First invalid table entry; exit loop */
+			break;
+		}
+
+		if (is_between(range[i].low_threshold,
+			range[i].high_threshold, threshold)) {
+			*val = range[i].value;
+			break;
+		}
+	}
+
+	/*
+	 * If the threshold is lesser than the minimum allowed range,
+	 * return minimum. So is the maximum.
+	 */
+	if (threshold > 9999) {
+		*val = range[4].value;
+	}
+	if (threshold < 0) {
+		*val = range[0].value;
+	}
+
+	return 0;
+}
+
+static int gxy_battery_aging_update(struct mtk_charger *info)
+{
+	int rc = 0;
+	int cycle_count = 0;
+	int vbat = 0;
+	union power_supply_propval prop = {0, };
+	static int s_battery_cv_old = 0;
+	static struct mtk_battery *s_info = NULL;
+	struct power_supply *psy = NULL;
+
+	if (s_info == NULL) {
+		psy = power_supply_get_by_name("battery");
+		if (psy == NULL) {
+			chr_err("%s: get battery psy failed\n", __func__);
+			return cycle_count;
+		} else {
+			s_info = (struct mtk_battery *)power_supply_get_drvdata(psy);
+			if (s_info == NULL) {
+				chr_err("%s: get mtk_battery failed\n", __func__);
+				return cycle_count;
+			}
+		}
+	}
+
+	cycle_count = s_info->bat_cycle;
+
+	if (s_info->bat_cycle_debug != 0) {
+		cycle_count = s_info->bat_cycle_debug;
+		chr_err("%s: use bat_cycle_debug %d\n", __func__, cycle_count);
+	}
+
+	rc = get_val(info->data.batt_cv_data, cycle_count, &vbat);
+	if (rc < 0) {
+		chr_err("Failed to get batt_cv_data, rc=%d\n", rc);
+		return -ENODEV;
+	}
+
+	if (s_battery_cv_old == vbat) {
+		return 0;
+	}
+	prop.intval = vbat;
+
+	if (info->sw_jeita.cv != 0) {
+		prop.intval = min(prop.intval, info->sw_jeita.cv);
+	}
+
+	info->data.battery_cv = prop.intval;
+	s_battery_cv_old = info->data.battery_cv;
+	chr_err("%s cycle_count=%d, battery_cv=%d\n", __func__,
+		cycle_count, info->data.battery_cv);
+
+	return 0;
+}
+#endif //!CONFIG_ODM_CUSTOM_FACTORY_BUILD
+/*Tab A9 code for SR-AX6739A-01-522 by gaozhengwei at 20230607 end*/
+
 static void select_cv(struct mtk_charger *info)
 {
 	u32 constant_voltage;
 
+	/*Tab A9 code for SR-AX6739A-01-522 by gaozhengwei at 20230607 start*/
+	#if !defined(CONFIG_ODM_CUSTOM_FACTORY_BUILD)
+	if (info->data.gxy_batt_aging_enable) {
+		gxy_battery_aging_update(info);
+	}
+	#endif //!CONFIG_ODM_CUSTOM_FACTORY_BUILD
+	/*Tab A9 code for SR-AX6739A-01-522 by gaozhengwei at 20230607 end*/
+
 	if (info->enable_sw_jeita)
 		if (info->sw_jeita.cv != 0) {
+			/*Tab A9 code for SR-AX6739A-01-522 by gaozhengwei at 20230607 start*/
+			#if !defined(CONFIG_ODM_CUSTOM_FACTORY_BUILD)
+			if (info->data.gxy_batt_aging_enable) {
+				info->setting.cv = min(info->data.battery_cv, info->sw_jeita.cv);
+			}
+			else {
+				info->setting.cv = info->sw_jeita.cv;
+			}
+			#else
 			info->setting.cv = info->sw_jeita.cv;
+			#endif //!CONFIG_ODM_CUSTOM_FACTORY_BUILD
+			/*Tab A9 code for SR-AX6739A-01-522 by gaozhengwei at 20230607 end*/
 			return;
 		}
 
@@ -252,15 +364,68 @@ static bool select_charging_current_limit(struct mtk_charger *info,
 			&& info->chr_type == POWER_SUPPLY_TYPE_USB)
 			chr_debug("USBIF & STAND_HOST skip current check\n");
 		else {
+			/*Tab A9 code for SR-AX6739A-01-504 by qiaodan at 20230531 start*/
+			#if defined(CONFIG_CUSTOM_PROJECT_OT11)
+			switch (info->sw_jeita.sm) {
+				case TEMP_ABOVE_T4:
+					pdata->charging_current_limit =
+						min(pdata->charging_current_limit, info->data.jeita_temp_above_t4_cur);
+					info->setting.charging_current_limit1 = info->data.jeita_temp_above_t4_cur;
+					break;
+				case TEMP_T3_TO_T4:
+					pdata->charging_current_limit =
+						min(pdata->charging_current_limit, info->data.jeita_temp_t3_to_t4_cur);
+					info->setting.charging_current_limit1 = info->data.jeita_temp_t3_to_t4_cur;
+					break;
+				case TEMP_T2_TO_T3:
+					pdata->charging_current_limit =
+						min(pdata->charging_current_limit, info->data.jeita_temp_t2_to_t3_cur);
+					info->setting.charging_current_limit1 = info->data.jeita_temp_t2_to_t3_cur;
+					break;
+				case TEMP_T1_TO_T2:
+					pdata->charging_current_limit =
+						min(pdata->charging_current_limit, info->data.jeita_temp_t1_to_t2_cur);
+					info->setting.charging_current_limit1 = info->data.jeita_temp_t1_to_t2_cur;
+					break;
+				case TEMP_T0_TO_T1:
+					pdata->charging_current_limit =
+						min(pdata->charging_current_limit, info->data.jeita_temp_t0_to_t1_cur);
+					info->setting.charging_current_limit1 = info->data.jeita_temp_t0_to_t1_cur;
+					break;
+				case TEMP_BELOW_T0:
+					pdata->charging_current_limit =
+						min(pdata->charging_current_limit, info->data.jeita_temp_below_t0_cur);
+					info->setting.charging_current_limit1 = info->data.jeita_temp_below_t0_cur;
+					break;
+				default:
+					break;
+			}
+			chr_err("[%s] [SW_JEITA] sw_jeita->sm:%d charging_current_limit:%d\n",
+				__func__, info->sw_jeita.sm, _uA_to_mA(pdata->charging_current_limit));
+			#else
 			if (info->sw_jeita.sm == TEMP_T0_TO_T1) {
 				pdata->input_current_limit = 500000;
 				pdata->charging_current_limit = 350000;
 			}
+			#endif /*end of CONFIG_CUSTOM_PROJECT_OT11*/
+			/*Tab A9 code for SR-AX6739A-01-504 by qiaodan at 20230531 end*/
 		}
 	}
 
 	sc_select_charging_current(info, pdata);
 
+	/*Tab A9 code for SR-AX6739A-01-504 by qiaodan at 20230531 start*/
+	#if defined(CONFIG_CUSTOM_PROJECT_OT11)
+	if (pdata->thermal_charging_current_limit != -1) {
+		if (pdata->thermal_charging_current_limit <=
+			pdata->charging_current_limit) {
+			pdata->charging_current_limit =
+					pdata->thermal_charging_current_limit;
+			info->setting.charging_current_limit1 =
+					min(info->setting.charging_current_limit1, pdata->thermal_charging_current_limit);
+		}
+	}
+	#else
 	if (pdata->thermal_charging_current_limit != -1) {
 		if (pdata->thermal_charging_current_limit <=
 			pdata->charging_current_limit) {
@@ -271,6 +436,8 @@ static bool select_charging_current_limit(struct mtk_charger *info,
 		}
 	} else
 		info->setting.charging_current_limit1 = info->sc.sc_ibat;
+	#endif //CONFIG_CUSTOM_PROJECT_OT11
+	/*Tab A9 code for SR-AX6739A-01-504 by qiaodan at 20230531 end*/
 
 	if (pdata->thermal_input_current_limit != -1) {
 		if (pdata->thermal_input_current_limit <=
@@ -317,6 +484,15 @@ static bool select_charging_current_limit(struct mtk_charger *info,
 		pdata_dvchg->thermal_input_current_limit;
 
 done:
+	/*Tab A9 code for SR-AX6739A-01-455 by qiaodan at 20230524 start*/
+	#if !defined(CONFIG_ODM_CUSTOM_FACTORY_BUILD)
+	if (info->gxy_discharge_store_mode) {
+		pdata->charging_current_limit = STORE_MODE_FCC_MAX;
+		chr_err("Be in store_mode,FCC set to be 500mA\r\n");
+		is_basic = true;
+	}
+	#endif //!CONFIG_ODM_CUSTOM_FACTORY_BUILD
+	/*Tab A9 code for SR-AX6739A-01-455 by qiaodan at 20230524 end*/
 
 	ret = charger_dev_get_min_charging_current(info->chg1_dev, &ichg1_min);
 	if (ret != -EOPNOTSUPP && pdata->charging_current_limit < ichg1_min) {
@@ -335,6 +511,12 @@ done:
 			pdata->input_current_limit, aicr1_min);
 		is_basic = true;
 	}
+
+	/*Tab A9 code for SR-AX6739A-01-504 by qiaodan at 20230531 start*/
+	/*debug for fast charging current setting*/
+	chr_err("[%s] fast charging current = %d\n", __func__, info->setting.charging_current_limit1);
+	/*Tab A9 code for SR-AX6739A-01-504 by qiaodan at 20230531 end*/
+
 	/* For TC_018, pleasae don't modify the format */
 	chr_err("m:%d chg1:%d,%d,%d,%d chg2:%d,%d,%d,%d dvchg1:%d sc:%d %d %d type:%d:%d usb_unlimited:%d usbif:%d usbsm:%d aicl:%d atm:%d bm:%d b:%d\n",
 		info->config,
@@ -385,6 +567,14 @@ static int do_algorithm(struct mtk_charger *info)
 			chr_err("%s battery recharge\n", __func__);
 		}
 	}
+	/*Tab A9 code for AX6739A-2539 by liufurong at 20230728 start*/
+	if (chg_done) {
+		ret = get_uisoc(info);
+		if (ret < 100) {
+			charger_dev_do_event(info->chg1_dev, EVENT_FULL, 0);
+		}
+	}
+	/*Tab A9 code for AX6739A-2539 by liufurong at 20230728 end*/
 
 	chr_err("%s is_basic:%d\n", __func__, is_basic);
 	if (is_basic != true) {
@@ -516,22 +706,31 @@ static int do_algorithm(struct mtk_charger *info)
 	return 0;
 }
 
+/*Tab A9 code for SR-AX6739A-01-514 by qiaodan at 20230601 start*/
 static int enable_charging(struct mtk_charger *info,
 						bool en)
 {
+	#if defined(CONFIG_CUSTOM_PROJECT_OT11)
+	//skip
+	#else
 	int i;
 	struct chg_alg_device *alg;
+	#endif //CONFIG_CUSTOM_PROJECT_OT11
 
 
 	chr_err("%s %d\n", __func__, en);
 
 	if (en == false) {
+		#if defined(CONFIG_CUSTOM_PROJECT_OT11)
+		//skip
+		#else
 		for (i = 0; i < MAX_ALG_NO; i++) {
 			alg = info->alg[i];
 			if (alg == NULL)
 				continue;
 			chg_alg_stop_algo(alg);
 		}
+		#endif //CONFIG_CUSTOM_PROJECT_OT11
 		charger_dev_enable(info->chg1_dev, false);
 		charger_dev_do_event(info->chg1_dev, EVENT_DISCHARGE, 0);
 	} else {
@@ -541,6 +740,19 @@ static int enable_charging(struct mtk_charger *info,
 
 	return 0;
 }
+/*Tab A9 code for SR-AX6739A-01-514 by qiaodan at 20230601 end*/
+
+/*Tab A9 code for SR-AX6739A-01-486 by qiaodan at 20230512 start*/
+static int enable_port_charging(struct mtk_charger *info,
+						bool en)
+{
+	chr_err("%s %d\n", __func__, en);
+
+	charger_dev_enable_port_charging(info->chg1_dev, en);
+
+	return 0;
+}
+/*Tab A9 code for SR-AX6739A-01-486 by qiaodan at 20230512 end*/
 
 static int charger_dev_event(struct notifier_block *nb, unsigned long event,
 				void *v)
@@ -657,9 +869,20 @@ int mtk_basic_charger_init(struct mtk_charger *info)
 
 	info->algo.do_algorithm = do_algorithm;
 	info->algo.enable_charging = enable_charging;
+	/*Tab A9 code for SR-AX6739A-01-486 by qiaodan at 20230512 start*/
+	info->algo.enable_port_charging = enable_port_charging;
+	/*Tab A9 code for SR-AX6739A-01-486 by qiaodan at 20230512 end*/
 	info->algo.do_event = charger_dev_event;
 	info->algo.do_dvchg1_event = dvchg1_dev_event;
 	info->algo.do_dvchg2_event = dvchg2_dev_event;
 	//info->change_current_setting = mtk_basic_charging_current;
+	/*Tab A9 code for AX6739A-2727 by wenyaqi at 20230906 start*/
+	// if current_limit != -1, it will influence the value of support_fast_charging
+	// pd_value will be ALG_NOT_READY in _pd_is_algo_ready in mtk_pd.c
+	info->setting.input_current_limit1 = -1;
+	info->setting.charging_current_limit1 = -1;
+	info->setting.input_current_limit2 = -1;
+	info->setting.charging_current_limit2 = -1;
+	/*Tab A9 code for AX6739A-2727 by wenyaqi at 20230906 end*/
 	return 0;
 }

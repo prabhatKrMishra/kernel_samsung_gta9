@@ -303,11 +303,9 @@ mtk_compute_energy(struct task_struct *p, int dst_cpu, struct perf_domain *pd)
 		trace_sched_energy_util(dst_cpu, max_util_cur, sum_util_cur, cpu, util_cfs_cur,
 				util_cfs_energy_cur, cpu_util_cur);
 
-#if IS_ENABLED(CONFIG_MTK_THERMAL_INTERFACE)
 		/* get temperature for each cpu*/
 		cpu_temp[cpu] = get_cpu_temp(cpu);
 		cpu_temp[cpu] /= 1000;
-#endif
 	}
 
 	energy_base = mtk_em_cpu_energy(pd->em_pd, max_util_base, sum_util_base, cpu_temp);
@@ -398,10 +396,8 @@ void mtk_find_energy_efficient_cpu(void *data, struct task_struct *p, int prev_c
 	rcu_read_lock();
 	if (!uclamp_min_ls)
 		latency_sensitive = uclamp_latency_sensitive(p);
-	else {
-		latency_sensitive = (p->uclamp_req[UCLAMP_MIN].value > 0 ? 1 : 0) ||
-					uclamp_latency_sensitive(p);
-	}
+	else
+		latency_sensitive = p->uclamp_req[UCLAMP_MIN].value > 0 ? 1 : 0;
 
 	pd = rcu_dereference(rd->pd);
 	if (!pd || READ_ONCE(rd->overutilized)) {
@@ -620,10 +616,8 @@ static struct task_struct *detach_a_hint_task(struct rq *src_rq, int dst_cpu)
 
 		if (!uclamp_min_ls)
 			latency_sensitive = uclamp_latency_sensitive(p);
-		else {
-			latency_sensitive = (p->uclamp_req[UCLAMP_MIN].value > 0 ? 1 : 0) ||
-					uclamp_latency_sensitive(p);
-		}
+		else
+			latency_sensitive = p->uclamp_req[UCLAMP_MIN].value > 0 ? 1 : 0;
 
 		if (latency_sensitive &&
 			task_util <= dst_capacity) {
@@ -651,10 +645,8 @@ inline bool is_task_latency_sensitive(struct task_struct *p)
 	rcu_read_lock();
 	if (!uclamp_min_ls)
 		latency_sensitive = uclamp_latency_sensitive(p);
-	else {
-		latency_sensitive = (p->uclamp_req[UCLAMP_MIN].value > 0 ? 1 : 0) ||
-					uclamp_latency_sensitive(p);
-	}
+	else
+		latency_sensitive = p->uclamp_req[UCLAMP_MIN].value > 0 ? 1 : 0;
 	rcu_read_unlock();
 
 	return latency_sensitive;

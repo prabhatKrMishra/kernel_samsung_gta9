@@ -106,8 +106,6 @@ struct subdrv_ctx {
 	u32 is_read_preload_eeprom;
 	u32 is_read_four_cell;
 	bool is_streaming;
-	u32 sof_cnt;
-	u32 ref_sof_cnt;
 };
 
 struct subdrv_ops {
@@ -135,7 +133,6 @@ struct subdrv_ops {
 			struct mtk_mbus_frame_desc *fd);
 	int (*get_temp)(struct subdrv_ctx *ctx, int *temp);
 	int (*vsync_notify)(struct subdrv_ctx *ctx, unsigned int sof_cnt);
-	int (*update_sof_cnt)(struct subdrv_ctx *ctx, unsigned int sof_cnt);
 	int (*get_csi_param)(struct subdrv_ctx *ctx,
 		enum SENSOR_SCENARIO_ID_ENUM scenario_id,
 		struct mtk_csi_param *csi_param);
@@ -173,15 +170,6 @@ struct subdrv_entry {
 	__val; \
 })
 
-#define subdrv_i2c_rd_u8_reg8(subctx, reg) \
- ({ \
-        u8 __val = 0xff; \
-        adaptor_i2c_rd_u8_reg8(subctx->i2c_client, \
-            subctx->i2c_write_id >> 1, reg, &__val); \
-        __val; \
-})
-
-
 #define subdrv_i2c_rd_u16(subctx, reg) \
 ({ \
 	u16 __val = 0xffff; \
@@ -193,11 +181,6 @@ struct subdrv_entry {
 #define subdrv_i2c_wr_u8(subctx, reg, val) \
 	adaptor_i2c_wr_u8(subctx->i2c_client, \
 		subctx->i2c_write_id >> 1, reg, val)
-
-#define subdrv_i2c_wr_u8_reg8(subctx, reg, val) \
-	adaptor_i2c_wr_u8_reg8(subctx->i2c_client, \
-		subctx->i2c_write_id >> 1, reg, val)
-
 
 #define subdrv_i2c_wr_u16(subctx, reg, val) \
 	adaptor_i2c_wr_u16(subctx->i2c_client, \

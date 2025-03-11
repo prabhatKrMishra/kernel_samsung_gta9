@@ -57,6 +57,8 @@
 #include <linux/wait.h>
 #include <linux/pagemap.h>
 #include <linux/fs.h>
+#include <linux/swap.h>
+#include <linux/jiffies.h>
 
 #define ZSPAGE_MAGIC	0x58
 
@@ -1748,11 +1750,40 @@ static enum fullness_group putback_zspage(struct size_class *class,
  */
 static void lock_zspage(struct zspage *zspage)
 {
-	struct page *page = get_first_page(zspage);
+	struct page *curr_page, *page;
 
-	do {
-		lock_page(page);
-	} while ((page = get_next_page(page)) != NULL);
+	/*
+	 * Pages we haven't locked yet can be migrated off the list while we're
+	 * trying to lock them, so we need to be careful and only attempt to
+	 * lock each page under migrate_read_lock(). Otherwise, the page we lock
+	 * may no longer belong to the zspage. This means that we may wait for
+	 * the wrong page to unlock, so we must take a reference to the page
+	 * prior to waiting for it to unlock outside migrate_read_lock().
+	 */
+	while (1) {
+		migrate_read_lock(zspage);
+		page = get_first_page(zspage);
+		if (trylock_page(page))
+			break;
+		get_page(page);
+		migrate_read_unlock(zspage);
+		wait_on_page_locked(page);
+		put_page(page);
+	}
+
+	curr_page = page;
+	while ((page = get_next_page(curr_page))) {
+		if (trylock_page(page)) {
+			curr_page = page;
+		} else {
+			get_page(page);
+			migrate_read_unlock(zspage);
+			wait_on_page_locked(page);
+			put_page(page);
+			migrate_read_lock(zspage);
+		}
+	}
+	migrate_read_unlock(zspage);
 }
 
 static int zs_init_fs_context(struct fs_context *fc)
@@ -2311,6 +2342,9 @@ static unsigned long zs_shrinker_scan(struct shrinker *shrinker,
 	return pages_freed ? pages_freed : SHRINK_STOP;
 }
 
+#define ZS_SHRINKER_THRESHOLD	1024
+#define ZS_SHRINKER_INTERVAL	10
+
 static unsigned long zs_shrinker_count(struct shrinker *shrinker,
 		struct shrink_control *sc)
 {
@@ -2319,6 +2353,10 @@ static unsigned long zs_shrinker_count(struct shrinker *shrinker,
 	unsigned long pages_to_free = 0;
 	struct zs_pool *pool = container_of(shrinker, struct zs_pool,
 			shrinker);
+	static unsigned long time_stamp;
+
+	if (!current_is_kswapd() || time_is_after_jiffies(time_stamp))
+		return 0;
 
 	for (i = ZS_SIZE_CLASSES - 1; i >= 0; i--) {
 		class = pool->size_class[i];
@@ -2329,6 +2367,11 @@ static unsigned long zs_shrinker_count(struct shrinker *shrinker,
 
 		pages_to_free += zs_can_compact(class);
 	}
+
+	if (pages_to_free > ZS_SHRINKER_THRESHOLD)
+		time_stamp = jiffies + (ZS_SHRINKER_INTERVAL * HZ);
+	else
+		pages_to_free = 0;
 
 	return pages_to_free;
 }

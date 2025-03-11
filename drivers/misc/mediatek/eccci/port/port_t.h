@@ -118,6 +118,9 @@ struct port_t {
 	struct sk_buff_head port_rx_list;
 	atomic_t is_up; /*for ccmni status*/
 	spinlock_t flag_lock;
+#ifdef CONFIG_MTK_SRIL_SUPPORT
+	int md_state_changed;
+#endif
 };
 /****************************************************************************/
 /* API Region called by ccci port object */

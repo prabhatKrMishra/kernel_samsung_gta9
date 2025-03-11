@@ -142,7 +142,10 @@ static int blk_ioctl_discard(struct block_device *bdev, fmode_t mode,
 
 	if (start + len > i_size_read(bdev->bd_inode))
 		return -EINVAL;
-
+	printk("%s %d:%d %llu %llu",
+		(flags & BLKDEV_DISCARD_SECURE) ? "SECDIS" : "DIS",
+		MAJOR(bdev->bd_dev), MINOR(bdev->bd_dev),
+		(unsigned long long)start, (unsigned long long)len);
 	err = truncate_bdev_range(bdev, mode, start, start + len - 1);
 	if (err)
 		return err;
@@ -679,7 +682,7 @@ long compat_blkdev_ioctl(struct file *file, unsigned cmd, unsigned long arg)
 			       (bdev->bd_bdi->ra_pages * PAGE_SIZE) / 512);
 	case BLKGETSIZE:
 		size = i_size_read(bdev->bd_inode);
-		if ((size >> 9) > ~0UL)
+		if ((size >> 9) > ~(compat_ulong_t)0)
 			return -EFBIG;
 		return compat_put_ulong(argp, size >> 9);
 
