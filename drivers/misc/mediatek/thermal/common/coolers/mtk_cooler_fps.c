@@ -38,18 +38,7 @@
 
 /* 1: turn on adaptive fps cooler; 0: turn off */
 #define ADAPTIVE_FPS_COOLER              (1)
-
-#if IS_ENABLED(CONFIG_MTK_DYNAMIC_FPS_FRAMEWORK_SUPPORT)
-
-#if IS_ENABLED(CONFIG_MTK_FPSGO) || IS_ENABLED(CONFIG_MTK_FPSGO_V3)
-	#define FPS_COOLER_USE_DFPS				(0)
-#else
-	#define FPS_COOLER_USE_DFPS				(1)
-#endif
-
-#else
-	#define FPS_COOLER_USE_DFPS				(0)
-#endif
+#define FPS_COOLER_USE_DFPS				(0)
 
 #if FPS_COOLER_USE_DFPS
 #include "dfrc.h"
