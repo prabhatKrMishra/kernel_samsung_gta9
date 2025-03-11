@@ -95,7 +95,7 @@
 		#size-cells = <2>;
 		ranges;
 
-		scp_mem_reserved: scp_mem_region {
+		scp_mem_reserved: memory@50000000 {
 			compatible = "shared-dma-pool";
 			reg = <0 0x50000000 0 0x2900000>;
 			no-map;
@@ -344,10 +344,12 @@
 	regulator-max-microvolt = <2700000>;
 };
 
+/* Tab A9 code for SR-AX6739A-01-249 by jianghongyan at 20230508 start */
 &mt6358_vsim2_reg {
-	regulator-min-microvolt = <2700000>;
-	regulator-max-microvolt = <2700000>;
+	regulator-min-microvolt = <1700000>;
+	regulator-max-microvolt = <3100000>;
 };
+/* Tab A9 code for SR-AX6739A-01-249 by jianghongyan at 20230508 end */
 
 &pio {
 	bt_pins: bt-pins {

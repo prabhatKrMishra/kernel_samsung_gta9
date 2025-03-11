@@ -20,6 +20,11 @@
 #include <linux/pm_wakeup.h>
 #include <linux/regmap.h>
 
+/*Tab A9 code for SR-AX6739A-01-345 by wenghailong at 20230426 start*/
+#include "mt-plat/mtk_ccci_common.h"
+#include "ccci_modem.h"
+/*Tab A9 code for SR-AX6739A-01-345 by wenghailong at 20230426 end*/
+
 #define KPD_NAME	"mtk-kpd"
 
 #define KP_STA			(0x0000)
@@ -52,6 +57,70 @@ struct mtk_keypad {
 	u32 hw_init_map[KPD_NUM_KEYS];
 	u16 keymap_state[KPD_NUM_MEMS];
 };
+/*Tab A9 code for SR-AX6739A-01-334 by zhangxiongyi at 20230518 start*/
+#ifdef CONFIG_CUSTOM_PROJECT_OT11
+int g_key_power_state = 0;
+EXPORT_SYMBOL(g_key_power_state);
+int g_key_volumedown_state = 0;
+EXPORT_SYMBOL(g_key_volumedown_state);
+int g_key_volumeup_state = 0;
+EXPORT_SYMBOL(g_key_volumeup_state);
+
+void get_power_state(int keycode,int pressed)
+{
+	if (keycode == KEY_POWER) {
+		g_key_power_state = pressed;
+	}
+}
+EXPORT_SYMBOL(get_power_state);
+void get_volumedown_state(int keycode,int pressed)
+{
+	if (keycode == KEY_VOLUMEDOWN) {
+		g_key_volumedown_state = pressed;
+	}
+}
+EXPORT_SYMBOL(get_volumedown_state);
+void get_volumeup_state(int keycode,int pressed)
+{
+	if (keycode == KEY_VOLUMEUP) {
+		g_key_volumeup_state = pressed;
+	}
+}
+EXPORT_SYMBOL(get_volumeup_state);
+#endif
+/*Tab A9 code for SR-AX6739A-01-334 by zhangxiongyi at 20230518 end*/
+/*Tab A9 code for SR-AX6739A-01-345 by wenghailong at 20230426 start*/
+#ifdef CONFIG_CUSTOM_PROJECT_OT11
+struct tag_bootmode {
+	u32 size;
+	u32 tag;
+	u32 bootmode;
+	u32 boottype;
+};
+
+enum boot_mode_t tp_get_boot_mode(void) {
+	struct device_node *np_chosen = NULL;
+	struct tag_bootmode *tag = NULL;
+	enum boot_mode_t boot_mode = UNKNOWN_BOOT;
+
+	np_chosen = of_find_node_by_path("/chosen");
+	if (!np_chosen) {
+		np_chosen = of_find_node_by_path("/chosen@0");
+	}
+
+	tag = (struct tag_bootmode *)of_get_property(np_chosen, "atag,boot", NULL);
+	if (!tag) {
+		pr_err("%s: fail to get atag,boot\n", __func__);
+	} else {
+		pr_info("%s: boot_mode: %d\n", __func__, tag->bootmode);
+		boot_mode = tag->bootmode;
+	}
+
+	return boot_mode;
+}
+EXPORT_SYMBOL(tp_get_boot_mode);
+#endif
+/*Tab A9 code for SR-AX6739A-01-345 by wenghailong at 20230426 end*/
 
 static void kpd_get_keymap_state(void __iomem *kp_base, u16 state[])
 {
@@ -117,6 +186,11 @@ static void kpd_keymap_handler(unsigned long data)
 				continue;
 			input_report_key(keypad->input_dev, keycode, pressed);
 			input_sync(keypad->input_dev);
+			/*Tab A9 code for SR-AX6739A-01-334 by zhangxiongyi at 20230518 start*/
+			#ifdef CONFIG_CUSTOM_PROJECT_OT11
+			get_volumeup_state(keycode,pressed);
+			#endif
+			/*Tab A9 code for SR-AX6739A-01-334 by zhangxiongyi at 20230518 end*/
 			pr_info("report Linux keycode = %d\n", keycode);
 		}
 	}

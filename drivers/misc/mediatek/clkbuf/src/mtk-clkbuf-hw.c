@@ -587,10 +587,9 @@ void clk_buf_get_enter_bblpm_cond(u32 *bblpm_cond)
 	(*bblpm_cond) |= BBLPM_SKIP;
 }
 
-static int  _clk_buf_get_bblpm_en(u32 *stat)
+static void _clk_buf_get_bblpm_en(u32 *stat)
 {
 	pr_info("not support bblpm\n");
-	return -1;
 }
 static int _clk_buf_get_bblpm_en_stat(void)
 {
@@ -600,7 +599,6 @@ static int _clk_buf_get_bblpm_en_stat(void)
 }
 int clk_buf_ctrl_bblpm_sw(bool enable)
 {
-	_clk_buf_get_bblpm_en_stat();
 	pr_info("not support bblpm\n");
 
 	return -1;
@@ -1182,6 +1180,7 @@ static ssize_t clk_buf_bblpm_show(struct kobject *kobj,
 DEFINE_ATTR_RW(clk_buf_ctrl);
 DEFINE_ATTR_RW(clk_buf_debug);
 DEFINE_ATTR_RW(clk_buf_bblpm);
+
 static struct attribute *clk_buf_attrs[] = {
 	/* for clock buffer control */
 	__ATTR_OF(clk_buf_ctrl),

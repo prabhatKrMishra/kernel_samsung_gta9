@@ -35,6 +35,10 @@
 #include "ufs-mediatek.h"
 #include "ufs-mediatek-dbg.h"
 
+#if IS_ENABLED(CONFIG_SEC_UFS_FEATURE)
+#include "ufs-sec-feature.h"
+#endif
+
 #if IS_ENABLED(CONFIG_MTK_AEE_FEATURE)
 #include <mt-plat/aee.h>
 static int ufs_abort_aee_count;
@@ -65,12 +69,9 @@ static int ufs_abort_aee_count;
 #define ufs_mtk_device_pwr_ctrl(on, ufs_version, res) \
 	ufs_mtk_smc(UFS_MTK_SIP_DEVICE_PWR_CTRL, res, on, ufs_version)
 
-#define ufshcd_eh_in_progress(h) \
-	((h)->eh_flags & UFSHCD_EH_IN_PROGRESS)
-
 static struct ufs_dev_fix ufs_mtk_dev_fixups[] = {
 	UFS_FIX(UFS_ANY_VENDOR, UFS_ANY_MODEL,
-		UFS_DEVICE_QUIRK_DELAY_BEFORE_LPM | UFS_DEVICE_QUIRK_DELAY_AFTER_LPM),
+		UFS_DEVICE_QUIRK_DELAY_AFTER_LPM),
 	UFS_FIX(UFS_VENDOR_SKHYNIX, "H9HQ21AFAMZDAR",
 		UFS_DEVICE_QUIRK_SUPPORT_EXTENDED_FEATURES),
 	UFS_FIX(UFS_VENDOR_SKHYNIX, "H9HQ15AFAMBDAR",
@@ -619,7 +620,7 @@ static void ufs_mtk_init_va09_pwr_ctrl(struct ufs_hba *hba)
 	struct ufs_mtk_host *host = ufshcd_get_variant(hba);
 
 	host->reg_va09 = regulator_get(hba->dev, "va09");
-	if (!host->reg_va09)
+	if (IS_ERR(host->reg_va09))
 		dev_info(hba->dev, "failed to get va09");
 	else
 		host->caps |= UFS_MTK_CAP_VA09_PWR_CTRL;
@@ -2002,6 +2003,8 @@ static int ufs_mtk_suspend(struct ufs_hba *hba, enum ufs_pm_op pm_op)
 
 	ufs_mtk_host_pwr_ctrl(false, res);
 
+	ufs_mtk_ctrl_dev_pwr(hba, false, false);
+
 	return 0;
 fail:
 	/*
@@ -2018,10 +2021,9 @@ static int ufs_mtk_resume(struct ufs_hba *hba, enum ufs_pm_op pm_op)
 	int err;
 	struct arm_smccc_res res;
 
-	if (ufshcd_eh_in_progress(hba))
-		ufs_mtk_ctrl_dev_pwr(hba, true, false);
-
 	ufs_mtk_host_pwr_ctrl(true, res);
+
+	ufs_mtk_ctrl_dev_pwr(hba, true, false);
 
 	err = ufs_mtk_mphy_power_on(hba, true);
 	if (err)
@@ -2162,6 +2164,14 @@ static int ufs_mtk_apply_dev_quirks(struct ufs_hba *hba)
 
 	ufs_mtk_fix_regulators(hba);
 
+#if IS_ENABLED(CONFIG_SEC_UFS_FEATURE)
+	/* check only at the first init */
+	if (!(hba->eh_flags || hba->pm_op_in_progress)) {
+		/* sec special features */
+		ufs_sec_set_features(hba);
+	}
+#endif
+
 	return 0;
 }
 
@@ -2205,6 +2215,11 @@ static void ufs_mtk_fixup_dev_quirks(struct ufs_hba *hba)
 
 	ufs_mtk_install_tracepoints(hba);
 
+#if IS_ENABLED(CONFIG_SEC_UFS_FEATURE)
+	/* register SEC vendor hooks */
+	ufs_sec_register_vendor_hooks();
+#endif
+
 #if defined(CONFIG_UFSFEATURE)
 	if (hba->dev_info.wmanufacturerid == UFS_VENDOR_SAMSUNG) {
 		host->ufsf.hba = hba;
@@ -2236,6 +2251,10 @@ static void ufs_mtk_event_notify(struct ufs_hba *hba,
 			__LINE__, DB_OPT_FS_IO_LOG,
 			"ufshcd_abort", "timeout at tag %d", val);
 	}
+#endif
+
+#if IS_ENABLED(CONFIG_SEC_UFS_FEATURE)
+	ufs_sec_op_err_check(hba, evt, data);
 #endif
 }
 
@@ -2345,6 +2364,10 @@ static int ufs_mtk_probe(struct platform_device *pdev)
 		goto out;
 	}
 
+#if IS_ENABLED(CONFIG_SEC_UFS_FEATURE)
+	ufs_sec_init_logging(dev);
+#endif
+
 skip_reset:
 	/* perform generic probe */
 	err = ufshcd_pltfrm_init(pdev, &ufs_hba_mtk_vops);
@@ -2398,6 +2421,10 @@ static int ufs_mtk_remove(struct platform_device *pdev)
 	ufs_mtk_remove_ufsf(hba);
 #endif
 
+#if IS_ENABLED(CONFIG_SEC_UFS_FEATURE)
+	ufs_sec_remove_features(hba);
+#endif
+
 	ufshcd_remove(hba);
 	ufs_mtk_biolog_exit();
 	ufs_mtk_uninstall_tracepoints();
@@ -2428,16 +2455,7 @@ int ufs_mtk_pltfrm_suspend(struct device *dev)
 		goto out;
 	}
 
-	if (ufshcd_is_auto_hibern8_supported(hba)) {
-		ufshcd_hold(hba, false);
-		ufs_mtk_auto_hibern8_disable(hba);
-		ufshcd_release(hba);
-	}
-
 	ret = ufshcd_pltfrm_suspend(dev);
-
-	if (!ret)
-		ufs_mtk_ctrl_dev_pwr(hba, false, false);
 out:
 
 #if defined(CONFIG_UFSFEATURE)
@@ -2461,12 +2479,7 @@ int ufs_mtk_pltfrm_resume(struct device *dev)
 	bool is_link_off = ufshcd_is_link_off(hba);
 #endif
 
-	ufs_mtk_ctrl_dev_pwr(hba, true, false);
-
 	ret = ufshcd_pltfrm_resume(dev);
-
-	if (ret)
-		ufs_mtk_ctrl_dev_pwr(hba, false, false);
 
 #if defined(CONFIG_UFSFEATURE)
 	if (!ret && ufsf->hba)
@@ -2491,16 +2504,7 @@ int ufs_mtk_pltfrm_runtime_suspend(struct device *dev)
 		ufsf_suspend(ufsf);
 #endif
 
-	if (ufshcd_is_auto_hibern8_supported(hba)) {
-		ufshcd_hold(hba, false);
-		ufs_mtk_auto_hibern8_disable(hba);
-		ufshcd_release(hba);
-	}
-
 	ret = ufshcd_pltfrm_runtime_suspend(dev);
-
-	if (!ret)
-		ufs_mtk_ctrl_dev_pwr(hba, false, false);
 
 #if defined(CONFIG_UFSFEATURE)
 	/* We assume link is off */
@@ -2520,12 +2524,7 @@ int ufs_mtk_pltfrm_runtime_resume(struct device *dev)
 	bool is_link_off = ufshcd_is_link_off(hba);
 #endif
 
-	ufs_mtk_ctrl_dev_pwr(hba, true, false);
-
 	ret = ufshcd_pltfrm_runtime_resume(dev);
-
-	if (ret)
-		ufs_mtk_ctrl_dev_pwr(hba, false, false);
 
 #if defined(CONFIG_UFSFEATURE)
 	if (!ret && ufsf->hba)
@@ -2548,6 +2547,9 @@ void ufs_mtk_shutdown(struct platform_device *pdev)
 		ufsf_suspend(ufsf);
 #endif
 
+#if IS_ENABLED(CONFIG_SEC_UFS_FEATURE)
+	ufs_sec_print_err_info(hba);
+#endif
 	/*
 	 * Quiesce all SCSI devices to prevent any non-PM requests sending
 	 * from block layer during and after shutdown.

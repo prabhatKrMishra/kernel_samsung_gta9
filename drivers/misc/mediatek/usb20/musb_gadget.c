@@ -1426,8 +1426,10 @@ static int musb_gadget_enable
 	/* workaround for f_fs use after free issue */
 	if (!musb_ffs_state_valid(musb_ep)) {
 		DBG(0, "f_fs is invalid, do not enable ep!\n");
+		/*Tab A9 code for AX6739A-2486 by liufurong at 20230725 start*/
 		status = -EINVAL;
 		goto fail;
+		/*Tab A9 code for AX6739A-2486 by liufurong at 20230725 end*/
 	}
 
 	musb_ep_select(mbase, epnum);

@@ -57,6 +57,21 @@ static int gadc_thermal_get_temp(void *data, int *temp)
 	struct gadc_thermal_info *gti = data;
 	int val;
 	int ret;
+#ifdef CONFIG_OF
+	struct device_node *dev_node;
+#endif
+
+#ifdef CONFIG_OF
+	dev_node = of_find_compatible_node(NULL, NULL, "generic-adc-thermal");
+
+	if (dev_node) {
+		if (of_property_read_bool(dev_node, "fixed_thermal")) {
+			dev_err(gti->dev, "Bypass thermal check\n");
+			*temp = 40000;//40 degree
+			return 0;
+		}
+	}
+#endif
 
 	ret = iio_read_channel_processed(gti->channel, &val);
 	if (ret < 0) {

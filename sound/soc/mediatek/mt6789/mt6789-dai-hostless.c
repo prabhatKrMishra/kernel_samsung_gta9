@@ -70,11 +70,14 @@ static const struct snd_soc_dapm_route mtk_dai_hostless_routes[] = {
 	/* Hostelss FM */
 	/* connsys_i2s to hw gain 1*/
 	{"Hostless FM UL", NULL, "Connsys I2S"},
+	/* connsys_i2s to hw gain 2*/
+	{"Hostless FM RECORD UL", NULL, "HW Gain 2 In"},
 
 	{"HW_GAIN1_IN_CH1", "CONNSYS_I2S_CH1", "Hostless FM DL"},
 	{"HW_GAIN1_IN_CH2", "CONNSYS_I2S_CH2", "Hostless FM DL"},
 	/* hw gain to adda dl */
 	{"Hostless FM UL", NULL, "HW Gain 1 Out"},
+	{"Hostless_ADDA_DL_HWGain DL", NULL, "HW Gain 1 Out"},
 
 	{"ADDA_DL_CH1", "GAIN1_OUT_CH1", "Hostless FM DL"},
 	{"ADDA_DL_CH2", "GAIN1_OUT_CH2", "Hostless FM DL"},
@@ -190,6 +193,18 @@ static struct snd_soc_dai_driver mtk_dai_hostless_driver[] = {
 		.ops = &mtk_dai_hostless_ops,
 	},
 	{
+		.name = "Hostless_FM_Record DAI",
+		.id = MT6789_DAI_HOSTLESS_FM_RECORD,
+		.capture = {
+			.stream_name = "Hostless FM RECORD UL",
+			.channels_min = 1,
+			.channels_max = 2,
+			.rates = MTK_HOSTLESS_RATES,
+			.formats = MTK_HOSTLESS_FORMATS,
+		},
+		.ops = &mtk_dai_hostless_ops,
+	},
+	{
 		.name = "Hostless Speech DAI",
 		.id = MT6789_DAI_HOSTLESS_SPEECH,
 		.playback = {
@@ -251,6 +266,18 @@ static struct snd_soc_dai_driver mtk_dai_hostless_driver[] = {
 		.id = MT6789_DAI_HOSTLESS_IMPEDANCE,
 		.playback = {
 			.stream_name = "Hostless_ADDA_DL_I2S_OUT DL",
+			.channels_min = 1,
+			.channels_max = 2,
+			.rates = MTK_HOSTLESS_RATES,
+			.formats = MTK_HOSTLESS_FORMATS,
+		},
+		.ops = &mtk_dai_hostless_ops,
+	},
+	{
+		.name = "Hostless_ADDA_DL_HWGain DAI",
+		.id = MT6789_DAI_HOSTLESS_ADDA_DL_HWGain,
+		.playback = {
+			.stream_name = "Hostless_ADDA_DL_HWGain DL",
 			.channels_min = 1,
 			.channels_max = 2,
 			.rates = MTK_HOSTLESS_RATES,

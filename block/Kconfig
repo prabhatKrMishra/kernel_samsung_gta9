@@ -211,6 +211,11 @@ config BLK_INLINE_ENCRYPTION_FALLBACK
 	  by falling back to the kernel crypto API when inline
 	  encryption hardware is not present.
 
+config BLK_SEC_STATS
+	tristate "SEC module for various block layer info"
+	help
+	  Say Y here if you want to be enable sec module for blk stats
+
 menu "Partition Types"
 
 source "block/partitions/Kconfig"
@@ -241,5 +246,18 @@ config BLK_MQ_RDMA
 
 config BLK_PM
 	def_bool BLOCK && PM
+
+config BLOCK_SUPPORT_STLOG
+	bool "Enable storage log"
+	depends on BLOCK && PROC_STLOG
+	default y
+
+config MTK_BLOCK_IO_PM_DEBUG
+	bool "Enable Blocktag BLK PM Tracer"
+	help
+	  If it is enabled, there are some pm-related trace
+	  events will be created in block layer.
+	  Our blocktag module will registered these event and
+	  records the pm information.
 
 source "block/Kconfig.iosched"

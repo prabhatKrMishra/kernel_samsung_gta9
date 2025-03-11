@@ -30,3 +30,21 @@ source "lib/Kconfig"
 source "lib/Kconfig.debug"
 
 source "Documentation/Kconfig"
+
+config CUSTOM_PROJECT_OT11
+    bool "CONFIG CUSTOM PROJECT OT11"
+
+config CUSTOM_PROJECT_OT11_WIFI
+    bool "CONFIG CUSTOM PROJECT OT11 WIFI"
+
+config CUSTOM_PROJECT_OT11_DATA
+    bool "CONFIG CUSTOM PROJECT OT11 DATA"
+
+config ODM_CUSTOM_BUILD
+    bool "CONFIG ODM CUSTOM BUILD"
+
+config ODM_CUSTOM_FACTORY_BUILD
+    bool "CONFIG ODM CUSTOM FACTORY BUILD"
+
+config ODM_CUSTOM_D85_BUILD
+    bool "CONFIG ODM CUSTOM D85 BUILD"

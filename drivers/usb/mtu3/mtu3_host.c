@@ -249,8 +249,7 @@ static void ssusb_host_setup(struct ssusb_mtk *ssusb)
 		ssusb_set_force_mode(ssusb, MTU3_DR_FORCE_HOST);
 
 	/* if port0 supports dual-role, works as host mode by default */
-	if (ssusb->dr_mode == USB_DR_MODE_OTG)
-		ssusb_set_force_vbus(ssusb, false);
+	ssusb_set_force_vbus(ssusb, false);
 	ssusb_set_vbus(&ssusb->otg_switch, 1);
 }
 

@@ -190,8 +190,6 @@ static int mtk_mraw_sd_subscribe_event(struct v4l2_subdev *subdev,
 		return v4l2_event_subscribe(fh, sub, 0, NULL);
 	case V4L2_EVENT_REQUEST_DRAINED:
 		return v4l2_event_subscribe(fh, sub, 0, NULL);
-	case V4L2_EVENT_EOS:
-		return v4l2_event_subscribe(fh, sub, 0, NULL);
 	default:
 		return -EINVAL;
 	}
@@ -422,10 +420,6 @@ static int mtk_mraw_set_fmt(struct v4l2_subdev *sd,
 	}
 
 	stream_data = mtk_cam_req_get_s_data_no_chk(cam_req, pipe->id, 0);
-	if (!stream_data) {
-		dev_info(cam->dev, "stream data is null\n");
-		return 0;
-	}
 	stream_data->pad_fmt_update |= (1 << fmt->pad);
 	stream_data->pad_fmt[fmt->pad] = *fmt;
 
@@ -661,12 +655,12 @@ void apply_mraw_cq(struct mtk_mraw_device *dev,
 static unsigned int mtk_cam_mraw_powi(unsigned int x, unsigned int n)
 {
 	unsigned int rst = 1.0;
-	unsigned int m = n;
+	unsigned int m = (n >= 0) ? n : -n;
 
 	while (m--)
 		rst *= x;
 
-	return rst;
+	return (n >= 0) ? rst : 1.0 / rst;
 }
 
 static unsigned int mtk_cam_mraw_xsize_cal(unsigned int length)
@@ -855,12 +849,13 @@ static void mtk_cam_mraw_set_frame_param_dmao(
 	struct mtk_cam_mraw_dmao_info mraw_dmao_info, int pipe_id,
 	dma_addr_t buf_daddr)
 {
-	struct mtkcam_ipi_img_output *mraw_img_outputs = NULL, *last_mraw_img_outputs;
+	struct mtkcam_ipi_img_output *mraw_img_outputs, *last_mraw_img_outputs;
 	int i;
 
 	for (i = DMAO_ID_BEGIN; i < DMAO_ID_MAX; i++) {
 		last_mraw_img_outputs = mraw_img_outputs;
 		mraw_img_outputs = &frame_param->mraw_param[0].mraw_img_outputs[i];
+
 		mraw_img_outputs->uid.id = MTKCAM_IPI_MRAW_META_STATS_0;
 		mraw_img_outputs->uid.pipe_id = pipe_id;
 
@@ -878,8 +873,8 @@ static void mtk_cam_mraw_set_frame_param_dmao(
 				= buf_daddr + sizeof(struct mtk_cam_uapi_meta_mraw_stats_0);
 		else
 			mraw_img_outputs->buf[0][0].iova = last_mraw_img_outputs->buf[0][0].iova
-				+ (u64)last_mraw_img_outputs->fmt.stride[0] *
-				(u64)last_mraw_img_outputs->fmt.s.h;
+				+ last_mraw_img_outputs->fmt.stride[0] *
+					last_mraw_img_outputs->fmt.s.h;
 
 		mraw_img_outputs->buf[0][0].size =
 			mraw_img_outputs->fmt.stride[0] * mraw_img_outputs->fmt.s.h;
@@ -946,16 +941,10 @@ void mtk_cam_mraw_handle_enque(struct vb2_buffer *vb)
 	struct mtkcam_ipi_frame_param *frame_param;
 	struct mtk_cam_uapi_meta_mraw_stats_cfg *mraw_meta_in_buf;
 	struct mtk_mraw_pipeline *mraw_pipline;
-	if (!vaddr) {
-		dev_dbg(dev, "vaddr is NULL\n");
-		return;
-	}
+
 	frame_param = &req_stream_data->frame_params;
 	mraw_pipline = mtk_cam_dev_get_mraw_pipeline(cam, pipe_id);
-	if (!mraw_pipline) {
-		dev_dbg(dev, "mraw pipeline is NULL\n");
-		return;
-	}
+
 	/* TODO: not proper to convert perframe data by using pipeline variable */
 	switch (dma_port) {
 	case MTKCAM_IPI_MRAW_META_STATS_CFG:
@@ -1007,7 +996,7 @@ int mtk_cam_mraw_cal_cfg_info(struct mtk_cam_device *cam,
 		&cam->mraw.pipelines[pipe_id - MTKCAM_SUBDEV_MRAW_START];
 
 	s_data->frame_params.mraw_param[0].is_config = is_config;
-	memset(&mraw_dmao_info, 0, sizeof(mraw_dmao_info));
+
 	mtk_cam_mraw_set_mraw_dmao_info(cam,
 		pipe_id, &mraw_dmao_info);
 	mtk_cam_mraw_set_frame_param_dmao(cam->dev, &s_data->frame_params,
@@ -1172,11 +1161,11 @@ int mtk_cam_mraw_apply_all_buffers(struct mtk_cam_ctx *ctx, bool is_check_ts)
 		buf_entry = list_first_entry(&ctx->mraw_composed_buffer_list[i].list,
 							struct mtk_mraw_working_buf_entry,
 							list_entry);
-#if STAGGER_CQ_LAST_SOF == 0
 		if (mtk_cam_mraw_is_vf_on(mraw_dev) &&
 			(buf_entry->s_data->req->pipe_used &
 			(1 << ctx->mraw_pipe[i]->id)) && is_check_ts) {
-			if (buf_entry->is_stagger == 1) {
+			if (buf_entry->is_stagger == 0 ||
+				(buf_entry->is_stagger == 1 && STAGGER_CQ_LAST_SOF == 0)) {
 				if ((buf_entry->ts_mraw == 0) ||
 					((buf_entry->ts_mraw < buf_entry->ts_raw) &&
 					((buf_entry->ts_raw - buf_entry->ts_mraw) > 3000000))) {
@@ -1189,7 +1178,6 @@ int mtk_cam_mraw_apply_all_buffers(struct mtk_cam_ctx *ctx, bool is_check_ts)
 				}
 			}
 		}
-#endif
 		list_del(&buf_entry->list_entry);
 		ctx->mraw_composed_buffer_list[i].cnt--;
 		spin_unlock(&ctx->mraw_composed_buffer_list[i].lock);
@@ -1208,7 +1196,7 @@ int mtk_cam_mraw_apply_all_buffers(struct mtk_cam_ctx *ctx, bool is_check_ts)
 		} else {
 			if (watchdog_scenario(ctx))
 				mtk_ctx_watchdog_stop(ctx,
-					mraw_dev->id + MTKCAM_SUBDEV_MRAW_START, 0);
+					mraw_dev->id + MTKCAM_SUBDEV_MRAW_START);
 			mtk_cam_mraw_vf_on(mraw_dev, 0);
 		}
 	}
@@ -1263,7 +1251,7 @@ int mtk_cam_mraw_apply_next_buffer(struct mtk_cam_ctx *ctx,
 			} else {
 				if (watchdog_scenario(ctx))
 					mtk_ctx_watchdog_stop(ctx,
-						mraw_dev->id + MTKCAM_SUBDEV_MRAW_START, 0);
+						mraw_dev->id + MTKCAM_SUBDEV_MRAW_START);
 				mtk_cam_mraw_vf_on(mraw_dev, 0);
 			}
 			break;
@@ -1351,7 +1339,7 @@ int mtk_cam_mraw_pipeline_config(
 {
 	struct mtk_mraw_pipeline *mraw_pipe = ctx->mraw_pipe[idx];
 	struct mtk_mraw *mraw = mraw_pipe->mraw;
-	unsigned int i, j;
+	unsigned int i;
 	int ret;
 
 	/* reset pm_runtime during streaming dynamic change */
@@ -1376,9 +1364,9 @@ int mtk_cam_mraw_pipeline_config(
 		dev_dbg(mraw->cam_dev,
 			"failed at pm_runtime_get_sync: %s\n",
 			dev_driver_string(mraw->devs[i]));
-		for (j = 0; j < i; j++)
-			if (mraw_pipe->enabled_mraw & 1<<j)
-				pm_runtime_put_sync(mraw->devs[j]);
+		for (i = i-1; i >= 0; i--)
+			if (mraw_pipe->enabled_mraw & 1<<i)
+				pm_runtime_put_sync(mraw->devs[i]);
 		return ret;
 	}
 
@@ -1886,10 +1874,6 @@ int mtk_cam_mraw_dev_stream_on(
 		}
 
 	if (streaming) {
-		mraw_dev->fbc_iszero_cnt = 0;
-		mraw_dev->wcnt_no_dup_cnt = 0;
-		mraw_dev->last_wcnt = 0;
-		mraw_dev->is_fbc_cnt_zero_happen = 0;
 		ret = mtk_cam_mraw_cq_enable(ctx, mraw_dev) ||
 			mtk_cam_mraw_top_enable(mraw_dev);
 		if (watchdog_scenario(ctx) && mraw_dev->is_enqueued)
@@ -1901,7 +1885,7 @@ int mtk_cam_mraw_dev_stream_on(
 		mraw_dev->is_enqueued = 0;
 		if (watchdog_scenario(ctx))
 			mtk_ctx_watchdog_stop(ctx,
-				mraw_dev->id + MTKCAM_SUBDEV_MRAW_START, 1);
+				mraw_dev->id + MTKCAM_SUBDEV_MRAW_START);
 
 		ret = mtk_cam_mraw_top_disable(mraw_dev) ||
 			mtk_cam_mraw_cq_disable(mraw_dev) ||
@@ -1945,7 +1929,7 @@ static int  mtk_mraw_pipeline_register(
 	struct mtk_mraw_device *mraw_dev = dev_get_drvdata(dev);
 	struct v4l2_subdev *sd = &pipe->subdev;
 	struct mtk_cam_video_device *video;
-	unsigned int i, j;
+	unsigned int i;
 	int ret;
 
 	pipe->id = id;
@@ -2022,8 +2006,8 @@ static int  mtk_mraw_pipeline_register(
 	return 0;
 
 fail_unregister_video:
-	for (j = 0; j < i; j++)
-		mtk_cam_video_unregister(pipe->vdev_nodes + j);
+	for (i = i-1; i >= 0; i--)
+		mtk_cam_video_unregister(pipe->vdev_nodes + i);
 
 	return ret;
 }
@@ -2161,88 +2145,6 @@ void mraw_irq_handle_dma_err(struct mtk_mraw_device *mraw_dev)
 		readl_relaxed(mraw_dev->base + REG_MRAW_CPIO_ERR_STAT));
 }
 
-void mraw_irq_handle_fbc_debug(struct mtk_mraw_device *mraw_dev)
-{
-	dev_info(mraw_dev->dev, "tg_sen_mode:0x%x tg_vf_con:0x%x tg_path_cfg:0x%x tg_grab_pxl:0x%x tg_grab_lin:0x%x\n",
-		readl_relaxed(mraw_dev->base_inner + REG_MRAW_TG_SEN_MODE),
-		readl_relaxed(mraw_dev->base_inner + REG_MRAW_TG_VF_CON),
-		readl_relaxed(mraw_dev->base_inner + REG_MRAW_TG_PATH_CFG),
-		readl_relaxed(mraw_dev->base_inner + REG_MRAW_TG_SEN_GRAB_PXL),
-		readl_relaxed(mraw_dev->base_inner + REG_MRAW_TG_SEN_GRAB_LIN));
-
-	dev_info(mraw_dev->dev, "mod_en:0x%x mod2_en:0x%x cq_thr0_addr:0x%x_%x cq_thr0_desc_size:0x%x\n",
-		readl_relaxed(mraw_dev->base_inner + REG_MRAW_MRAWCTL_MOD_EN),
-		readl_relaxed(mraw_dev->base_inner + REG_MRAW_MRAWCTL_MOD2_EN),
-		readl_relaxed(mraw_dev->base_inner + REG_MRAW_CQ_THR0_BASEADDR_MSB),
-		readl_relaxed(mraw_dev->base_inner + REG_MRAW_CQ_THR0_BASEADDR),
-		readl_relaxed(mraw_dev->base_inner + REG_MRAW_CQ_THR0_DESC_SIZE));
-
-	dev_info(mraw_dev->dev, "imgo_fbc_ctrl1:0x%x imgo_fbc_ctrl2:0x%x imgBo_fbc_ctrl1:0x%x imgBo_fbc_ctrl2:0x%x cpio_fbc_ctrl1:0x%x cpio_fbc_ctrl2:0x%x\n",
-		readl_relaxed(mraw_dev->base_inner + REG_MRAW_FBC_IMGO_CTL1),
-		readl_relaxed(mraw_dev->base_inner + REG_MRAW_FBC_IMGO_CTL2),
-		readl_relaxed(mraw_dev->base_inner + REG_MRAW_FBC_IMGBO_CTL1),
-		readl_relaxed(mraw_dev->base_inner + REG_MRAW_FBC_IMGBO_CTL2),
-		readl_relaxed(mraw_dev->base_inner + REG_MRAW_FBC_CPIO_CTL1),
-		readl_relaxed(mraw_dev->base_inner + REG_MRAW_FBC_CPIO_CTL2));
-
-	dev_info(mraw_dev->dev, "imgo_xsize:0x%x imgo_ysize:0x%x imgo_stride:0x%x imgo_addr:0x%x_%x imgo_ofst_addr:0x%x_%x\n",
-		readl_relaxed(mraw_dev->base_inner + REG_MRAW_IMGO_XSIZE),
-		readl_relaxed(mraw_dev->base_inner + REG_MRAW_IMGO_YSIZE),
-		readl_relaxed(mraw_dev->base_inner + REG_MRAW_IMGO_STRIDE),
-		readl_relaxed(mraw_dev->base_inner + REG_MRAW_IMGO_BASE_ADDR_MSB),
-		readl_relaxed(mraw_dev->base_inner + REG_MRAW_IMGO_BASE_ADDR),
-		readl_relaxed(mraw_dev->base_inner + REG_MRAW_IMGO_OFST_ADDR_MSB),
-		readl_relaxed(mraw_dev->base_inner + REG_MRAW_IMGO_OFST_ADDR));
-
-	dev_info(mraw_dev->dev, "imgbo_xsize:0x%x imgbo_ysize:0x%x imgbo_stride:0x%x imgbo_addr:0x%x_%x imgbo_ofst_addr:0x%x_%x\n",
-		readl_relaxed(mraw_dev->base_inner + REG_MRAW_IMGBO_XSIZE),
-		readl_relaxed(mraw_dev->base_inner + REG_MRAW_IMGBO_YSIZE),
-		readl_relaxed(mraw_dev->base_inner + REG_MRAW_IMGBO_STRIDE),
-		readl_relaxed(mraw_dev->base_inner + REG_MRAW_IMGBO_BASE_ADDR_MSB),
-		readl_relaxed(mraw_dev->base_inner + REG_MRAW_IMGBO_BASE_ADDR),
-		readl_relaxed(mraw_dev->base_inner + REG_MRAW_IMGBO_OFST_ADDR_MSB),
-		readl_relaxed(mraw_dev->base_inner + REG_MRAW_IMGBO_OFST_ADDR));
-
-	dev_info(mraw_dev->dev, "cpio_xsize:0x%x cpio_ysize:0x%x cpio_stride:0x%x cpio_addr:0x%x_%x cpio_ofst_addr:0x%x_%x\n",
-		readl_relaxed(mraw_dev->base_inner + REG_MRAW_CPIO_XSIZE),
-		readl_relaxed(mraw_dev->base_inner + REG_MRAW_CPIO_YSIZE),
-		readl_relaxed(mraw_dev->base_inner + REG_MRAW_CPIO_STRIDE),
-		readl_relaxed(mraw_dev->base_inner + REG_MRAW_CPIO_BASE_ADDR_MSB),
-		readl_relaxed(mraw_dev->base_inner + REG_MRAW_CPIO_BASE_ADDR),
-		readl_relaxed(mraw_dev->base_inner + REG_MRAW_CPIO_OFST_ADDR_MSB),
-		readl_relaxed(mraw_dev->base_inner + REG_MRAW_CPIO_OFST_ADDR));
-}
-
-void mraw_check_fbc_no_deque(struct mtk_cam_ctx *ctx,
-	struct mtk_mraw_device *mraw_dev,
-	int fbc_cnt, int write_cnt, unsigned int dequeued_frame_seq_no)
-{
-	/* Check for no enque */
-	if (fbc_cnt == 0) {
-		mraw_dev->fbc_iszero_cnt++;
-		if (mraw_dev->fbc_iszero_cnt % 10 == 0) {
-			mraw_dev->is_fbc_cnt_zero_happen = 1;
-			mraw_irq_handle_fbc_debug(mraw_dev);
-		}
-	} else {
-		mraw_dev->fbc_iszero_cnt = 0;
-	}
-
-	/* Check for enqued but no deque */
-	if (!mraw_dev->is_fbc_cnt_zero_happen) {
-		if (mraw_dev->last_wcnt != write_cnt) {
-			mraw_dev->last_wcnt = write_cnt;
-			mraw_dev->wcnt_no_dup_cnt = 0;
-		} else {
-			mraw_dev->wcnt_no_dup_cnt++;
-			if (mraw_dev->wcnt_no_dup_cnt % 10 == 0) {
-				mraw_irq_handle_fbc_debug(mraw_dev);
-				mtk_cam_seninf_dump(ctx->seninf, dequeued_frame_seq_no, false);
-			}
-		}
-	}
-}
-
 static void mraw_irq_handle_tg_overrun_err(struct mtk_mraw_device *mraw_dev,
 	int dequeued_frame_seq_no)
 {
@@ -2316,9 +2218,8 @@ static irqreturn_t mtk_irq_mraw(int irq, void *data)
 	unsigned int irq_status5, irq_status6;
 	unsigned int err_status, dma_err_status;
 	unsigned int imgo_overr_status, imgbo_overr_status, cpio_overr_status;
-	unsigned int irq_flag = 0;
-	unsigned int fbc_ctrl2_imgo;
 	bool wake_thread = 0;
+
 	irq_status	= readl_relaxed(mraw_dev->base + REG_MRAW_CTL_INT_STATUS);
 	/*
 	 * [ISP 7.0/7.1] HW Bug Workaround: read MRAWCTL_INT2_STATUS every irq
@@ -2333,9 +2234,6 @@ static irqreturn_t mtk_irq_mraw(int irq, void *data)
 		readl_relaxed(mraw_dev->base + REG_MRAW_FRAME_SEQ_NUM);
 	dequeued_imgo_seq_no_inner =
 		readl_relaxed(mraw_dev->base_inner + REG_MRAW_FRAME_SEQ_NUM);
-	fbc_ctrl2_imgo =
-		readl_relaxed(mraw_dev->base_inner + REG_MRAW_FBC_IMGO_CTL2);
-
 
 	err_status = irq_status & INT_ST_MASK_MRAW_ERR;
 	dma_err_status = irq_status & MRAWCTL_DMA_ERR_ST;
@@ -2384,8 +2282,6 @@ static irqreturn_t mtk_irq_mraw(int irq, void *data)
 		irq_info.irq_type |= (1 << CAMSYS_IRQ_FRAME_START);
 		mraw_dev->last_sof_time_ns = irq_info.ts_ns;
 		mraw_dev->sof_count++;
-		irq_info.fbc_cnt = (fbc_ctrl2_imgo & 0x1FF0000) >> 16;
-		irq_info.write_cnt = (fbc_ctrl2_imgo & 0xFF00) >> 8;
 		dev_dbg(dev, "sof block cnt:%d\n", mraw_dev->sof_count);
 	}
 	/* CQ done */
@@ -2393,8 +2289,8 @@ static irqreturn_t mtk_irq_mraw(int irq, void *data)
 		irq_info.irq_type |= (1 << CAMSYS_IRQ_SETTING_DONE);
 		dev_dbg(dev, "CQ done:%d\n", mraw_dev->sof_count);
 	}
-	irq_flag = irq_info.irq_type;
-	if (irq_flag && push_msgfifo(mraw_dev, &irq_info) == 0)
+
+	if (irq_info.irq_type && push_msgfifo(mraw_dev, &irq_info) == 0)
 		wake_thread = 1;
 
 	/* Check ISP error status */

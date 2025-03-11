@@ -37,6 +37,11 @@ static const char * const pd_ctrl_msg_name[] = {
 	"fr_swap",
 	"get_pps",
 	"get_cc",
+	/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 start */
+	"get_snk_cap_ex",
+	"ctrl17",
+	"get_rev",
+	/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 end */
 #endif	/* CONFIG_USB_PD_REV30 */
 };
 
@@ -65,7 +70,10 @@ static const char * const pd_data_msg_name[] = {
 	"data9",
 	"dataA",
 	"dataB",
-	"dataC",
+	/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 start */
+	//"dataC",
+	"rev",
+	/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 end */
 	"dataD",
 	"dataE",
 	"vdm",
@@ -95,6 +103,9 @@ static const char *const pd_ext_msg_name[] = {
 	"pps_status",
 	"ci",
 	"cc",
+	/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 start */
+	"snk_cap_ex",
+	/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 end */
 };
 
 static inline void print_ext_msg_event(struct tcpc_device *tcpc, uint8_t msg)

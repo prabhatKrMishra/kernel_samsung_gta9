@@ -1182,7 +1182,6 @@ void reviser_table_print_vlm(void *drvinfo, uint32_t ctx, void *s_file)
 	uint32_t i;
 	struct seq_file *s = (struct seq_file *)s_file;
 	char strtype[8];
-	int ret;
 
 	DEBUG_TAG;
 
@@ -1207,25 +1206,13 @@ void reviser_table_print_vlm(void *drvinfo, uint32_t ctx, void *s_file)
 	for (i = 0; i < rdv->plat.vlm_bank_max; i++) {
 		switch (g_ctx_pgt[ctx].bank[i].type) {
 		case REVISER_MEM_TYPE_TCM:
-			ret = snprintf(strtype, sizeof(strtype), "TCM");
-			if (ret < 0) {
-				LOG_ERR("snprintf fail\n");
-				return;
-			}
+			snprintf(strtype, sizeof(strtype), "TCM");
 			break;
 		case REVISER_MEM_TYPE_DRAM:
-			ret = snprintf(strtype, sizeof(strtype), "DRAM");
-			if (ret < 0) {
-				LOG_ERR("snprintf fail\n");
-				return;
-			}
+			snprintf(strtype, sizeof(strtype), "DRAM");
 			break;
 		default:
-			ret = snprintf(strtype, sizeof(strtype), "NONE");
-			if (ret < 0) {
-				LOG_ERR("snprintf fail\n");
-				return;
-			}
+			snprintf(strtype, sizeof(strtype), "NONE");
 			break;
 		}
 

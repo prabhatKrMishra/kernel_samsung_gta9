@@ -2,7 +2,12 @@
 /*
  * Copyright (C) 2020 MediaTek Inc.
  */
-
+/*Tab A9 code for AX6739A-1679 by wenghailong at 20230704 start*/
+#ifndef _EXTCON_MTK_USB_H_
+#define _EXTCON_MTK_USB_H_
+#define EARPHONE_PLUGOUT_STATE      0
+#define EARPHONE_PLUGIN_STATE       1
+/*Tab A9 code for AX6739A-1679 by wenghailong at 20230704 end*/
 struct mtk_extcon_info {
 	struct device *dev;
 	struct extcon_dev *edev;
@@ -44,3 +49,13 @@ enum {
 	DUAL_PROP_PR_SNK,
 	DUAL_PROP_PR_NONE,
 };
+
+/*Tab A9 code for AX6739A-1679 by wenghailong at 20230704 start*/
+extern int g_tp_detect_typec_flag;
+extern bool g_tp_typec_earphone_in;
+extern bool g_tp_round_earphone_in;
+extern int earphone_notifier_register(struct notifier_block *nb);
+extern int earphone_notifier_unregister(struct notifier_block *nb);
+extern int earphone_notifier_call_chain(unsigned long val, void *v);
+/*Tab A9 code for AX6739A-1679 by wenghailong at 20230704 end*/
+#endif    // _EXTCON_MTK_USB_H_

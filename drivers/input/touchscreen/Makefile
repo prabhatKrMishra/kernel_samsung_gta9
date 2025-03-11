@@ -112,10 +112,16 @@ obj-$(CONFIG_TOUCHSCREEN_ROHM_BU21023)	+= rohm_bu21023.o
 obj-$(CONFIG_TOUCHSCREEN_RASPBERRYPI_FW)	+= raspberrypi-ts.o
 obj-$(CONFIG_TOUCHSCREEN_IQS5XX)	+= iqs5xx.o
 obj-$(CONFIG_TOUCHSCREEN_ZINITIX)	+= zinitix.o
-obj-$(CONFIG_TOUCHSCREEN_HIMAX_CHIPSET) += hxchipset/
-obj-$(CONFIG_TOUCHSCREEN_GOODIX_BRL)   += GT9966/
+# Tab A9 code for SR-AX6739A-01-259 by wenghailong at 20230510 start
+obj-$(CONFIG_ODM_SEC_COMMON) += ot11/touch_common/
+ifdef CONFIG_CUSTOM_PROJECT_OT11
+TOUCH_LISTS := $(subst ",,$(CONFIG_TOUCHSCREEN_MTK_TOUCH))
+obj-y += $(foreach TOUCH,$(TOUCH_LISTS),ot11/$(TOUCH)/)
+else
 TOUCH_LISTS := $(subst ",,$(CONFIG_TOUCHSCREEN_MTK_TOUCH))
 obj-y += $(foreach TOUCH,$(TOUCH_LISTS),$(TOUCH)/)
+endif
+# Tab A9 code for SR-AX6739A-01-259 by wenghailong at 20230510 start
 
 ifneq ($(wildcard $(srctree)/$(src)/k6983v1_64_alpha),)
 obj-$(CONFIG_TOUCHSCREEN_MT6983_ALPHA_SUPPORT) += k6983v1_64_alpha/

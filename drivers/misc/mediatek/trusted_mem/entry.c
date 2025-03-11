@@ -619,6 +619,7 @@ int tmem_query_gz_handle_to_pa(enum TRUSTED_MEM_TYPE mem_type, u32 alignment,
 			TZ_ParamTypes2(TZPT_VALUE_INPUT, TZPT_VALUE_OUTPUT), p);
 	if (ret != TZ_RESULT_SUCCESS) {
 		pr_info("[%s] KREE_TeeServiceCall query pa Fail(0x%x)\n", __func__, ret);
+		KREE_CloseSession(session);
 		return TMEM_MTEE_QUERY_PA_FAIL;
 	}
 

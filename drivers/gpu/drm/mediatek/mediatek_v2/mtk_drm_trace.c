@@ -16,15 +16,11 @@
 //#include "mmpath.h"
 #endif
 
-#if IS_ENABLED(CONFIG_ARCH_DMA_ADDR_T_64BIT)
 #define MTK_DRM_TRACE_MSG_LEN	1024
-#else
-#define MTK_DRM_TRACE_MSG_LEN	896
-#endif
 
 static noinline int tracing_mark_write(const char *buf)
 {
-#ifdef CONFIG_TRACING
+#if defined(CONFIG_TRACING) && defined(CONFIG_MTK_DISP_DEBUG)
 	trace_puts(buf);
 #endif
 
@@ -130,6 +126,21 @@ void mtk_drm_refresh_tag_end(struct mtk_ddp_comp *ddp_comp)
 		pr_debug("sprintf error\n");
 	}
 	mtk_drm_print_trace("C|%d|%s|%d\n", DRM_TRACE_FPS_ID, tag_name, 0);
+}
+
+void mtk_drm_default_tag(struct mtk_ddp_comp *ddp_comp, const char *tag, enum TRACE_PATTERN pat)
+{
+	struct mtk_drm_crtc *mtk_crtc = ddp_comp->mtk_crtc;
+
+	if (!mtk_crtc)
+		return;
+
+	if (pat == TRACE_MARK) {
+		mtk_drm_trace_default("%d|%s|%d", DRM_TRACE_ID, tag, 1);
+		mtk_drm_trace_default("%d|%s|%d", DRM_TRACE_ID, tag, 0);
+	} else {
+		mtk_drm_trace_default("%d|%s|%d", DRM_TRACE_ID, tag, pat);
+	}
 }
 
 #ifdef DRM_MMPATH

@@ -19,6 +19,7 @@
 #include <linux/syscalls.h>
 #include <linux/dma-heap.h>
 #include <uapi/linux/dma-heap.h>
+#include <trace/events/tracing_mark_write.h>
 
 #define DEVNAME "dma_heap"
 
@@ -80,6 +81,8 @@ struct dma_buf *dma_heap_buffer_alloc(struct dma_heap *heap, size_t len,
 				      unsigned int fd_flags,
 				      unsigned int heap_flags)
 {
+	struct dma_buf *dma_buf;
+
 	if (fd_flags & ~DMA_HEAP_VALID_FD_FLAGS)
 		return ERR_PTR(-EINVAL);
 
@@ -93,7 +96,12 @@ struct dma_buf *dma_heap_buffer_alloc(struct dma_heap *heap, size_t len,
 	if (!len)
 		return ERR_PTR(-EINVAL);
 
-	return heap->ops->allocate(heap, len, fd_flags, heap_flags);
+	tracing_mark_begin("%s(%s, %zu, 0x%x, 0x%x)", "dma-buf_alloc",
+			   heap->name, len, fd_flags, heap_flags);
+	dma_buf = heap->ops->allocate(heap, len, fd_flags, heap_flags);
+	tracing_mark_end();
+
+	return dma_buf;
 }
 EXPORT_SYMBOL_GPL(dma_heap_buffer_alloc);
 
@@ -297,7 +305,7 @@ EXPORT_SYMBOL_GPL(dma_heap_get_name);
 
 struct dma_heap *dma_heap_add(const struct dma_heap_export_info *exp_info)
 {
-	struct dma_heap *heap, *err_ret;
+	struct dma_heap *heap, *h, *err_ret;
 	unsigned int minor;
 	int ret;
 
@@ -308,15 +316,6 @@ struct dma_heap *dma_heap_add(const struct dma_heap_export_info *exp_info)
 
 	if (!exp_info->ops || !exp_info->ops->allocate) {
 		pr_err("dma_heap: Cannot add heap with invalid ops struct\n");
-		return ERR_PTR(-EINVAL);
-	}
-
-	/* check the name is unique */
-	heap = dma_heap_find(exp_info->name);
-	if (heap) {
-		pr_err("dma_heap: Already registered heap named %s\n",
-		       exp_info->name);
-		dma_heap_put(heap);
 		return ERR_PTR(-EINVAL);
 	}
 
@@ -363,13 +362,27 @@ struct dma_heap *dma_heap_add(const struct dma_heap_export_info *exp_info)
 	/* Make sure it doesn't disappear on us */
 	heap->heap_dev = get_device(heap->heap_dev);
 
-	/* Add heap to the list */
 	mutex_lock(&heap_list_lock);
+	/* check the name is unique */
+	list_for_each_entry(h, &heap_list, list) {
+		if (!strcmp(h->name, exp_info->name)) {
+			mutex_unlock(&heap_list_lock);
+			pr_err("dma_heap: Already registered heap named %s\n",
+			       exp_info->name);
+			err_ret = ERR_PTR(-EINVAL);
+			put_device(heap->heap_dev);
+			goto err3;
+		}
+	}
+
+	/* Add heap to the list */
 	list_add(&heap->list, &heap_list);
 	mutex_unlock(&heap_list_lock);
 
 	return heap;
 
+err3:
+	device_destroy(dma_heap_class, heap->heap_devt);
 err2:
 	cdev_del(&heap->heap_cdev);
 err1:

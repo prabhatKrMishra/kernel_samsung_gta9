@@ -52,13 +52,11 @@ static void commit_write_sensor(struct subdrv_ctx *ctx)
 static void set_cmos_sensor(struct subdrv_ctx *ctx,
 			kal_uint16 reg, kal_uint16 val)
 {
-	if (_size_to_write + 2 >= _I2C_BUF_SIZE)
+	if (_size_to_write > _I2C_BUF_SIZE - 2)
 		commit_write_sensor(ctx);
 
-	if (_size_to_write <= _I2C_BUF_SIZE - 2) {
-		_i2c_data[_size_to_write++] = reg;
-		_i2c_data[_size_to_write++] = val;
-	}
+	_i2c_data[_size_to_write++] = reg;
+	_i2c_data[_size_to_write++] = val;
 }
 
 
@@ -3600,8 +3598,7 @@ static int get_resolution(struct subdrv_ctx *ctx,
 	int i = 0;
 
 	for (i = SENSOR_SCENARIO_ID_MIN; i < SENSOR_SCENARIO_ID_MAX; i++) {
-		if (i < imgsensor_info.sensor_mode_num &&
-			i < ARRAY_SIZE(imgsensor_winsize_info)) {
+		if (i < imgsensor_info.sensor_mode_num) {
 			sensor_resolution->SensorWidth[i] = imgsensor_winsize_info[i].w2_tg_size;
 			sensor_resolution->SensorHeight[i] = imgsensor_winsize_info[i].h2_tg_size;
 		} else {
@@ -4485,6 +4482,14 @@ static int feature_control(struct subdrv_ctx *ctx, MSDK_SENSOR_FEATURE_ENUM feat
 			 // *feature_return_para_32);
 		*feature_para_len = 4;
 		break;
+	case SENSOR_FEATURE_GET_AE_EFFECTIVE_FRAME_FOR_LE:
+		*feature_return_para_32 = ctx->current_ae_effective_frame;
+		break;
+	case SENSOR_FEATURE_GET_AE_FRAME_MODE_FOR_LE:
+		memcpy(feature_return_para_32,
+		       &ctx->ae_frm_mode,
+		       sizeof(struct IMGSENSOR_AE_FRM_MODE));
+		break;
 	case SENSOR_FEATURE_GET_MIPI_PIXEL_RATE:
 		switch (*feature_data) {
 		case SENSOR_SCENARIO_ID_NORMAL_CAPTURE:
@@ -4547,7 +4552,6 @@ static int feature_control(struct subdrv_ctx *ctx, MSDK_SENSOR_FEATURE_ENUM feat
 		default:
 			break;
 		}
-		break;
 	case SENSOR_FEATURE_SET_FRAMELENGTH:
 		set_frame_length(ctx, (UINT16) (*feature_data));
 		break;

@@ -53,6 +53,8 @@ bool mtk_set_bottom_gpu_freq(unsigned int ui32FreqLevel);
 /* ui32FreqLevel: 0=>lowest freq, count-1=>highest freq */
 bool mtk_custom_get_gpu_freq_level_count(unsigned int *pui32FreqLevelCount);
 bool mtk_custom_boost_gpu_freq(unsigned int ui32FreqLevel);
+bool mtk_get_custom_upbound_gpu_freq(unsigned long *pulFreq);
+bool mtk_get_custom_boost_gpu_freq(unsigned long *pulFreq);
 bool mtk_custom_upbound_gpu_freq(unsigned int ui32FreqLevel);
 
 bool mtk_dump_gpu_memory_usage(void);
@@ -78,8 +80,6 @@ bool mtk_timer_base_dvfs_margin(int i32MarginValue);
 bool mtk_get_timer_base_dvfs_margin(int *pi32MaginValue);
 bool mtk_dvfs_loading_mode(int i32LoadingMode);
 bool mtk_get_dvfs_loading_mode(unsigned int *pui32LoadingMode);
-bool mtk_dvfs_workload_mode(int i32WorkloadMode);
-bool mtk_get_dvfs_workload_mode(unsigned int *pui32WorkloadMode);
 bool mtk_set_fastdvfs_mode(unsigned int u32Mode);
 bool mtk_get_fastdvfs_mode(unsigned int *pui32Mode);
 bool mtk_set_gpu_idle(unsigned int val);

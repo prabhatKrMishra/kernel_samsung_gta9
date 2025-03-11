@@ -15,11 +15,10 @@
 #include <linux/of_irq.h>
 #include <linux/vmalloc.h>
 #include <linux/slab.h>
-/*
+
 #if defined(CONFIG_MTK_DRAMC)
 #include "mtk_dramc.h"
 #endif
-*/
 #include "mtk_layering_rule.h"
 #include "mtk_log.h"
 #include "mtk_rect.h"
@@ -114,11 +113,9 @@ static void layering_rule_scenario_decision(struct drm_device *dev,
 	if (scn_decision_flag & SCN_TRIPLE_DISP) {
 		l_rule_info.addon_scn[HRT_SECONDARY] = TRIPLE_DISP;
 		l_rule_info.addon_scn[HRT_THIRD] = TRIPLE_DISP;
-		l_rule_info.addon_scn[HRT_FOURTH] = TRIPLE_DISP;
 	} else {
 		l_rule_info.addon_scn[HRT_SECONDARY] = NONE;
 		l_rule_info.addon_scn[HRT_THIRD] = NONE;
-		l_rule_info.addon_scn[HRT_FOURTH] = NONE;
 	}
 /*TODO: need MMP support*/
 #ifdef IF_ZERO
@@ -462,9 +459,6 @@ void mtk_layering_rule_init(struct drm_device *dev)
 	mtk_set_layering_opt(LYE_OPT_CLEAR_LAYER,
 			     mtk_drm_helper_get_opt(private->helper_opt,
 						    MTK_DRM_OPT_CLEAR_LAYER));
-
-	l_rule_info.litepq =
-	    of_property_read_bool(private->mmsys_dev->of_node, "litepq");
 }
 
 static bool _rollback_all_to_GPU_for_idle(struct drm_device *dev)
@@ -517,7 +511,7 @@ unsigned long long _layering_get_frame_bw(struct drm_crtc *crtc,
 
 	bw_base = (unsigned long long)width * height * fps * 125 * 4;
 
-	bw_base = DO_COMMON_DIV(bw_base, 100 * 1024 * 1024);
+	bw_base /= 100 * 1024 * 1024;
 
 	return bw_base;
 }
@@ -561,7 +555,7 @@ static int layering_get_valid_hrt(struct drm_crtc *crtc, int mode_idx)
 		DDPPR_ERR("Get frame hrt bw by datarate is zero\n");
 		return 600;
 	}
-	dvfs_bw = DO_COMMON_DIV(dvfs_bw, tmp * 100);
+	dvfs_bw /= tmp * 100;
 
 	/* error handling when requested BW is less than 2 layers */
 	if (dvfs_bw < 200) {

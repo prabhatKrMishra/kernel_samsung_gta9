@@ -18,11 +18,7 @@
 #include "mtk-mml-pq-core.h"
 #include "mtk-mml-mmp.h"
 
-#if IS_ENABLED(CONFIG_ARCH_DMA_ADDR_T_64BIT)
 #define MML_TRACE_MSG_LEN	1024
-#else
-#define MML_TRACE_MSG_LEN	896
-#endif
 
 int mtk_mml_msg;
 EXPORT_SYMBOL(mtk_mml_msg);
@@ -660,19 +656,12 @@ static struct mml_path_client *core_get_path_clt(struct mml_task *task, u32 pipe
 static void mml_core_dvfs_begin(struct mml_task *task, u32 pipe)
 {
 	struct mml_topology_cache *tp = mml_topology_get_cache(task->config->mml);
-	struct mml_frame_config *cfg = task->config;
 	struct mml_path_client *path_clt = core_get_path_clt(task, pipe);
 	struct mml_task_pipe *task_pipe_tmp;
-	struct timespec64 curr_time, dvfs_end_time;
+	struct timespec64 curr_time;
 	u32 throughput, tput_up;
-	u32 max_pixel = cfg->cache[pipe].max_pixel;
+	u32 max_pixel = task->config->cache[pipe].max_pixel;
 	u64 duration = 0;
-	u64 boost_time = 0;
-
-	if (unlikely(!path_clt)) {
-		mml_err("%s core_get_path_clt return null", __func__);
-		return;
-	}
 
 	mml_trace_ex_begin("%s", __func__);
 	mutex_lock(&path_clt->clt_mutex);
@@ -682,7 +671,7 @@ static void mml_core_dvfs_begin(struct mml_task *task, u32 pipe)
 		task, pipe,
 		(u32)curr_time.tv_sec, div_u64(curr_time.tv_nsec, 1000000),
 		(u32)task->end_time.tv_sec, div_u64(task->end_time.tv_nsec, 1000000),
-		cfg->path[pipe]->clt_id);
+		task->config->path[pipe]->clt_id);
 
 	/* do not append to list and no qos/dvfs for this task */
 	if (!mml_qos)
@@ -703,7 +692,7 @@ static void mml_core_dvfs_begin(struct mml_task *task, u32 pipe)
 		task->submit_time = curr_time;
 
 	task->pipe[pipe].throughput = 0;
-	if (cfg->info.mode == MML_MODE_RACING) {
+	if (task->config->info.mode == MML_MODE_RACING) {
 		/* racing mode uses different calculation since start time
 		 * consistent with disp
 		 */
@@ -739,12 +728,10 @@ static void mml_core_dvfs_begin(struct mml_task *task, u32 pipe)
 	/* now append at tail, this order should same as cmdq exec order */
 	list_add_tail(&task->pipe[pipe].entry_clt, &path_clt->tasks);
 
-	boost_time = div_u64((u64)cfg->dvfs_boost_time.tv_sec * 1000000000 +
-		cfg->dvfs_boost_time.tv_nsec, 1000);
-	mml_trace_begin("%u_%llu_%llu", throughput, duration, boost_time);
+	mml_trace_begin("%u_%llu", throughput, duration);
 
 	path_clt->throughput = throughput;
-	tput_up = mml_qos_update_tput(cfg->mml);
+	tput_up = mml_qos_update_tput(task->config->mml);
 
 	/* note the running task not always current begin task */
 	task_pipe_tmp = list_first_entry_or_null(&path_clt->tasks,
@@ -756,16 +743,6 @@ static void mml_core_dvfs_begin(struct mml_task *task, u32 pipe)
 	mml_core_qos_set(task_pipe_tmp->task, pipe, throughput, tput_up);
 
 	mml_trace_end();
-
-	ktime_get_real_ts64(&dvfs_end_time);
-	cfg->dvfs_boost_time =
-		timespec64_sub(dvfs_end_time, curr_time);
-	boost_time = div_u64((u64)cfg->dvfs_boost_time.tv_sec * 1000000000 +
-		cfg->dvfs_boost_time.tv_nsec, 1000);
-	if (boost_time > 2000) {
-		cfg->dvfs_boost_time.tv_sec = 0;
-		cfg->dvfs_boost_time.tv_nsec = 2000000;
-	}
 
 	mml_msg_qos("task dvfs begin %p pipe %u throughput %u (%u) bandwidth %u pixel %u",
 		task, pipe, throughput, task_pipe_tmp->throughput,
@@ -784,11 +761,6 @@ static void mml_core_dvfs_end(struct mml_task *task, u32 pipe)
 	u32 throughput = 0, tput_up, max_pixel = 0, bandwidth = 0;
 	bool racing_mode = true;
 	bool overdue = false;
-
-	if (unlikely(!path_clt)) {
-		mml_err("%s core_get_path_clt return null", __func__);
-		return;
-	}
 
 	mml_trace_ex_begin("%s", __func__);
 	mutex_lock(&path_clt->clt_mutex);
@@ -1039,7 +1011,7 @@ static void core_taskdone_kt_work(struct kthread_work *work)
 static void core_taskdone(struct work_struct *work)
 {
 	struct mml_task *task = container_of(work, struct mml_task, wq_work_done);
-	u32 *perf; u64 hw_time = 0;
+	u32 *perf, hw_time = 0;
 
 	mml_trace_begin("%s", __func__);
 
@@ -1223,7 +1195,6 @@ static void core_taskdump(struct mml_task *task, u32 pipe, int err)
 {
 	const struct mml_topology_path *path = task->config->path[pipe];
 	int cnt;
-	u32 i;
 
 	if (err == -EBUSY) {
 		/* inline rotate case self trigger, mark mmp and do nothing */
@@ -1250,11 +1221,7 @@ static void core_taskdump(struct mml_task *task, u32 pipe, int err)
 	mml_record_dump(task->config->mml);
 	mml_err("error dump %d end", cnt);
 
-	for (i = 0; i < path->node_cnt; i++) {
-		struct mml_comp *comp = path->nodes[i].comp;
-
-		call_dbg_op(comp, reset, task->config, pipe);
-	}
+	call_dbg_op(path->mmlsys, reset, task->config, pipe);
 
 	mml_err("error %d engine reset end", cnt);
 	mml_cmdq_err = 0;
@@ -1517,9 +1484,6 @@ static void core_config_task(struct mml_task *task)
 	if (cfg->dual)
 		cfg->task_ops->queue(task, 1);
 
-	/* hold config in this task to avoid config release before call submit_done */
-	cfg->cfg_ops->get(cfg);
-
 	/* ref count to 2 thus destroy can be one of
 	 * submit done and frame done
 	 */
@@ -1534,7 +1498,6 @@ static void core_config_task(struct mml_task *task)
 
 done:
 	mml_mmp(config, MMPROFILE_FLAG_END, jobid, 0);
-	cfg->cfg_ops->put(cfg);
 	mml_trace_end();
 }
 
@@ -1801,9 +1764,10 @@ void mml_update_array(struct mml_task_reuse *reuse,
 	struct cmdq_reuse *label = &reuse->labels[reuses->offs[reuse_idx].label_idx];
 	u64 *va = label->va + reuses->offs[reuse_idx].offset * off_idx;
 
-	*va = (*va & GENMASK_ULL(63, 32)) | value;
+	*va = (*va & GENMASK(63, 32)) | value;
 }
 
+#if IS_ENABLED(CONFIG_MTK_MML_DEBUG)
 noinline int tracing_mark_write(char *fmt, ...)
 {
 #ifdef CONFIG_TRACING
@@ -1824,3 +1788,4 @@ noinline int tracing_mark_write(char *fmt, ...)
 #endif
 	return 0;
 }
+#endif

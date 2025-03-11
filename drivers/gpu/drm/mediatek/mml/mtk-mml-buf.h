@@ -19,7 +19,7 @@ struct mml_file_buf;
  *
  * Note: Call mml_buf_put_fd for same mml_file_buf later to release it.
  */
-s32 mml_buf_get_fd(struct mml_file_buf *buf, int32_t *fd, u32 cnt, const char *name);
+void mml_buf_get_fd(struct mml_file_buf *buf, int32_t *fd, u32 cnt, const char *name);
 
 /* mml_buf_get -  dma_buf instance
  *

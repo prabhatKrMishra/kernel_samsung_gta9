@@ -19,6 +19,7 @@
 #include <mt-plat/mtk_gpu_utility.h>
 #include "ged_notify_sw_vsync.h"
 #include "ged_log.h"
+#include "ged_tracepoint.h"
 #include "ged_base.h"
 #include "ged_monitor_3D_fence.h"
 #include "ged.h"
@@ -46,7 +47,6 @@
 
 static u64 g_fallback_time_out = GED_DVFS_FB_TIMER_TIMEOUT;
 
-#define GED_KPI_MSEC_DIVIDER ((u64)1000000)
 static struct hrtimer g_HT_hwvsync_emu;
 
 #include "ged_dvfs.h"
@@ -68,8 +68,6 @@ struct GED_NOTIFY_SW_SYNC {
 #define MAX_NOTIFY_CNT 125
 struct GED_NOTIFY_SW_SYNC loading_base_notify[MAX_NOTIFY_CNT];
 int notify_index;
-static int policy_state = -1;
-static int policy_state_pre = -1;
 
 int (*ged_sw_vsync_event_fp)(bool bMode) = NULL;
 EXPORT_SYMBOL(ged_sw_vsync_event_fp);
@@ -100,34 +98,6 @@ static int ged_sw_vsync_event(bool bMode)
 }
 
 
-u64 ged_get_fallback_time(void)
-{
-	u64 temp = 0;
-
-	if (g_fallback_mode == 0)
-		temp = g_fallback_time * GED_KPI_MSEC_DIVIDER;
-	else if (g_fallback_mode == 1) {
-		temp = fb_timeout * g_fallback_time;
-		do_div(temp, 10);
-	} else if (g_fallback_mode == 2) {
-		temp = lb_timeout * g_fallback_time;
-		do_div(temp, 10);
-	}
-	return temp;
-}
-int ged_get_policy_state(void)
-{
-	return policy_state;
-}
-int ged_get_policy_state_pre(void)
-{
-	return policy_state_pre;
-}
-void ged_set_policy_state(int state)
-{
-	policy_state_pre = policy_state;
-	policy_state = state;
-}
 static unsigned long long sw_vsync_ts;
 static void ged_notify_sw_sync_work_handle(struct work_struct *psWork)
 {
@@ -135,16 +105,11 @@ static void ged_notify_sw_sync_work_handle(struct work_struct *psWork)
 		GED_CONTAINER_OF(psWork, struct GED_NOTIFY_SW_SYNC, sWork);
 	unsigned long long temp;
 	GED_DVFS_COMMIT_TYPE eCommitType;
-	if (ged_get_policy_state() == 1 || ged_get_policy_state() == 2) {
+
+	if (GED_DVFS_TIMER_TIMEOUT == GED_DVFS_FB_TIMER_TIMEOUT)
 		eCommitType = GED_DVFS_FB_FALLBACK_COMMIT;
-		ged_set_policy_state(2);
-		if (ged_get_policy_state_pre() == 1) {
-			ged_set_backup_timer_timeout(ged_get_fallback_time());
-			ged_cancel_backup_timer();
-		}
-	} else {
+	else
 		eCommitType = GED_DVFS_LOADING_BASE_COMMIT;
-	}
 
 	temp = 0;
 	if (psNotify) {
@@ -207,6 +172,7 @@ static void ged_timer_switch_work_handle(struct work_struct *psWork)
 		GED_CONTAINER_OF(psWork, struct GED_NOTIFY_SW_SYNC, sWork);
 	if (psNotify) {
 		ged_sw_vsync_event(false);
+		timer_switch(false);
 
 		psNotify->bUsed = false;
 	}
@@ -215,7 +181,7 @@ static void ged_timer_switch_work_handle(struct work_struct *psWork)
 
 void ged_set_backup_timer_timeout(u64 time_out)
 {
-	if (time_out != 0 && time_out < GED_DVFS_FB_TIMER_TIMEOUT)
+	if (time_out != 0)
 		g_fallback_time_out = time_out;
 	else
 		g_fallback_time_out = GED_DVFS_FB_TIMER_TIMEOUT;
@@ -413,16 +379,7 @@ enum hrtimer_restart ged_sw_vsync_check_cb(struct hrtimer *timer)
 					ged_timer_switch_work_handle);
 				queue_work(g_psNotifyWorkQueue,
 					&psNotify->sWork);
-				timer_switch_locked(false);
-
-			/* update last freq. before timer off */
-				ged_log_perf_trace_counter("gpu_freq",
-				(long long)(ged_get_freq_by_idx(ged_get_min_oppidx()) / 1000),
-				5566, 0, 0);
 			}
-		ged_log_perf_trace_counter("gpu_freq",
-			(long long)(ged_get_freq_by_idx(ged_get_min_oppidx()) / 1000),
-			 5566, 0, 0);
 #ifdef GED_DVFS_DEBUG
 			ged_log_buf_print(ghLogBuf_DVFS,
 				"[GED_K] Timer removed	(ts=%llu) ", temp);
@@ -478,18 +435,14 @@ void ged_dvfs_gpu_clock_switch_notify(bool bSwitch)
 				"[GED_K] HW Start Timer");
 			timer_switch(true);
 		}
-		ged_log_perf_trace_counter("gpu_state",
-			1, 5566, 0, 0);
 	} else {
 		g_ns_gpu_off_ts = ged_get_time();
 		ged_gpu_power_off_notified = true;
 		g_bGPUClock = false;
 		ged_log_buf_print(ghLogBuf_DVFS, "[GED_K] Buck-off");
-
-		// Update power on/off state
-		ged_log_perf_trace_counter("gpu_state",
-			0, 5566, 0, 0);
 	}
+	// Update power on/off state
+	trace_tracing_mark_write(5566, "gpu_state", bSwitch);
 }
 EXPORT_SYMBOL(ged_dvfs_gpu_clock_switch_notify);
 

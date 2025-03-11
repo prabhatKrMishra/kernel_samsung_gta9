@@ -493,13 +493,7 @@ static int mtk_gamma_sof_irq_trigger(void *data)
 	while (1) {
 		disp_gamma_wait_sof_irq();
 		atomic_set(&g_gamma_sof_irq_available, 0);
-
-		if (kthread_should_stop()) {
-			DDPPR_ERR("%s stopped\n", __func__);
-			break;
-		}
 	}
-	return 0;
 }
 
 static void mtk_gamma_start(struct mtk_ddp_comp *comp, struct cmdq_pkt *handle)
@@ -591,7 +585,8 @@ static void calculateGammaLut(struct DISP_GAMMA_LUT_T *data)
 
 static void calculateGamma12bitLut(struct DISP_GAMMA_12BIT_LUT_T *data)
 {
-	int i, lut_size = DISP_GAMMA_LUT_SIZE;
+	int i;
+	int lut_size = DISP_GAMMA_LUT_SIZE;
 
 	if (g_gamma_data_mode == HW_12BIT_MODE_12BIT)
 		lut_size = DISP_GAMMA_12BIT_LUT_SIZE;
@@ -620,32 +615,20 @@ void mtk_trans_gain_to_gamma(struct drm_crtc *crtc,
 		g_sb_param.gain[gain_b] = gain[gain_b];
 
 		if (g_gamma_data_mode == HW_8BIT) {
-			struct DISP_GAMMA_LUT_T *data;
+			struct DISP_GAMMA_LUT_T data;
 
-			data = kmalloc(sizeof(struct DISP_GAMMA_LUT_T),
-				GFP_KERNEL);
-			if (data == NULL) {
-				DDPPR_ERR("%s: no memory\n", __func__);
-				return;
-			}
-			calculateGammaLut(data);
+			calculateGammaLut(&data);
 			mtk_crtc_user_cmd(crtc, default_comp,
-				SET_GAMMALUT, (void *)data);
-			kfree(data);
-		} else if (g_gamma_data_mode == HW_12BIT_MODE_8BIT ||
+				SET_GAMMALUT, (void *)&data);
+		}
+
+		if (g_gamma_data_mode == HW_12BIT_MODE_8BIT ||
 			g_gamma_data_mode == HW_12BIT_MODE_12BIT) {
-			struct DISP_GAMMA_12BIT_LUT_T *data;
+			struct DISP_GAMMA_12BIT_LUT_T data;
 
-			data = kmalloc(sizeof(struct DISP_GAMMA_12BIT_LUT_T),
-				GFP_KERNEL);
-			if (data == NULL) {
-				DDPPR_ERR("%s: no memory\n", __func__);
-				return;
-			}
-			calculateGamma12bitLut(data);
+			calculateGamma12bitLut(&data);
 			mtk_crtc_user_cmd(crtc, default_comp,
-				SET_12BIT_GAMMALUT, (void *)data);
-			kfree(data);
+				SET_12BIT_GAMMALUT, (void *)&data);
 		}
 
 		mtk_leds_brightness_set("lcd-backlight", bl);
@@ -953,8 +936,6 @@ static int mtk_disp_gamma_remove(struct platform_device *pdev)
 }
 
 static const struct of_device_id mtk_disp_gamma_driver_dt_match[] = {
-	{ .compatible = "mediatek,mt6765-disp-gamma",},
-	{ .compatible = "mediatek,mt6768-disp-gamma",},
 	{ .compatible = "mediatek,mt6779-disp-gamma",},
 	{ .compatible = "mediatek,mt6789-disp-gamma",},
 	{ .compatible = "mediatek,mt6885-disp-gamma",},

@@ -314,7 +314,11 @@ int ccmni_napi_poll(int md_id, int ccmni_idx,
 struct ccmni_ccci_ops eccci_ccmni_ops = {
 	.ccmni_ver = CCMNI_DRV_V0,
 	.ccmni_num = 21,
+#ifdef CONFIG_MTK_SRIL_SUPPORT
+	.name = "rmnet",
+#else
 	.name = "ccmni",
+#endif
 	.md_ability = MODEM_CAP_DATA_ACK_DVD | MODEM_CAP_CCMNI_MQ
 		| MODEM_CAP_DIRECT_TETHERING, /* CCCI_KMODULE_ENABLE: todo */
 	.irat_md_id = -1,

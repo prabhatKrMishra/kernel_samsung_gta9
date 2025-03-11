@@ -1431,6 +1431,8 @@ void spmi_dump_pmif_acc_vio_reg(void)
 		writel(BIT(31), arb->base + start);
 	}
 
+	if (log_size < 0)
+		pr_notice("sprintf failed\n");
 	pr_info("[PMIF] %s %s", __func__, wp);
 }
 EXPORT_SYMBOL_GPL(spmi_dump_pmif_acc_vio_reg);
@@ -1451,7 +1453,8 @@ void spmi_dump_pmic_acc_vio_reg(void)
 				    offset, tmp_dat);
 	}
 	log_size += sprintf(wp + log_size, "\n");
-
+	if (log_size < 0)
+		pr_notice("sprintf failed\n");
 	pr_info("[PMIF] %s %s", __func__, wp);
 }
 EXPORT_SYMBOL_GPL(spmi_dump_pmic_acc_vio_reg);
@@ -1472,6 +1475,8 @@ static char *get_pmif_busy_reg_dump(void)
 				    offset, tmp_dat);
 	}
 	log_size += sprintf(wp + log_size, "\n");
+	if (log_size < 0)
+		pr_notice("sprintf failed\n");
 	return wp;
 }
 EXPORT_SYMBOL_GPL(spmi_dump_pmif_busy_reg);
@@ -1545,6 +1550,8 @@ static char *get_pmif_swinf_reg_dump(void)
 		log_size += sprintf(wp + log_size, "fsm:%d, en:%d]\n", fsm, en);
 	}
 	log_size += sprintf(wp + log_size, "\n");
+	if (log_size < 0)
+		pr_notice("sprintf failed\n");
 	return wp;
 }
 
@@ -1576,6 +1583,8 @@ static char *get_spmimst_all_reg_dump(void)
 	offset = arb->spmimst_regs[SPMI_MST_DBG];
 	tmp_dat = readl(arb->spmimst_base + offset);
 	log_size += sprintf(wp + log_size, "(0x%x)=0x%x\n", offset, tmp_dat);
+	if (log_size < 0)
+		pr_notice("sprintf failed\n");
 	return wp;
 }
 
@@ -1622,6 +1631,8 @@ void spmi_dump_pmif_all_reg(void)
 		} else if (i % 8 == 0)
 			log_size += sprintf(wp + log_size, "\n[PMIF] ");
 	}
+	if (log_size < 0)
+		pr_notice("sprintf failed\n");
 	pr_notice("\n[PMIF] %s", wp);
 }
 EXPORT_SYMBOL_GPL(spmi_dump_pmif_all_reg);
@@ -1686,6 +1697,8 @@ void spmi_dump_pmif_record_reg(void)
 		}
 	}
 	/* logging mode no need to clear record */
+	if (log_size < 0)
+		pr_notice("sprintf failed\n");
 
 	/* enable monitor channel 0 after dump */
 	tmp_dat = readl(arb->base + arb->dbgregs[PMIF_MONITOR_CTRL]);
@@ -1946,8 +1959,10 @@ static ssize_t spmi_access_store(struct device_driver *ddri,
 		}
 
 		ret = sscanf(buf, "0x%x 0x%x", &offset, &value);
-		if (ret < 0)
+		if (((offset % 4) != 0) || (ret != 2)) {
+			pr_notice("%s() Invalid input!!\n", __func__);
 			return ret;
+		}
 
 		if (value) {
 			if (offset > arb->spmimst_regs[SPMI_MST_DBG]) {

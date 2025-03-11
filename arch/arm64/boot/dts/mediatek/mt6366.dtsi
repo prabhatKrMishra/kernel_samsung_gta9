@@ -32,9 +32,10 @@
 			compatible = "mediatek,mt6358-accdet";
 			accdet-name = "mt6358-accdet";
 			/* accdet micbias voltage: 0x07,2.7v;0x05,2.5v;0x02,1.9v */
-			accdet-mic-vol = <6>;
-			headset-mode-setting = <0x500 0x500 1 0x1f0 0x800 0x800 0x20 0x44>,
-						< 0x0 0x0 0xe 0x0 0x0 0x0 0x0 0x0>;
+			/* Tab A9 code for SR-AX6739A-01-197 by yingboyang at 20230424 start */
+			accdet-mic-vol = <7>;
+			/* Tab A9 code for SR-AX6739A-01-197 by yingboyang at 20230424 end */
+			headset-mode-setting = <0x500 0x500 1 0x1f0 0x800 0x800 0x20 0x44>;
 			accdet-plugout-debounce = <1>;
 			/*1:ACC mode, 2:low cost without in bias, 6:low cost with in bias*/
 			accdet-mic-mode = <1>;
@@ -122,14 +123,16 @@
 
 		mt6366keys: mt6366keys {
 			compatible = "mediatek,mt6366-keys";
-			mediatek,long-press-mode = <1>;
+			mediatek,long-press-mode = <2>;
 			power-off-time-sec = <0>;
 			power {
 				linux,keycodes = <116>;
 				wakeup-source;
 			};
 			home {
-				linux,keycodes = <115>;
+				/*Tab A9 code for AX6739A-6 by wenghailong at 20230418 start*/
+				linux,keycodes = <114>;
+				/*Tab A9 code for AX6739A-6 by wenghailong at 20230418 end*/
 			};
 		};
 
@@ -458,12 +461,15 @@
 				regulator-always-on;
 			};
 
+			/* Tab A9 code for SR-AX6739A-01-249 by jianghongyan at 20230508 start */
 			mt6358_vsim2_reg: ldo_vsim2 {
 				regulator-name = "vsim2";
 				regulator-min-microvolt = <1700000>;
 				regulator-max-microvolt = <3100000>;
 				regulator-enable-ramp-delay = <540>;
+				/*regulator-always-on;*/
 			};
+			/* Tab A9 code for SR-AX6739A-01-249 by jianghongyan at 20230508 end */
 
 			mt6358_vcore_sshub_reg: buck_vcore_sshub {
 				regulator-name = "vcore_sshub";

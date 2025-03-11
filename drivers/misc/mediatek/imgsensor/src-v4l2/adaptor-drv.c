@@ -568,7 +568,6 @@ static int imgsensor_set_pad_format(struct v4l2_subdev *sd,
 	set_std_parts_fmt_code(fmt->format.code, ctx->fmt_code);
 
 
-	/* Returns the best match or NULL if the Length of the array is zero */
 	mode = v4l2_find_nearest_size(ctx->mode,
 		ctx->mode_cnt, width, height,
 		fmt->format.width, fmt->format.height);
@@ -579,20 +578,8 @@ static int imgsensor_set_pad_format(struct v4l2_subdev *sd,
 		if (sensor_mode_id >= 0 && sensor_mode_id < ctx->mode_cnt)
 			mode = &ctx->mode[sensor_mode_id];
 	}
-
-	if (mode == NULL) {
-		dev_info(ctx->dev,
-			"set fmt code = 0x%x, which %d ctx->mode_cnt = %d\n",
-			fmt->format.code, fmt->which, ctx->mode_cnt);
-
-		mutex_unlock(&ctx->mutex);
-		return -EINVAL;
-	}
-
-	dev_info(ctx->dev,
-		"set fmt code = 0x%x, which %d sensor_mode_id = %u\n",
-		fmt->format.code, fmt->which, mode->id);
-
+	dev_info(ctx->dev, "set fmt code = 0x%x, which %d sensor_mode_id = %u\n",
+			fmt->format.code, fmt->which, mode->id);
 
 	update_pad_format(ctx, mode, fmt);
 	if (fmt->which == V4L2_SUBDEV_FORMAT_TRY) {
@@ -1131,8 +1118,7 @@ static ssize_t debug_i2c_ops_store(struct device *dev,
 	char *token = NULL;
 	char *sbuf = kzalloc(sizeof(char) * (count + 1), GFP_KERNEL);
 	char *s = sbuf;
-	int ret;
-	unsigned int num_para = 0;
+	int ret, num_para = 0;
 	char *arg[DBG_ARG_IDX_MAX_NUM];
 	struct adaptor_ctx *ctx = to_ctx(dev_get_drvdata(dev));
 	u32 val;
@@ -1157,7 +1143,7 @@ static ssize_t debug_i2c_ops_store(struct device *dev,
 	}
 
 	if (num_para > DBG_ARG_IDX_MAX_NUM) {
-		dev_info(dev, "Wrong command parameter number %u\n", num_para);
+		dev_info(dev, "Wrong command parameter number %d\n", num_para);
 		goto ERR_DEBUG_OPS_STORE;
 	}
 	ret = kstrtouint(arg[DBG_ARG_IDX_I2C_ADDR], 0, &reg);
@@ -1200,13 +1186,11 @@ static DEVICE_ATTR_RW(debug_i2c_ops);
 
 static int imgsensor_probe(struct i2c_client *client)
 {
-
 	struct device *dev = &client->dev;
 	struct device_node *endpoint;
 	struct adaptor_ctx *ctx;
 	int ret;
-	int forbid_index;
-	dev_info(dev, "imgsensor_probe success\n");
+
 	ctx = devm_kzalloc(dev, sizeof(*ctx), GFP_KERNEL);
 	if (!ctx)
 		return -ENOMEM;
@@ -1261,11 +1245,7 @@ static int imgsensor_probe(struct i2c_client *client)
 	ctx->pad.flags = MEDIA_PAD_FL_SOURCE;
 	ctx->sd.dev = &client->dev;
 	ctx->sd.entity.function = MEDIA_ENT_F_CAM_SENSOR;
-	ctx->forbid_idx = -1;
-	if (!of_property_read_u32(dev->of_node, "forbid-index", &forbid_index)) {
-		ctx->forbid_idx = forbid_index;
-		dev_info(dev, "not support to power on with sensor%d\n", ctx->forbid_idx);
-	}
+
 
 	/* init subdev name */
 	snprintf(ctx->sd.name, V4L2_SUBDEV_NAME_SIZE, "%s",
@@ -1396,6 +1376,7 @@ static struct i2c_driver imgsensor_i2c_driver = {
 static int __init adaptor_drv_init(void)
 {
 	i2c_add_driver(&imgsensor_i2c_driver);
+
 	return 0;
 }
 

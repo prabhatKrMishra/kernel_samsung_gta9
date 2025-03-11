@@ -844,6 +844,9 @@ static const struct snd_soc_dapm_route mtk_dai_adda_routes[] = {
 	{"ADDA_DL_CH2", "DL3_CH1", "DL3"},
 	{"ADDA_DL_CH2", "DL3_CH2", "DL3"},
 
+	{"ADDA_DL_CH1", "GAIN1_OUT_CH1", "HW Gain 1 Out"},
+	{"ADDA_DL_CH2", "GAIN1_OUT_CH2", "HW Gain 1 Out"},
+
 	{"ADDA_DL_CH1", "DL4_CH1", "DL4"},
 	{"ADDA_DL_CH2", "DL4_CH2", "DL4"},
 

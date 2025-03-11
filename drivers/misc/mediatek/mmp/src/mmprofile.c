@@ -1478,10 +1478,6 @@ static ssize_t mmprofile_dbgfs_start_read(struct file *file, char __user *buf,
 
 	MMP_LOG(ANDROID_LOG_DEBUG, "start=%d", mmprofile_globals.start);
 	r = sprintf(str, "start = %d\n", mmprofile_globals.start);
-	if (r < 0) {
-		pr_err("%s sprintf error:%d\n", __func__, r);
-		return 0;
-	}
 	return simple_read_from_buffer(buf, size, ppos, str, r);
 }
 
@@ -1510,10 +1506,6 @@ static ssize_t mmprofile_dbgfs_enable_read(struct file *file, char __user *buf,
 
 	MMP_LOG(ANDROID_LOG_DEBUG, "enable=%d", mmprofile_globals.enable);
 	r = sprintf(str, "enable = %d\n", mmprofile_globals.enable);
-	if (r < 0) {
-		pr_err("%s sprintf error:%d\n", __func__, r);
-		return 0;
-	}
 	return simple_read_from_buffer(buf, size, ppos, str, r);
 }
 
@@ -2324,12 +2316,12 @@ static int mmprofile_mmap(struct file *file, struct vm_area_struct *vma)
 	} else if (mmprofile_globals.selected_buffer ==
 		MMPROFILE_PRIMARY_BUFFER) {
 
+		mmprofile_init_buffer();
+
 		/* check user space buffer length */
 		if ((vma->vm_end - vma->vm_start) !=
 			mmprofile_globals.buffer_size_bytes)
 			return -EINVAL;
-
-		mmprofile_init_buffer();
 
 		if (!bmmprofile_init_buffer)
 			return -EAGAIN;

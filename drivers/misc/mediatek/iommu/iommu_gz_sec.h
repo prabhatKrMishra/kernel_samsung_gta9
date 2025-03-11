@@ -7,9 +7,6 @@
 
 #include "kree/mem.h"
 #include "kree/system.h"
-#ifndef CONFIG_ARM64
-#include <linux/module.h>
-#endif
 #include <linux/mutex.h>
 
 struct m4u_sec_ty_context {

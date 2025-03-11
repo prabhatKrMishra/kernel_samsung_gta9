@@ -23,7 +23,6 @@
 #include "mtk_drm_crtc.h"
 #include "mtk_drm_ddp_comp.h"
 #include "mtk_drm_drv.h"
-#include "mtk_drm_mmp.h"
 #include "mtk_drm_lowpower.h"
 #include "mtk_log.h"
 #include "mtk_dump.h"

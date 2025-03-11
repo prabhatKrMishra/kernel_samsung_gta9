@@ -3,16 +3,12 @@
  * Copyright (C) 2015 MediaTek Inc.
  */
 
-#include <asm/cacheflush.h>
-#include <asm/stacktrace.h>
-#include <asm/traps.h>
 #include <linux/cdev.h>
 #include <linux/debug_locks.h>
 #include <linux/delay.h>
 #include <linux/device.h>
 #include <linux/fs.h>
 #include <linux/hardirq.h>
-#include <linux/highmem.h>
 #include <linux/init.h>
 #include <linux/jiffies.h>
 #include <linux/kthread.h>
@@ -36,6 +32,8 @@
 #include <linux/vmalloc.h>
 #include <linux/wait.h>
 #include <linux/workqueue.h>
+#include <asm/stacktrace.h>
+#include <asm/traps.h>
 #include <uapi/linux/sched/types.h>
 
 #include <mt-plat/aee.h>
@@ -53,6 +51,10 @@
 #include "mrdump/mrdump_private.h"
 #include "mrdump/mrdump_mini.h"
 
+#ifndef TASK_STATE_TO_CHAR_STR
+#define TASK_STATE_TO_CHAR_STR "RSDTtZXxKWPNn"
+#endif
+
 #ifdef CONFIG_MTK_HANG_DETECT_DB
 #define MAX_HANG_INFO_SIZE (2*1024*1024) /* 2M info */
 #define MAX_STRING_SIZE 256
@@ -64,11 +66,6 @@ static int Hang_Info_Size;
 static bool watchdog_thread_exist;
 static bool system_server_exist;
 #endif
-
-#define MAX_PROCTITLE_AUDIT_LEN 128
-#define MAX_NR_SPECIAL_PROCESS 20
-#define MAX_NR_THREAD 8192
-static struct task_struct **thread_array;
 
 static bool Hang_first_done;
 static bool hd_detect_enabled;
@@ -88,30 +85,17 @@ DECLARE_WAIT_QUEUE_HEAD(dump_bt_start_wait);
 DECLARE_WAIT_QUEUE_HEAD(dump_bt_done_wait);
 DEFINE_RAW_SPINLOCK(white_list_lock);
 DEFINE_RAW_SPINLOCK(callback_list_lock);
-DEFINE_MUTEX(thread_array_lock);
 
 static void show_status(int flag);
 static void monitor_hang_kick(int lParam);
 static void show_bt_by_pid(int task_pid);
 static void log_hang_info(const char *fmt, ...);
 static bool check_white_list(void);
+static int show_white_list_bt(struct task_struct *p);
 static int find_task_by_name(char *name);
 static int run_callback(void);
 
 static void (*p_ldt_disable_aee)(void);
-static const char *const special_process[] = {
-	"init", /* Index must be the first */
-	"main",
-	"system_server",
-	"vold",
-	"vdc"
-};
-
-struct task_info {
-	struct task_struct *task;
-	int idx;
-};
-
 void monitor_hang_regist_ldt(void (*fn)(void))
 {
 	p_ldt_disable_aee = fn;
@@ -128,12 +112,13 @@ int add_white_list(char *name)
 	struct name_list *new_thread;
 	struct name_list *pList;
 
-	new_thread = kmalloc(sizeof(struct name_list), GFP_KERNEL);
-	if (!new_thread)
-		return -1;
 	raw_spin_lock(&white_list_lock);
 	if (!white_list) {
-
+		new_thread = kmalloc(sizeof(struct name_list), GFP_KERNEL);
+		if (!new_thread) {
+			raw_spin_unlock(&white_list_lock);
+			return -1;
+		}
 		strncpy(new_thread->name, name, TASK_COMM_LEN);
 		new_thread->name[TASK_COMM_LEN - 1] = 0;
 		new_thread->next = NULL;
@@ -147,92 +132,22 @@ int add_white_list(char *name)
 		/*find same thread name*/
 		if (strncmp(pList->name, name, TASK_COMM_LEN) == 0) {
 			raw_spin_unlock(&white_list_lock);
-			kfree(new_thread);
 			return 0;
 		}
 		pList = pList->next;
 	}
 
 	/*add new thread name*/
+	new_thread = kmalloc(sizeof(struct name_list), GFP_KERNEL);
+	if (!new_thread) {
+		raw_spin_unlock(&white_list_lock);
+		return -1;
+	}
+
 	strncpy(new_thread->name, name, TASK_COMM_LEN);
 	new_thread->next = white_list;
 	white_list = new_thread;
 	raw_spin_unlock(&white_list_lock);
-	return 0;
-}
-
-/******************************************************************************
- * aee_get_cmdline is a copy of get_cmdline in mm/util.c, please pay attension to
- *whether this function has changed when the kernel version is upgraded.
- *****************************************************************************/
-static int aee_get_cmdline(struct task_struct *task, char *buffer, int buflen)
-{
-	int res = 0;
-	unsigned int len;
-	struct mm_struct *mm = get_task_mm(task);
-	unsigned long arg_start, arg_end, env_start, env_end;
-
-	if (!mm)
-		goto out;
-	if (!mm->arg_end)
-		goto out_mm;	/* Shh! No looking before we're done */
-
-	spin_lock(&mm->arg_lock);
-	arg_start = mm->arg_start;
-	arg_end = mm->arg_end;
-	env_start = mm->env_start;
-	env_end = mm->env_end;
-	spin_unlock(&mm->arg_lock);
-
-	len = arg_end - arg_start;
-
-	if (len > buflen)
-		len = buflen;
-
-	res = access_process_vm(task, arg_start, buffer, len, FOLL_FORCE);
-
-	/*
-	 * If the nul at the end of args has been overwritten, then
-	 * assume application is using setproctitle(3).
-	 */
-	if (res > 0 && buffer[res-1] != '\0' && len < buflen) {
-		len = strnlen(buffer, res);
-		if (len < res) {
-			res = len;
-		} else {
-			len = env_end - env_start;
-			if (len > buflen - res)
-				len = buflen - res;
-			res += access_process_vm(task, env_start,
-						 buffer+res, len,
-						 FOLL_FORCE);
-			res = strnlen(buffer, res);
-		}
-	}
-out_mm:
-	mmput(mm);
-out:
-	return res;
-}
-
-static int compare_cmdline(void)
-{
-	int len = 0;
-	char buf[MAX_PROCTITLE_AUDIT_LEN] = {0};
-
-	len = aee_get_cmdline(current, buf, MAX_PROCTITLE_AUDIT_LEN);
-	if (len == 0)
-		return -1;
-
-	if (strncmp(buf, "system_server", strlen("system_server")) &&
-		strncmp(buf, "/system_ext", strlen("/system_ext")) &&
-		strncmp(buf,  "/vendor", strlen("/vendor")) &&
-		strncmp(buf, "/system", strlen("/system")) &&
-		strncmp(buf, "/apex", strlen("/apex"))) {
-		pr_info("%s:open failed!\n", __func__);
-		return -1;
-	}
-
 	return 0;
 }
 
@@ -322,134 +237,6 @@ static void monitor_hang_callback_dummy2(void)
 	log_hang_info("callback 2 ok\n");
 }
 
-#if IS_ENABLED(CONFIG_MMU)
-static int __access_remote_vm_for_hang(struct task_struct *tsk, struct mm_struct *mm,
-		unsigned long addr, void *buf, int len, unsigned int gup_flags)
-{
-	struct vm_area_struct *vma;
-	void *old_buf = buf;
-
-	/* ignore errors, just check how much was successfully transferred */
-	while (len) {
-		int bytes, ret, offset;
-		void *maddr;
-		struct page *page = NULL;
-
-		ret = get_user_pages_remote(mm, addr, 1,
-			gup_flags, &page, &vma, NULL);
-		if (ret <= 0) {
-#ifndef CONFIG_HAVE_IOREMAP_PROT
-			break;
-#else
-			vma = find_vma(mm, addr);
-			if (!vma || vma->vm_start > addr)
-				break;
-			if (vma->vm_ops && vma->vm_ops->access)
-				ret = vma->vm_ops->access(vma, addr, buf, len, 0/* write */);
-			if (ret <= 0)
-				break;
-			bytes = ret;
-#endif
-		} else {
-			bytes = len;
-			offset = addr & (PAGE_SIZE-1);
-			if (bytes > PAGE_SIZE-offset)
-				bytes = PAGE_SIZE-offset;
-
-			maddr = kmap(page);
-
-			copy_from_user_page(vma, page, addr,
-				buf, maddr + offset, bytes);
-			kunmap(page);
-			put_user_page(page);
-		}
-		len -= bytes;
-		buf += bytes;
-		addr += bytes;
-	}
-	return buf - old_buf;
-}
-
-static int access_process_vm_for_hang(struct task_struct *tsk, unsigned long addr,
-	void *buf, int len, unsigned int gup_flags)
-{
-	struct mm_struct *mm;
-	int ret;
-
-	mm = get_task_mm(tsk);
-	if (!mm)
-		return 0;
-
-	ret = __access_remote_vm_for_hang(tsk, mm, addr, buf, len, gup_flags);
-	mmput(mm);
-	return ret;
-}
-#else /* CONFIG_MMU */
-static int __access_remote_vm_for_hang(struct task_struct *tsk, struct mm_struct *mm,
-		unsigned long addr, void *buf, int len, unsigned int gup_flags)
-{
-	struct vm_area_struct *vma;
-	int write = gup_flags & FOLL_WRITE;
-
-	/* the access must start within one of the target process's mappings */
-	vma = find_vma(mm, addr);
-	if (vma) {
-		/* don't overrun this mapping */
-		if (addr + len >= vma->vm_end)
-			len = vma->vm_end - addr;
-
-		/* only read or write mappings where it is permitted */
-		if (!write && vma->vm_flags & VM_MAYREAD)
-			copy_from_user_page(vma, NULL, addr,
-					    buf, (void *) addr, len);
-		else
-			len = 0;
-	} else {
-		len = 0;
-	}
-
-	return len;
-}
-
-static int access_remote_vm_for_hang(struct mm_struct *mm, unsigned long addr,
-		void *buf, int len, unsigned int gup_flags)
-{
-	struct mm_struct *mm;
-
-	if (addr + len < addr)
-		return 0;
-
-	mm = get_task_mm(tsk);
-	if (!mm)
-		return 0;
-
-	len = __access_remote_vm_for_hang(tsk, mm, addr, buf, len, gup_flags);
-	mmput(mm);
-	return len;
-}
-#endif /* CONFIG_MMU */
-
-static int show_white_list_bt(struct task_struct *p)
-{
-	struct name_list *pList = NULL;
-
-	if (!white_list)
-		return -1;
-
-	raw_spin_lock(&white_list_lock);
-	pList = white_list;
-	while (pList) {
-		if (!strcmp(p->comm, pList->name)) {
-			raw_spin_unlock(&white_list_lock);
-			show_bt_by_pid(p->pid);
-			return 0;
-		}
-		pList = pList->next;
-	}
-	raw_spin_unlock(&white_list_lock);
-	return -1;
-}
-
 static int monitor_hang_show(struct seq_file *m, void *v)
 {
 	SEQ_printf(m, "show hang_detect_raw\n");
@@ -461,6 +248,7 @@ static int monitor_hang_proc_open(struct inode *inode, struct file *file)
 {
 	return single_open(file, monitor_hang_show, inode->i_private);
 }
+
 
 static ssize_t monitor_hang_proc_write(struct file *filp, const char *ubuf,
 		size_t cnt, loff_t *data)
@@ -523,7 +311,7 @@ static const struct proc_ops monitor_hang_fops = {
 	.proc_lseek = seq_lseek,
 	.proc_release = single_release,
 };
-#endif /* CONFIG_MTK_HANG_PROC */
+#endif
 
 /******************************************************************************
  * hang detect File operations
@@ -601,11 +389,6 @@ static long monitor_hang_ioctl(struct file *file, unsigned int cmd,
 	char name[TASK_COMM_LEN] = {0};
 
 	if (cmd == HANG_KICK) {
-		ret = compare_cmdline();
-		if (ret) {
-			pr_info(" invalid process kick RT_Monitor!");
-			return -EFAULT;
-		}
 		pr_info("hang_detect HANG_KICK ( %d)\n", (int)arg);
 		monitor_hang_kick((int)arg);
 		return ret;
@@ -786,14 +569,20 @@ void trigger_hang_db(void)
 }
 #endif
 
+
 #ifdef CONFIG_STACKTRACE
+
 static void get_kernel_bt(struct task_struct *tsk)
 {
 	unsigned long stacks[32];
-	unsigned int  nr_entries;
+	int nr_entries;
 	int i;
 
+#ifndef __aarch64__
+	nr_entries = stack_trace_save_tsk(tsk, stacks, ARRAY_SIZE(stacks), 0);
+#else
 	nr_entries = hang_kernel_trace(tsk, stacks, ARRAY_SIZE(stacks));
+#endif
 	for (i = 0; i < nr_entries; i++) {
 		log_hang_info("<%lx> %pS\n", (long)stacks[i],
 				(void *)stacks[i]);
@@ -801,6 +590,7 @@ static void get_kernel_bt(struct task_struct *tsk)
 				(void *)stacks[i]);
 	}
 }
+
 #endif
 
 static long long nsec_high(unsigned long long nsec)
@@ -825,7 +615,13 @@ static unsigned long nsec_low(unsigned long long nsec)
 
 void store_task_info(struct task_struct *p)
 {
-	log_hang_info("%-15.15s %c ", p->comm, task_state_to_char(p));
+	unsigned int state;
+	char stat_nam[] = TASK_STATE_TO_CHAR_STR;
+
+	state = p->state ? __ffs(p->state) + 1 : 0;
+
+	log_hang_info("%-15.15s %c ", p->comm,
+		state < sizeof(stat_nam) - 1 ? stat_nam[state] : '?');
 	log_hang_info("%lld.%06ld %d %lu %lu 0x%x 0x%lx %d %d %d ",
 		nsec_high(p->se.sum_exec_runtime),
 		nsec_low(p->se.sum_exec_runtime),
@@ -841,8 +637,15 @@ void store_task_info(struct task_struct *p)
 
 void show_thread_info(struct task_struct *p, bool dump_bt)
 {
-	log_hang_info("%-15.15s %c ", p->comm, task_state_to_char(p));
-	hang_log("%-15.15s %c ", p->comm, task_state_to_char(p));
+	unsigned int state;
+	char stat_nam[] = TASK_STATE_TO_CHAR_STR;
+
+	state = p->state ? __ffs(p->state) + 1 : 0;
+
+	log_hang_info("%-15.15s %c ", p->comm,
+		state < sizeof(stat_nam) - 1 ? stat_nam[state] : '?');
+	hang_log("%-15.15s %c ", p->comm,
+		state < sizeof(stat_nam) - 1 ? stat_nam[state] : '?');
 	log_hang_info("%lld.%06ld %d %lu %lu 0x%x 0x%lx %d ",
 		nsec_high(p->se.sum_exec_runtime),
 		nsec_low(p->se.sum_exec_runtime),
@@ -855,13 +658,6 @@ void show_thread_info(struct task_struct *p, bool dump_bt)
 		task_pid_nr(p), p->nvcsw, p->nivcsw, p->flags,
 		(unsigned long)task_thread_info(p)->flags,
 		p->tgid);
-
-#if IS_ENABLED(CONFIG_THREAD_INFO_IN_TASK)
-	log_hang_info("%d ", p->cpu);
-	hang_log("%d ", p->cpu);
-#endif
-	log_hang_info("%d ", p->rt_priority ? p->rt_priority : p->normal_prio);
-	hang_log("%d ", p->rt_priority ? p->rt_priority : p->normal_prio);
 #ifdef CONFIG_SCHED_INFO
 	log_hang_info("%llu", p->sched_info.last_arrival);
 	hang_log("%llu", p->sched_info.last_arrival);
@@ -880,28 +676,12 @@ void show_thread_info(struct task_struct *p, bool dump_bt)
 #endif
 
 #ifdef CONFIG_STACKTRACE
-	if (dump_bt || ((!p->mm || p->state == TASK_RUNNING ||
+	if (dump_bt || ((p->state == TASK_RUNNING ||
 			p->state & TASK_UNINTERRUPTIBLE) &&
 			!strstr(p->comm, "wdtk")))
 	/* Catch kernel-space backtrace */
 		get_kernel_bt(p);
 #endif
-}
-
-static void show_all_thread_info_in_process(struct task_struct *p)
-{
-	struct task_struct *t = NULL;
-
-	for_each_thread(p, t) {
-		if (t) {
-			get_task_struct(t);
-			if (try_get_task_stack(t)) {
-				show_thread_info(t, false);
-				put_task_stack(t);
-			}
-			put_task_struct(t);
-		}
-	}
 }
 
 static int dump_native_maps(pid_t pid, struct task_struct *current_task)
@@ -933,7 +713,6 @@ static int dump_native_maps(pid_t pid, struct task_struct *current_task)
 		return -1;
 	}
 
-	mmap_read_lock(current_task->mm);
 	vma = current_task->mm->mmap;
 	log_hang_info("Dump native maps files:\n");
 	hang_log("Dump native maps files:\n");
@@ -1001,10 +780,14 @@ static int dump_native_maps(pid_t pid, struct task_struct *current_task)
 		vma = vma->vm_next;
 		mapcount++;
 	}
-	mmap_read_unlock(current_task->mm);
+	++oops_in_progress; /* sleeping function warn */
 	mmput(current_task->mm);
+	--oops_in_progress;
+
 	return 0;
 }
+
+
 
 static int dump_native_info_by_tid(pid_t tid,
 	struct task_struct *current_task)
@@ -1025,13 +808,11 @@ static int dump_native_info_by_tid(pid_t tid,
 		return ret;
 	}
 
-	if (!get_task_mm(current_task)) {
+	if (!current_task->mm) {
 		pr_info(" %s,%d:%s, current_task->mm == NULL", __func__, tid,
 				current_task->comm);
 		return ret;
 	}
-
-	mmap_read_lock(current_task->mm);
 #ifndef __aarch64__		/* 32bit */
 	log_hang_info(" pc/lr/sp 0x%08x/0x%08x/0x%08x\n", user_ret->ARM_pc,
 			user_ret->ARM_lr, user_ret->ARM_sp);
@@ -1059,6 +840,7 @@ static int dump_native_info_by_tid(pid_t tid,
 		(long)(user_ret->ARM_r1), (long)(user_ret->ARM_r0));
 
 	userstack_start = (unsigned long)user_ret->ARM_sp;
+
 	vma = current_task->mm->mmap;
 	while (vma) {
 		if (vma->vm_start <= userstack_start &&
@@ -1071,20 +853,18 @@ static int dump_native_info_by_tid(pid_t tid,
 			break;
 	}
 
-#if !IS_ENABLED(CONFIG_MTK_HANG_PROC)
-	mmap_read_unlock(current_task->mm);
-#endif
-
 	if (!userstack_end) {
 		pr_info(" %s,%d:%s,userstack_end == 0", __func__,
 				tid, current_task->comm);
-		goto err;
+		return ret;
 	}
 	length = userstack_end - userstack_start;
+
+
 	/* dump native stack to buffer */
 	{
 		unsigned long SPStart = 0, SPEnd = 0;
-		int tempSpContent[4] = {0}, copied;
+		int tempSpContent[4], copied;
 
 		SPStart = userstack_start;
 		SPEnd = SPStart + length;
@@ -1093,17 +873,12 @@ static int dump_native_info_by_tid(pid_t tid,
 		hang_log("UserSP_start:%08x,Length:%08x,End:%08x\n",
 				SPStart, length, SPEnd);
 		while (SPStart < SPEnd) {
-#if IS_ENABLED(CONFIG_MTK_HANG_PROC)
-			copied =
-			    access_process_vm_for_hang(current_task, SPStart,
-					&tempSpContent, sizeof(tempSpContent),
-					0);
-#else
+			++oops_in_progress; /* sleeping function warn */
 			copied =
 			    access_process_vm(current_task, SPStart,
 					&tempSpContent, sizeof(tempSpContent),
 					0);
-#endif
+			--oops_in_progress;
 			if (copied != sizeof(tempSpContent)) {
 				pr_info("access_process_vm  SPStart error,sizeof(tempSpContent)=%x\n",
 				  (unsigned int)sizeof(tempSpContent));
@@ -1183,20 +958,17 @@ static int dump_native_info_by_tid(pid_t tid,
 				break;
 		}
 
-#if !IS_ENABLED(CONFIG_MTK_HANG_PROC)
-		mmap_read_unlock(current_task->mm);
-#endif
-
 		if (!userstack_end) {
 			pr_info("Dump native stack failed:\n");
-			goto err;
+			return ret;
 		}
 
 		length = userstack_end - userstack_start;
+
 		/*  dump native stack to buffer */
 		{
 			unsigned long SPStart = 0, SPEnd = 0;
-			int tempSpContent[4] = {0}, copied;
+			int tempSpContent[4], copied;
 
 			SPStart = userstack_start;
 			SPEnd = SPStart + length;
@@ -1205,15 +977,11 @@ static int dump_native_info_by_tid(pid_t tid,
 			hang_log("UserSP_start:%lx,Length:%lx,End:%lx\n",
 				SPStart, length, SPEnd);
 			while (SPStart < SPEnd) {
-#if IS_ENABLED(CONFIG_MTK_HANG_PROC)
-				copied = access_process_vm_for_hang(current_task,
-						SPStart, &tempSpContent,
-						sizeof(tempSpContent), 0);
-#else
+				++oops_in_progress; /* sleeping function warn */
 				copied = access_process_vm(current_task,
 						SPStart, &tempSpContent,
 						sizeof(tempSpContent), 0);
-#endif
+				--oops_in_progress;
 				if (copied != sizeof(tempSpContent)) {
 					pr_info(
 					  "access_process_vm  SPStart error,sizeof(tempSpContent)=%x\n",
@@ -1242,6 +1010,7 @@ static int dump_native_info_by_tid(pid_t tid,
 		}
 	} else {		/*K64+U64 */
 		userstack_start = (unsigned long)user_ret->user_regs.sp;
+
 		vma = current_task->mm->mmap;
 		while (vma) {
 			if (vma->vm_start <= userstack_start &&
@@ -1253,14 +1022,9 @@ static int dump_native_info_by_tid(pid_t tid,
 			if (vma == current_task->mm->mmap)
 				break;
 		}
-
-#if !IS_ENABLED(CONFIG_MTK_HANG_PROC)
-		mmap_read_unlock(current_task->mm);
-#endif
-
 		if (!userstack_end) {
 			pr_info("Dump native stack failed:\n");
-			goto err;
+			return ret;
 		}
 
 		{
@@ -1274,37 +1038,25 @@ static int dump_native_info_by_tid(pid_t tid,
 			frames = 2;
 			while (tmpfp < userstack_end &&
 					tmpfp > userstack_start) {
-#if IS_ENABLED(CONFIG_MTK_HANG_PROC)
-				copied =
-				    access_process_vm_for_hang(current_task,
-						    (unsigned long)tmpfp, &tmp,
-						      sizeof(tmp), 0);
-#else
+				++oops_in_progress; /* sleeping function warn */
 				copied =
 				    access_process_vm(current_task,
 						    (unsigned long)tmpfp, &tmp,
 						      sizeof(tmp), 0);
-#endif
+				--oops_in_progress;
 				if (copied != sizeof(tmp)) {
 					pr_info("access_process_vm  fp error\n");
-					ret = -EIO;
-					goto err;
+					return -EIO;
 				}
-#if IS_ENABLED(CONFIG_MTK_HANG_PROC)
-				copied =
-				    access_process_vm_for_hang(current_task,
-						    (unsigned long)tmpfp + 0x08,
-						      &tmpLR, sizeof(tmpLR), 0);
-#else
+				++oops_in_progress; /* sleeping function warn */
 				copied =
 				    access_process_vm(current_task,
 						    (unsigned long)tmpfp + 0x08,
 						      &tmpLR, sizeof(tmpLR), 0);
-#endif
+				--oops_in_progress;
 				if (copied != sizeof(tmpLR)) {
 					pr_info("access_process_vm  pc error\n");
-					ret = -EIO;
-					goto err;
+					return -EIO;
 				}
 				tmpfp = tmp;
 				native_bt[frames] = tmpLR;
@@ -1324,14 +1076,8 @@ static int dump_native_info_by_tid(pid_t tid,
 		}
 	}
 #endif
-	ret = 0;
-err:
-#if IS_ENABLED(CONFIG_MTK_HANG_PROC)
-	mmap_read_unlock(current_task->mm);
-#endif
-	mmput(current_task->mm);
-	return ret;
 
+	return 0;
 }
 
 static void show_bt_by_pid(int task_pid)
@@ -1342,6 +1088,8 @@ static void show_bt_by_pid(int task_pid)
 	struct pt_regs *user_ret;
 #endif
 	int dump_native = 0;
+	unsigned int state = 0;
+	char stat_nam[] = TASK_STATE_TO_CHAR_STR;
 
 	pid = find_get_pid(task_pid);
 	t = p = get_pid_task(pid, PIDTYPE_PID);
@@ -1362,7 +1110,7 @@ static void show_bt_by_pid(int task_pid)
 				pr_info(" %s,%d:%s,fail in user_mode", __func__,
 						task_pid, t->comm);
 				dump_native = 0;
-			} else if (!t->mm) {
+			} else	if (!t->mm) {
 				pr_info(" %s,%d:%s, current_task->mm == NULL", __func__,
 						task_pid, t->comm);
 				dump_native = 0;
@@ -1380,93 +1128,60 @@ static void show_bt_by_pid(int task_pid)
 				dump_native_maps(task_pid, p);
 			put_task_stack(p);
 		} else {
+			state = p->state ? __ffs(p->state) + 1 : 0;
 			log_hang_info("%s pid %d state %c, flags %d. stack is null.\n",
-				t->comm, task_pid, task_state_to_char(p), t->flags);
+				t->comm, task_pid, state < sizeof(stat_nam) - 1 ?
+				stat_nam[state] : '?', t->flags);
 			hang_log("%s pid %d state %c, flags %d. stack is null.\n",
-				t->comm, task_pid, task_state_to_char(p), t->flags);
+				t->comm, task_pid, state < sizeof(stat_nam) - 1 ?
+				stat_nam[state] : '?', t->flags);
 		}
-		if (unlikely(dump_native == 1)) {
-			int thread_array_index = 0;
-			int i = 0;
+		do {
+			if (!t)
+				break;
 
-			mutex_lock(&thread_array_lock);
-			rcu_read_lock();
-			do {
-				if (!t)
-					break;
-				/* save thread */
-				get_task_struct(t);
-				thread_array[thread_array_index] = t;
-				thread_array_index++;
-				if (thread_array_index >= MAX_NR_THREAD) {
-					pr_info("Number of threads exceeding %d", MAX_NR_THREAD);
-					break;
-				}
-			} while_each_thread(p, t);
-			rcu_read_unlock();
-			/* native thread bt dump */
-			for (i = 0; i < thread_array_index; i++) {
-				t = thread_array[i];
-				if (try_get_task_stack(t)) {
-					pid_t tid = 0;
+			get_task_struct(t);
+			if (try_get_task_stack(t)) {
+				pid_t tid = 0;
 
-					tid = task_pid_vnr(t);
-					/* catch kernel bt */
-					show_thread_info(t, true);
-					log_hang_info("%s sysTid=%d, pid=%d\n", t->comm,
-							tid, task_pid);
-					hang_log("%s sysTid=%d, pid=%d\n", t->comm,
-							tid, task_pid);
+				tid = task_pid_vnr(t);
+				state = t->state ? __ffs(t->state) + 1 : 0;
+				/* catch kernel bt */
+				show_thread_info(t, true);
+
+				log_hang_info("%s sysTid=%d, pid=%d\n", t->comm,
+						tid, task_pid);
+				hang_log("%s sysTid=%d, pid=%d\n", t->comm,
+						tid, task_pid);
+
+				if (dump_native == 1)
 					dump_native_info_by_tid(tid, t);
-					put_task_stack(t);
-					log_hang_info("-\n");
-				}
-				put_task_struct(t);
+
+				put_task_stack(t);
 			}
-			mutex_unlock(&thread_array_lock);
-		} else {
-			rcu_read_lock();
-			do {
-				if (!t)
-					break;
+			put_task_struct(t);
+			log_hang_info("-\n");
+		} while_each_thread(p, t);
 
-				get_task_struct(t);
-				if (try_get_task_stack(t)) {
-					pid_t tid = 0;
-
-					tid = task_pid_vnr(t);
-					/* catch kernel bt */
-					show_thread_info(t, true);
-
-					log_hang_info("%s sysTid=%d, pid=%d\n", t->comm,
-							tid, task_pid);
-					hang_log("%s sysTid=%d, pid=%d\n", t->comm,
-							tid, task_pid);
-
-					put_task_stack(t);  /* pairing get_pid_task */
-				}
-				put_task_struct(t);
-				log_hang_info("-\n");
-			} while_each_thread(p, t);
-			rcu_read_unlock();
-		}
-		put_task_struct(p); /* pairing get_pid_task */
+		put_task_struct(p);  /* pairing get_pid_task */
 	}
 	put_pid(pid);
 }
 
-static int is_in_white_list(struct task_struct *p)
+static int show_white_list_bt(struct task_struct *p)
 {
 	struct name_list *pList = NULL;
 
 	if (!white_list)
 		return -1;
 
+
 	raw_spin_lock(&white_list_lock);
 	pList = white_list;
 	while (pList) {
 		if (!strcmp(p->comm, pList->name)) {
 			raw_spin_unlock(&white_list_lock);
+			show_bt_by_pid(p->pid);
 			return 0;
 		}
 		pList = pList->next;
@@ -1481,6 +1196,7 @@ static int run_callback(void)
 
 	if (!callback_list)
 		return -1;
+
 
 	raw_spin_lock(&callback_list_lock);
 	pList = callback_list;
@@ -1504,16 +1220,11 @@ static void show_task_info(void)
 
 static void show_task_backtrace(void)
 {
-	struct task_struct *p, *system_server_task = NULL;
+	struct task_struct *p, *t, *system_server_task = NULL;
 	struct task_struct *monkey_task = NULL;
 	struct task_struct *aee_aed_task = NULL;
-	struct task_info task_info_arr[MAX_NR_SPECIAL_PROCESS];
-	int i = 0;
-	unsigned int task_array_idx = 0;
-	int size_special_process = ARRAY_SIZE(special_process);
 	bool first_dump_blocked = false;
 
-	memset(&task_info_arr, 0, sizeof(task_info_arr));
 #ifdef CONFIG_MTK_HANG_DETECT_DB
 	watchdog_thread_exist = false;
 	system_server_exist = false;
@@ -1543,49 +1254,32 @@ static void show_task_backtrace(void)
 				aee_aed_task = p;
 		}
 		/* specify process, need dump maps file and native backtrace */
-		if (!first_dump_blocked && (task_array_idx < MAX_NR_SPECIAL_PROCESS)) {
-			for (i = 0; i < size_special_process; i++) {
-				if (!strcmp(p->comm, special_process[i])) {
-					task_info_arr[task_array_idx].task = p;
-					task_info_arr[task_array_idx].idx = i;
-					task_array_idx++;
-					if (task_array_idx == MAX_NR_SPECIAL_PROCESS)
-						pr_info("Number of Specify processes is fulfilled");
-					break;
-				}
-			}
-			if (i < size_special_process)
-				continue;
-		}
-		if (!is_in_white_list(p) && (task_array_idx < MAX_NR_SPECIAL_PROCESS)) {
-			task_info_arr[task_array_idx].task = p;
-			task_info_arr[task_array_idx].idx = -99; /* process is from white list */
-			task_array_idx++;
-			if (task_array_idx == MAX_NR_SPECIAL_PROCESS)
-				pr_info("Number of Specify processes is fulfilled");
+		if (!first_dump_blocked &&
+			(!strcmp(p->comm, "init") ||
+			!strcmp(p->comm, "system_server") ||
+			!strcmp(p->comm, "vold") ||
+			!strcmp(p->comm, "vdc"))) {
+			show_bt_by_pid(p->pid);
+			put_task_struct(p);
 			continue;
 		}
-		show_all_thread_info_in_process(p);
+		if (!show_white_list_bt(p)) {
+			put_task_struct(p);
+			continue;
+		}
+		for_each_thread(p, t) {
+			if (t) {
+				get_task_struct(t);
+				if (try_get_task_stack(t)) {
+					show_thread_info(t, false);
+					put_task_stack(t);
+				}
+				put_task_struct(t);
+			}
+		}
 		put_task_struct(p);
 	}
 	rcu_read_unlock();
-	if (task_array_idx > 0) {
-		for (i = 0; i < task_array_idx; i++) {
-			p = task_info_arr[i].task;
-			if (task_info_arr[i].idx == -99) { /* white list process */
-				show_bt_by_pid(p->pid);
-			} else if ((task_info_arr[i].idx == 0) &&
-				(p->pid == 1)) { /* init process */
-				show_bt_by_pid(p->pid);
-			} else if ((task_info_arr[i].idx > 0) &&
-				(!strcmp(p->comm, special_process[task_info_arr[i].idx]))) {
-				show_bt_by_pid(p->pid);
-			} else {
-				show_all_thread_info_in_process(p);
-			}
-			put_task_struct(p);
-		}
-	}
 	log_hang_info("dump backtrace end: %llu\n", local_clock());
 	if (Hang_first_done == false) {
 		if (aee_aed_task)
@@ -1608,6 +1302,7 @@ static void show_status(int flag)
 	}
 #endif
 #endif
+
 
 #if IS_ENABLED(CONFIG_MTK_HANG_PROC)
 	show_mem(0, NULL);
@@ -1702,6 +1397,7 @@ static int hang_detect_thread(void *arg)
 	reset_hang_info();
 	msleep(120 * 1000);
 	pr_debug("[Hang_Detect] hang_detect thread starts.\n");
+
 #ifdef BOOT_UP_HANG
 	hd_timeout = 9;
 	hang_detect_counter = 9;
@@ -1832,10 +1528,6 @@ static int __init monitor_hang_init(void)
 #endif
 #endif
 
-	thread_array = kzalloc(sizeof(struct task_struct *) * MAX_NR_THREAD, GFP_KERNEL);
-	if (thread_array == NULL)
-		return 1;
-
 	err = misc_register(&Hang_Monitor_dev);
 	if (unlikely(err)) {
 		pr_notice("failed to register Hang_Monitor_dev device!\n");
@@ -1849,6 +1541,7 @@ static int __init monitor_hang_init(void)
 	if (!pe)
 		return -ENOMEM;
 #endif
+
 	return err;
 }
 
@@ -1856,7 +1549,6 @@ static void __exit monitor_hang_exit(void)
 {
 	mrdump_regist_hang_bt(NULL);
 	misc_deregister(&Hang_Monitor_dev);
-	kfree(thread_array);
 #ifdef CONFIG_MTK_HANG_DETECT_DB
 	/* kfree(NULL) is safe */
 	kfree(Hang_Info);

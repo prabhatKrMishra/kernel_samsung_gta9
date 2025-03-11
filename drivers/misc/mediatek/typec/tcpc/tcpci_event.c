@@ -156,7 +156,11 @@ static bool __pd_put_event(struct tcpc_device *tcpc,
 	const struct pd_event *pd_event, bool from_port_partner)
 {
 	int index;
-
+	/*Tab A9 code for AX6739A-1934 by lina at 20230713 start*/
+	#ifdef CONFIG_ODM_CUSTOM_D85_BUILD
+	pr_err("[%s] enter!\n", __func__);
+	#endif//CONFIG_ODM_CUSTOM_D85_BUILD
+	/*Tab A9 code for AX6739A-1934 by lina at 20230713 end*/
 #if CONFIG_USB_PD_POSTPONE_OTHER_VDM
 	if (from_port_partner)
 		postpone_vdm_event(tcpc);
@@ -174,7 +178,18 @@ static bool __pd_put_event(struct tcpc_device *tcpc,
 	tcpc->pd_event_ring_buffer[index] = *pd_event;
 
 	atomic_inc(&tcpc->pending_event);
+	/* Tab A9 code for AX6739A-2015 by liufurong at 20230731 start */
+	if (!tcpc->pd_inited_flag) {
+		PD_ERR("event_wait_que not init, direct return\n");
+		return false;
+	}
+	/* Tab A9 code for AX6739A-2015 by liufurong at 20230731 end */
 	wake_up(&tcpc->event_wait_que);
+	/*Tab A9 code for AX6739A-1934 by lina at 20230713 start*/
+	#ifdef CONFIG_ODM_CUSTOM_D85_BUILD
+	pr_err("[%s] done!\n", __func__);
+	#endif//CONFIG_ODM_CUSTOM_D85_BUILD
+	/*Tab A9 code for AX6739A-1934 by lina at 20230713 end*/
 	return true;
 }
 
@@ -339,6 +354,13 @@ bool pd_put_vdm_event(struct tcpc_device *tcpc,
 		tcpc->pd_attention_vdm_msg = *pd_msg;
 
 		atomic_inc(&tcpc->pending_event);
+		/* Tab A9 code for AX6739A-2015 by liufurong at 20230731 start */
+		if (!tcpc->pd_inited_flag) {
+			PD_ERR("event_wait_que not init, direct return\n");
+			mutex_unlock(&tcpc->access_lock);
+			return false;
+		}
+		/* Tab A9 code for AX6739A-2015 by liufurong at 20230731 end */
 		wake_up(&tcpc->event_wait_que);
 	}
 
@@ -383,6 +405,13 @@ bool pd_put_vdm_event(struct tcpc_device *tcpc,
 	}
 
 	atomic_inc(&tcpc->pending_event);
+	/* Tab A9 code for AX6739A-2015 by liufurong at 20230731 start */
+	if (!tcpc->pd_inited_flag) {
+		PD_ERR("event_wait_que not init, direct return\n");
+		mutex_unlock(&tcpc->access_lock);
+		return false;
+	}
+	/* Tab A9 code for AX6739A-2015 by liufurong at 20230731 end */
 	wake_up(&tcpc->event_wait_que);
 	mutex_unlock(&tcpc->access_lock);
 
@@ -398,6 +427,13 @@ bool pd_put_last_vdm_event(struct tcpc_device *tcpc)
 
 	tcpc->pd_pending_vdm_discard = true;
 	atomic_inc(&tcpc->pending_event);
+	/* Tab A9 code for AX6739A-2015 by liufurong at 20230731 start */
+	if (!tcpc->pd_inited_flag) {
+		PD_ERR("event_wait_que not init, direct return\n");
+		mutex_unlock(&tcpc->access_lock);
+		return false;
+	}
+	/* Tab A9 code for AX6739A-2015 by liufurong at 20230731 end */
 	wake_up(&tcpc->event_wait_que);
 
 	/* If the last VDM event isn't INIT event, don't put it again */
@@ -486,6 +522,12 @@ static bool __pd_put_deferred_tcp_event(
 	tcpc->tcp_event_ring_buffer[index] = *tcp_event;
 
 	atomic_inc(&tcpc->pending_event);
+	/* Tab A9 code for AX6739A-2015 by liufurong at 20230731 start */
+	if (!tcpc->pd_inited_flag) {
+		PD_ERR("event_wait_que not init, direct return\n");
+		return false;
+	}
+	/* Tab A9 code for AX6739A-2015 by liufurong at 20230731 end */
 	wake_up(&tcpc->event_wait_que);
 	return true;
 }

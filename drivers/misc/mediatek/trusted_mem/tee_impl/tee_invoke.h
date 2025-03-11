@@ -19,7 +19,8 @@ int secmem_force_hw_protection(void);
 #endif
 
 #if IS_ENABLED(CONFIG_TRUSTONIC_TEE_SUPPORT) || \
-	IS_ENABLED(CONFIG_MICROTRUST_TEE_SUPPORT)
+	IS_ENABLED(CONFIG_MICROTRUST_TEE_SUPPORT) || \
+	IS_ENABLED(CONFIG_TEEGRIS_TEE_SUPPORT)
 int secmem_fr_set_svp_region(u64 pa, u32 size, int remote_region_type);
 int secmem_fr_set_wfd_region(u64 pa, u32 size, int remote_region_type);
 int secmem_fr_set_sapu_data_shm_region(u64 pa, u32 size, int remote_region_type);

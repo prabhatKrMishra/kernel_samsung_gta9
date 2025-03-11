@@ -378,7 +378,7 @@ int mtk_cam_seninf_get_vcinfo(struct seninf_ctx *ctx)
 {
 	int ret = 0;
 	int i, grp, grp_metadata, raw_cnt;
-	struct mtk_mbus_frame_desc fd = {0};
+	struct mtk_mbus_frame_desc fd;
 	struct seninf_vcinfo *vcinfo = &ctx->vcinfo;
 	struct seninf_vc *vc;
 	int desc;
@@ -393,7 +393,6 @@ int mtk_cam_seninf_get_vcinfo(struct seninf_ctx *ctx)
 	if (!ctrl) {
 		dev_info(ctx->dev, "%s, no V4L2_CID_MTK_FRAME_DESC %s\n",
 			__func__, sensor_sd->name);
-		return -EINVAL;
 	}
 
 	ctrl->p_new.p = &fd;
@@ -731,7 +730,7 @@ void mtk_cam_seninf_alloc_cam_mux(struct seninf_ctx *ctx)
 	mutex_lock(&core->mutex);
 
 	/* allocate all cam muxs */
-	for (i = 0; i < vcinfo->cnt && i < SENINF_VC_MAXCNT; i++) {
+	for (i = 0; i < vcinfo->cnt; i++) {
 		vc = &vcinfo->vc[i];
 		ent = list_first_entry_or_null(&core->list_cam_mux,
 					       struct seninf_cam_mux, list);
@@ -1032,24 +1031,6 @@ mtk_cam_seninf_sof_notify(struct mtk_seninf_sof_notify_param *param)
 	struct v4l2_subdev *sd = param->sd;
 	struct seninf_ctx *ctx = container_of(sd, struct seninf_ctx, subdev);
 	struct mtk_seninf_work *seninf_work = NULL;
-	struct v4l2_ctrl *ctrl;
-	struct v4l2_subdev *sensor_sd = ctx->sensor_sd;
-
-	ctrl = v4l2_ctrl_find(sensor_sd->ctrl_handler,
-				V4L2_CID_UPDATE_SOF_CNT);
-	if (!ctrl) {
-		dev_info(ctx->dev, "%s, no V4L2_CID_UPDATE_SOF_CNT %s\n",
-			__func__,
-			sensor_sd->name);
-		return;
-	}
-
-//	dev_info(ctx->dev, "%s sof %s cnt %d\n",
-//		__func__,
-//		sensor_sd->name,
-//		param->sof_cnt);
-	v4l2_ctrl_s_ctrl(ctrl, param->sof_cnt);
-
 
 	if (ctx->streaming) {
 		seninf_work = kmalloc(sizeof(struct mtk_seninf_work),

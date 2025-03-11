@@ -17,11 +17,6 @@
 
 #include "mtk_drm_assert.h"
 
-#ifdef CONFIG_MTK_FB_MMDVFS_SUPPORT
-#include <linux/interconnect.h>
-extern u32 *disp_perfs;
-#endif
-
 #define CRTC_NUM		3
 static struct drm_crtc *dev_crtc;
 /* add for mm qos */
@@ -37,8 +32,6 @@ void mtk_disp_pmqos_get_icc_path_name(char *buf, int buf_len,
 	int len;
 
 	len = snprintf(buf, buf_len, "%s_%s", mtk_dump_comp_str(comp), qos_event);
-	if (len < 0)
-		DDPPR_ERR("%s:snprintf error: %d\n", __func__, len);
 }
 
 int __mtk_disp_pmqos_slot_look_up(int comp_id, int mode)
@@ -195,10 +188,8 @@ int mtk_disp_set_hrt_bw(struct mtk_drm_crtc *mtk_crtc, unsigned int bw)
 	tmp = bw;
 
 	for (i = 0; i < DDP_PATH_NR; i++) {
-		if (mtk_crtc->ddp_mode < DDP_MODE_NR) {
-			if (!(mtk_crtc->ddp_ctx[mtk_crtc->ddp_mode].req_hrt[i]))
-				continue;
-		}
+		if (!(mtk_crtc->ddp_ctx[mtk_crtc->ddp_mode].req_hrt[i]))
+			continue;
 		for_each_comp_in_crtc_target_path(comp, mtk_crtc, j, i) {
 			ret |= mtk_ddp_comp_io_cmd(comp, NULL, PMQOS_SET_HRT_BW,
 						   &tmp);
@@ -230,18 +221,7 @@ int mtk_disp_set_hrt_bw(struct mtk_drm_crtc *mtk_crtc, unsigned int bw)
 		}
 	}
 
-#ifdef CONFIG_MTK_FB_MMDVFS_SUPPORT
-	if (tmp == 0)
-		icc_set_bw(priv->hrt_bw_request, 0, disp_perfs[HRT_LEVEL_LEVEL2]);
-	else if (tmp > 0 && tmp <= 3500)
-		icc_set_bw(priv->hrt_bw_request, 0, disp_perfs[HRT_LEVEL_LEVEL1]);
-	else if (tmp > 3500)
-		icc_set_bw(priv->hrt_bw_request, 0, disp_perfs[HRT_LEVEL_LEVEL0]);
-	else
-		icc_set_bw(priv->hrt_bw_request, 0, disp_perfs[HRT_LEVEL_LEVEL2]);
-#else
 	mtk_icc_set_bw(priv->hrt_bw_request, 0, MBps_to_icc(tmp));
-#endif
 	DRM_MMP_MARK(hrt_bw, 0, tmp);
 	DDPINFO("set HRT bw %u\n", tmp);
 
@@ -452,7 +432,7 @@ void mtk_drm_set_mmclk_by_pixclk(struct drm_crtc *crtc,
 	}
 	mmclk_status = true;
 	if (freq > g_freq_steps[step_size - 1]) {
-		DDPMSG("%s:error:pixleclk (%lu) is to big for mmclk (%u)\n",
+		DDPMSG("%s:error:pixleclk (%d) is to big for mmclk (%llu)\n",
 			caller, freq, g_freq_steps[step_size - 1]);
 		mtk_drm_set_mmclk(crtc, step_size - 1, caller);
 		ret = step_size - 1;

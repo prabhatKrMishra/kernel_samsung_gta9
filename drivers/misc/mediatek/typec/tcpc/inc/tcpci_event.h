@@ -109,6 +109,10 @@ enum pd_msg_type {
 	PD_CTRL_FR_SWAP = 0x10 + 3,
 	PD_CTRL_GET_PPS_STATUS = 0x10 + 4,
 	PD_CTRL_GET_COUNTRY_CODE = 0x10 + 5,
+	/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 start */
+	PD_CTRL_GET_SINK_CAP_EXT = 0x10 + 6,
+	PD_CTRL_GET_REVISION = 0x10 + 8,
+	/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 end */
 #endif	/* CONFIG_USB_PD_REV30 */
 	/* 22-31 Reserved */
 	PD_CTRL_MSG_NR,
@@ -123,6 +127,9 @@ enum pd_msg_type {
 	PD_DATA_BAT_STATUS = 5,
 	PD_DATA_ALERT = 6,
 	PD_DATA_GET_COUNTRY_INFO = 7,
+	/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 start */
+	PD_DATA_REVISION = 12,
+	/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 end */
 #endif	/* CONFIG_USB_PD_REV30 */
 	/* 7-14 Reserved */
 	PD_DATA_VENDOR_DEF = 15,
@@ -144,6 +151,9 @@ enum pd_msg_type {
 	PD_EXT_PPS_STATUS = 12,
 	PD_EXT_COUNTRY_INFO = 13,
 	PD_EXT_COUNTRY_CODES = 14,
+	/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 start */
+	PD_EXT_SINK_CAP_EXT = 15,
+	/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 end */
 	/* 15 Reserved */
 	PD_EXT_MSG_NR,
 #endif	/* CONFIG_USB_PD_REV30 */

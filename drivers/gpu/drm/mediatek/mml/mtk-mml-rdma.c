@@ -316,7 +316,7 @@ static s32 rdma_write_ofst(struct cmdq_pkt *pkt, phys_addr_t base_pa, u8 hw_pipe
 	enum cpr_reg_idx msb_idx;
 	s32 ret;
 
-	if (unlikely(lsb_idx >= CPR_RDMA_COUNT))
+	if (unlikely(lsb_idx < 0))
 		return -EFAULT;
 
 	msb_idx = lsb_to_msb[lsb_idx];
@@ -356,7 +356,7 @@ static s32 rdma_write_addr(struct cmdq_pkt *pkt, phys_addr_t base_pa, u8 hw_pipe
 	enum cpr_reg_idx msb_idx;
 	s32 ret;
 
-	if (unlikely(lsb_idx >= CPR_RDMA_COUNT))
+	if (unlikely(lsb_idx < 0))
 		return -EFAULT;
 
 	msb_idx = lsb_to_msb[lsb_idx];
@@ -1092,7 +1092,7 @@ static s32 rdma_config_frame(struct mml_comp *comp, struct mml_task *task,
 	rdma_write(pkt, base_pa, hw_pipe, CPR_RDMA_DITHER_CON, 0x0, write_sec);
 
 	gmcif_con = BIT(0) |		/* COMMAND_DIV */
-		    GENMASK(7, 4) |	/* READ_REQUEST_TYPE */
+		    GENMASK(6, 4) |	/* READ_REQUEST_TYPE */
 		    GENMASK(9, 8) |	/* WRITE_REQUEST_TYPE */
 		    BIT(16);		/* PRE_ULTRA_EN */
 	/* racing case also enable urgent/ultra to not blocking disp */
@@ -1397,7 +1397,7 @@ static s32 rdma_config_tile(struct mml_comp *comp, struct mml_task *task,
 
 		/* Set 10bit UFO mode */
 		if (MML_FMT_10BIT_PACKED(src->format) && rdma_frm->enable_ufo)
-			src_offset_wp = DO_COMMON_DIV((src_offset_0 << 2), 5);
+			src_offset_wp = (src_offset_0 << 2) / 5;
 
 		/* Set U pixel offset */
 		src_offset_1 = ((in_xs >> rdma_frm->hor_shift_uv) *
@@ -1671,6 +1671,14 @@ static void rdma_debug_dump(struct mml_comp *comp)
 	value[1] = readl(base + RDMA_RESET);
 	value[2] = readl(base + RDMA_SRC_CON);
 	value[3] = readl(base + RDMA_COMP_CON);
+	/* for afbc case enable more debug info */
+	if (value[3] & BIT(22)) {
+		u32 debug_con = readl(base + RDMA_DEBUG_CON);
+
+		debug_con |= 0xe000;
+		writel(debug_con, base + RDMA_DEBUG_CON);
+	}
+
 	value[4] = readl(base + RDMA_MF_BKGD_SIZE_IN_BYTE);
 	value[5] = readl(base + RDMA_MF_BKGD_SIZE_IN_PXL);
 	value[6] = readl(base + RDMA_MF_SRC_SIZE);

@@ -207,28 +207,23 @@ static ssize_t gbe_thrm_hdrm_thrs_store(struct kobject *kobj,
 		const char *buf, size_t count)
 {
 	int val = 0;
-	char *acBuffer;
+	char acBuffer[GBE_SYSFS_MAX_BUFF_SIZE];
 	int arg;
 	int cpu_boost = 0, eas_boost = -1, vcore_boost = -1,
 			io_boost = 0, he_boost = 0, gpu_boost = 0,
 			llf_boost = 0;
-
-	acBuffer = kcalloc(GBE_SYSFS_MAX_BUFF_SIZE, sizeof(char),
-				GFP_KERNEL);
-	if (!acBuffer)
-		return -ENOMEM;
 
 	if ((count > 0) && (count < GBE_SYSFS_MAX_BUFF_SIZE)) {
 		if (scnprintf(acBuffer, GBE_SYSFS_MAX_BUFF_SIZE, "%s", buf)) {
 			if (kstrtoint(acBuffer, 0, &arg) == 0)
 				val = arg;
 			else
-				goto err;
+				return count;
 		}
 	}
 
 	if (val > 1000 || val < 0)
-		goto err;
+		return count;
 
 	mutex_lock(&gbe_lock);
 	thrm_hdrm_thrs = val;
@@ -242,8 +237,6 @@ static ssize_t gbe_thrm_hdrm_thrs_store(struct kobject *kobj,
 	gbe_sentcmd(GBE_BOOST_LLF, llf_boost, -1);
 	mutex_unlock(&gbe_lock);
 
-err:
-	kfree(acBuffer);
 	return count;
 }
 
@@ -261,32 +254,25 @@ static ssize_t gbe_cpu_0_store(struct kobject *kobj,
 		const char *buf, size_t count)
 {
 	int val = 0;
-	char *acBuffer;
+	char acBuffer[GBE_SYSFS_MAX_BUFF_SIZE];
 	int arg;
-
-	acBuffer = kcalloc(GBE_SYSFS_MAX_BUFF_SIZE, sizeof(char),
-				GFP_KERNEL);
-	if (!acBuffer)
-		return -ENOMEM;
 
 	if ((count > 0) && (count < GBE_SYSFS_MAX_BUFF_SIZE)) {
 		if (scnprintf(acBuffer, GBE_SYSFS_MAX_BUFF_SIZE, "%s", buf)) {
 			if (kstrtoint(acBuffer, 0, &arg) == 0)
 				val = arg;
 			else
-				goto err;
+				return count;
 		}
 	}
 
 	if (val < 0)
-		goto err;
+		return count;
 
 	mutex_lock(&gbe_lock);
 	cpu_user_0 = val;
 	mutex_unlock(&gbe_lock);
 
-err:
-	kfree(acBuffer);
 	return count;
 }
 static KOBJ_ATTR_RW(gbe_cpu_0);
@@ -303,32 +289,25 @@ static ssize_t gbe_cpu_1_store(struct kobject *kobj,
 		const char *buf, size_t count)
 {
 	int val = 0;
-	char *acBuffer;
+	char acBuffer[GBE_SYSFS_MAX_BUFF_SIZE];
 	int arg;
-
-	acBuffer = kcalloc(GBE_SYSFS_MAX_BUFF_SIZE, sizeof(char),
-				GFP_KERNEL);
-	if (!acBuffer)
-		return -ENOMEM;
 
 	if ((count > 0) && (count < GBE_SYSFS_MAX_BUFF_SIZE)) {
 		if (scnprintf(acBuffer, GBE_SYSFS_MAX_BUFF_SIZE, "%s", buf)) {
 			if (kstrtoint(acBuffer, 0, &arg) == 0)
 				val = arg;
 			else
-				goto err;
+				return count;
 		}
 	}
 
 	if (val < 0)
-		goto err;
+		return count;
 
 	mutex_lock(&gbe_lock);
 	cpu_user_1 = val;
 	mutex_unlock(&gbe_lock);
 
-err:
-	kfree(acBuffer);
 	return count;
 }
 static KOBJ_ATTR_RW(gbe_cpu_1);
@@ -345,32 +324,25 @@ static ssize_t gbe_cpu_2_store(struct kobject *kobj,
 		const char *buf, size_t count)
 {
 	int val = 0;
-	char *acBuffer;
+	char acBuffer[GBE_SYSFS_MAX_BUFF_SIZE];
 	int arg;
-
-	acBuffer = kcalloc(GBE_SYSFS_MAX_BUFF_SIZE, sizeof(char),
-				GFP_KERNEL);
-	if (!acBuffer)
-		return -ENOMEM;
 
 	if ((count > 0) && (count < GBE_SYSFS_MAX_BUFF_SIZE)) {
 		if (scnprintf(acBuffer, GBE_SYSFS_MAX_BUFF_SIZE, "%s", buf)) {
 			if (kstrtoint(acBuffer, 0, &arg) == 0)
 				val = arg;
 			else
-				goto err;
+				return count;
 		}
 	}
 
 	if (val < 0)
-		goto err;
+		return count;
 
 	mutex_lock(&gbe_lock);
 	cpu_user_2 = val;
 	mutex_unlock(&gbe_lock);
 
-err:
-	kfree(acBuffer);
 	return count;
 }
 static KOBJ_ATTR_RW(gbe_cpu_2);
@@ -387,28 +359,23 @@ static ssize_t gbe_policy_mask_store(struct kobject *kobj,
 		const char *buf, size_t count)
 {
 	int val = 0;
-	char *acBuffer;
+	char acBuffer[GBE_SYSFS_MAX_BUFF_SIZE];
 	int arg;
 	int cpu_boost = 0, eas_boost = -1, vcore_boost = -1,
 			io_boost = 0, he_boost = 0, gpu_boost = 0,
 			llf_boost = 0;
-
-	acBuffer = kcalloc(GBE_SYSFS_MAX_BUFF_SIZE, sizeof(char),
-				GFP_KERNEL);
-	if (!acBuffer)
-		return -ENOMEM;
 
 	if ((count > 0) && (count < GBE_SYSFS_MAX_BUFF_SIZE)) {
 		if (scnprintf(acBuffer, GBE_SYSFS_MAX_BUFF_SIZE, "%s", buf)) {
 			if (kstrtoint(acBuffer, 0, &arg) == 0)
 				val = arg;
 			else
-				goto EXIT;
+				return count;
 		}
 	}
 
 	if (val > 1 << GBE_BOOST_NUM || val < 0)
-		goto EXIT;
+		return count;
 
 	mutex_lock(&gbe_lock);
 	policy_mask = val;
@@ -425,8 +392,6 @@ static ssize_t gbe_policy_mask_store(struct kobject *kobj,
 	gbe_sentcmd(GBE_BOOST_LLF, llf_boost, -1);
 	mutex_unlock(&gbe_lock);
 
-EXIT:
-	kfree(acBuffer);
 	return count;
 }
 

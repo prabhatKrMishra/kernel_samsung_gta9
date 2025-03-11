@@ -616,14 +616,13 @@ void fsync_setup_hdr_exp_data(struct adaptor_ctx *ctx,
 static int _get_frame_desc(struct adaptor_ctx *ctx, unsigned int pad,
 		struct mtk_mbus_frame_desc *fd)
 {
-	/* default -1 is the same as subdrv_call get_frame_desc */
-	int ret = -1;
+	int ret;
 //	struct adaptor_ctx *ctx = to_ctx(sd);
 	u64 desc_visited = 0x0;
 	int write_to = 0, i = -1, j = 0;
 
 	while (i < SENSOR_SCENARIO_ID_MAX) {
-		struct mtk_mbus_frame_desc fd_tmp = {0};
+		struct mtk_mbus_frame_desc fd_tmp;
 		u32 scenario_id = (-1 == i) ? ctx->cur_mode->id : ctx->seamless_scenarios[i];
 
 		if (scenario_id == SENSOR_SCENARIO_ID_NONE)
@@ -634,8 +633,7 @@ static int _get_frame_desc(struct adaptor_ctx *ctx, unsigned int pad,
 		if (!ret) {
 			for (j = 0; write_to < MTK_FRAME_DESC_ENTRY_MAX && j < fd_tmp.num_entries;
 				++j) {
-				if (desc_visited
-					& ((u64)(0x1) << fd_tmp.entry[j].bus.csi2.user_data_desc))
+				if (desc_visited & (0x1 << fd_tmp.entry[j].bus.csi2.user_data_desc))
 					continue;
 
 				dev_info(ctx->dev, "[%s] scenario %u desc %d/%d/%d/%d\n", __func__,
@@ -645,8 +643,7 @@ static int _get_frame_desc(struct adaptor_ctx *ctx, unsigned int pad,
 				memcpy(&fd->entry[write_to++], &fd_tmp.entry[j],
 					   sizeof(struct mtk_mbus_frame_desc_entry));
 
-				desc_visited |=
-					((u64)(0x1) << fd_tmp.entry[j].bus.csi2.user_data_desc);
+				desc_visited |= (0x1 << fd_tmp.entry[j].bus.csi2.user_data_desc);
 			}
 		}
 
@@ -747,9 +744,6 @@ static int ext_ctrl(struct adaptor_ctx *ctx, struct v4l2_ctrl *ctrl, struct sens
 		break;
 	case V4L2_CID_MTK_SENSOR_RESET_BY_USER:
 		ctrl->val = mode->esd_reset_by_user;
-		break;
-	case V4L2_CID_MTK_DO_NOT_POWER_ON:
-		ctrl->val = ctx->forbid_idx;
 		break;
 	default:
 		break;
@@ -878,9 +872,6 @@ static int imgsensor_set_ctrl(struct v4l2_ctrl *ctrl)
 		return 0;
 
 	switch (ctrl->id) {
-	case V4L2_CID_UPDATE_SOF_CNT:
-		subdrv_call(ctx, update_sof_cnt, (u64)ctrl->val);
-		break;
 	case V4L2_CID_VSYNC_NOTIFY:
 		subdrv_call(ctx, vsync_notify, (u64)ctrl->val);
 		notify_fsync_vsync(ctx);
@@ -927,7 +918,7 @@ static int imgsensor_set_ctrl(struct v4l2_ctrl *ctrl)
 			union feature_para para2;
 			__u32 fine_integ_time = 0;
 
-			para.u64[0] = (u64)(ctrl->val) * 100000;
+			para.u64[0] = ctrl->val * 100000;
 			do_div(para.u64[0], ctx->cur_mode->linetime_in_ns);
 
 			/* read fine integ time*/
@@ -1130,18 +1121,9 @@ static int imgsensor_set_ctrl(struct v4l2_ctrl *ctrl)
 			for (i = SENSOR_SCENARIO_ID_MIN; i < SENSOR_SCENARIO_ID_MAX; i++)
 				ctx->seamless_scenarios[i] = SENSOR_SCENARIO_ID_NONE;
 
-			ret = copy_from_user(
-				&ctx->seamless_scenarios, info->target_scenario_ids,
-				min(sizeof(ctx->seamless_scenarios),
+			copy_from_user(&ctx->seamless_scenarios, info->target_scenario_ids,
+					min(sizeof(ctx->seamless_scenarios),
 					info->count * sizeof(*info->target_scenario_ids)));
-
-			/* returns number of bytes that could not be copied */
-			/* On success, this will be zero */
-			if (ret != 0) {
-				dev_info(dev,
-					"[V4L2_CID_SEAMLESS_SCENARIOS] copy_from_user has some error, ret:%d\n",
-					ret);
-			}
 		}
 		break;
 	case V4L2_CID_START_SEAMLESS_SWITCH:
@@ -1385,15 +1367,6 @@ static const struct v4l2_ctrl_config cfg_vsync_notify = {
 	.step = 1,
 };
 
-static const struct v4l2_ctrl_config cfg_update_sof_cnt = {
-	.ops = &ctrl_ops,
-	.id = V4L2_CID_UPDATE_SOF_CNT,
-	.name = "update_sof_cnt",
-	.type = V4L2_CTRL_TYPE_INTEGER,
-	.flags = V4L2_CTRL_FLAG_EXECUTE_ON_WRITE,
-	.max = 0xffff,
-	.step = 1,
-};
 
 static struct v4l2_ctrl_config cfg_ae_ctrl = {
 	.ops = &ctrl_ops,
@@ -1449,7 +1422,7 @@ static const struct v4l2_ctrl_config cfg_shutter_gain_sync = {
 	.name = "shutter_gain_sync",
 	.type = V4L2_CTRL_TYPE_U32,
 	.flags = V4L2_CTRL_FLAG_EXECUTE_ON_WRITE,
-	.max = 0xffffffff,
+	.max = 0xffff,
 	.step = 1,
 	.dims = {sizeof_u32(struct mtk_shutter_gain_sync)},
 };
@@ -1736,16 +1709,6 @@ static const struct v4l2_ctrl_config cfg_sensor_reset_by_user = {
 	.step = 1,
 };
 
-static const struct v4l2_ctrl_config cfg_mtkcam_do_not_power_on = {
-	.ops = &ctrl_ops,
-	.id = V4L2_CID_MTK_DO_NOT_POWER_ON,
-	.name = "do_not_power_on",
-	.type = V4L2_CTRL_TYPE_INTEGER,
-	.flags = V4L2_CTRL_FLAG_VOLATILE,
-	.max = 0x7fffffff,
-	.step = 1,
-};
-
 void adaptor_sensor_init(struct adaptor_ctx *ctx)
 {
 	if (ctx && !ctx->is_sensor_inited) {
@@ -1972,7 +1935,6 @@ int adaptor_init_ctrls(struct adaptor_ctx *ctx)
 		&cfg_fsync_map_id, NULL);
 
 	v4l2_ctrl_new_custom(&ctx->ctrls, &cfg_vsync_notify, NULL);
-	v4l2_ctrl_new_custom(&ctx->ctrls, &cfg_update_sof_cnt, NULL);
 	v4l2_ctrl_new_custom(&ctx->ctrls, &cfg_stagger_info, NULL);
 	v4l2_ctrl_new_custom(&ctx->ctrls, &cfg_stagger_scenario, NULL);
 	v4l2_ctrl_new_custom(&ctx->ctrls, &cfg_stagger_max_exp_time, NULL);
@@ -1983,7 +1945,6 @@ int adaptor_init_ctrls(struct adaptor_ctx *ctx)
 	v4l2_ctrl_new_custom(&ctx->ctrls, &cfg_fd_ctrl, NULL);
 	v4l2_ctrl_new_custom(&ctx->ctrls, &cfg_csi_param_ctrl, NULL);
 	v4l2_ctrl_new_custom(&ctx->ctrls, &cfg_test_pattern_data, NULL);
-	v4l2_ctrl_new_custom(&ctx->ctrls, &cfg_mtkcam_do_not_power_on, NULL);
 
 #ifdef IMGSENSOR_DEBUG
 	v4l2_ctrl_new_custom(&ctx->ctrls, &cfg_debug_cmd, NULL);

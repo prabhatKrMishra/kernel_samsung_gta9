@@ -374,6 +374,14 @@ int pd_hal_set_input_current(struct chg_alg_device *alg,
 	if (alg == NULL)
 		return -EINVAL;
 
+	/*Tab A9 code for SR-AX6739A-01-503 by qiaodan at 20230510 start*/
+	#if defined(CONFIG_CUSTOM_PROJECT_OT11)
+	if (ua > PD_IBUS_LOW_BOUND) {
+		ua = PD_IBUS_HIGH_BOUND;
+	}
+	#endif
+	/*Tab A9 code for SR-AX6739A-01-503 by qiaodan at 20230510 end*/
+
 	hal = chg_alg_dev_get_drv_hal_data(alg);
 	charger_dev_set_input_current(hal->chg1_dev, ua);
 
@@ -509,7 +517,7 @@ int pd_hal_get_charging_current(struct chg_alg_device *alg,
 		charger_dev_get_charging_current(hal->chg1_dev, ua);
 	else if (chgidx == CHG2 && hal->chg2_dev != NULL)
 		charger_dev_get_charging_current(hal->chg2_dev, ua);
-	pd_dbg("%s idx:%d %lu\n", __func__, chgidx, (unsigned long)ua);
+	pd_dbg("%s idx:%d %u\n", __func__, chgidx, ua);
 
 	return 0;
 }

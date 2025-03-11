@@ -84,10 +84,6 @@ static int typec_attach_thread(void *data)
 
 	pr_info("%s: ++\n", __func__);
 	while (!kthread_should_stop()) {
-		if (mci == NULL) {
-			pr_notice("%s: mci is null\n", __func__);
-			return -ENODEV;
-		}
 		ret = wait_event_interruptible(mci->attach_wq,
 			   atomic_read(&mci->chrdet_start) > 0 ||
 							 kthread_should_stop());
@@ -310,8 +306,14 @@ static int mtk_ctd_probe(struct platform_device *pdev)
 
 	mtk_ctd_parse_dt(mci);
 
+	/*Tab A9 code for AX6739A-516 by wenyaqi at 20230603 start*/
+	#if defined(CONFIG_CUSTOM_PROJECT_OT11)
+	mci->bc12_psy = power_supply_get_by_name("charger");
+	#else
 	mci->bc12_psy = devm_power_supply_get_by_phandle(&pdev->dev,
 							"bc12");
+	#endif // CONFIG_CUSTOM_PROJECT_OT11
+	/*Tab A9 code for AX6739A-516 by wenyaqi at 20230603 end*/
 	if (IS_ERR_OR_NULL(mci->bc12_psy)) {
 		dev_notice(&pdev->dev, "Failed to get charger psy\n");
 		return PTR_ERR(mci->bc12_psy);

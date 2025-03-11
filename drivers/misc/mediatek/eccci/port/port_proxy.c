@@ -453,6 +453,12 @@ READ_START:
 	}
 	ts_1 = local_clock();
 
+#ifdef CONFIG_MTK_SRIL_SUPPORT
+	if (port->rx_ch == CCCI_RIL_IPC0_RX || port->rx_ch == CCCI_RIL_IPC1_RX) {
+		print_hex_dump(KERN_INFO, "3. mif: RX: ",
+				DUMP_PREFIX_NONE, 32, 1, skb->data, 32, 0);
+	}
+#endif
 	skb_pull(skb, read_len);
 	/* 4. free request */
 	if (full_req_done)
@@ -468,6 +474,12 @@ READ_START:
 
 
  exit:
+#ifdef CONFIG_MTK_SRIL_SUPPORT
+	if (ret < 0 && (port->rx_ch == CCCI_RIL_IPC0_RX || port->rx_ch == CCCI_RIL_IPC1_RX))
+		CCCI_ERROR_LOG(port->md_id, CHAR,
+				"RILD failed to read ipc packet, ret = %d, rx_ch = %d\n",
+				ret, port->rx_ch);
+#endif
 	return ret ? ret : read_len;
 }
 
@@ -586,11 +598,9 @@ ssize_t port_dev_write(struct file *file, const char __user *buf,
 		return actual_count;
 
  err_out:
-		if ((ret != -ETXTBSY) && (ret != -ENODEV)) {
-			CCCI_NORMAL_LOG(md_id, CHAR,
-				"write error done on %s, l=%zu r=%d\n",
-				port->name, actual_count, ret);
-		}
+		CCCI_NORMAL_LOG(md_id, CHAR,
+			"write error done on %s, l=%zu r=%d\n",
+			port->name, actual_count, ret);
 		ccci_free_skb(skb);
 		return ret;
 	}
@@ -1011,6 +1021,13 @@ int port_recv_skb(struct port_t *port, struct sk_buff *skb)
 			}
 		}
 
+#ifdef CONFIG_MTK_SRIL_SUPPORT
+		if (ccci_h->channel == CCCI_RIL_IPC0_RX
+			|| ccci_h->channel == CCCI_RIL_IPC1_RX) {
+			print_hex_dump(KERN_INFO, "2. mif: RX: ",
+				DUMP_PREFIX_NONE, 32, 1, skb->data, 32, 0);
+		}
+#endif
 		atomic_inc(&port->rx_pkg_cnt);
 		spin_unlock_irqrestore(&port->rx_skb_list.lock, flags);
 		__pm_wakeup_event(port->rx_wakelock, jiffies_to_msecs(HZ/2));
@@ -1027,9 +1044,15 @@ int port_recv_skb(struct port_t *port, struct sk_buff *skb)
 			"port %s Rx full, drop packet\n",
 			port->name);
 		goto drop;
-	} else
+	} else {
+#ifdef CONFIG_MTK_SRIL_SUPPORT
+		__pm_wakeup_event(port->rx_wakelock, jiffies_to_msecs(HZ/2));
+		spin_lock_irqsave(&port->rx_wq.lock, flags);
+		wake_up_all_locked(&port->rx_wq);
+		spin_unlock_irqrestore(&port->rx_wq.lock, flags);
+#endif
 		return -CCCI_ERR_PORT_RX_FULL;
-
+	}
  drop:
 	/* only return drop and caller do drop */
 	CCCI_NORMAL_LOG(port->md_id, TAG,
@@ -1126,8 +1149,10 @@ int port_user_register(struct port_t *port)
 	proxy_p = GET_PORT_PROXY(md_id);
 	if (rx_ch == CCCI_FS_RX)
 		proxy_set_critical_user(proxy_p, CRIT_USR_FS, 1);
+#ifndef CONFIG_MTK_SRIL_SUPPORT
 	if (rx_ch == CCCI_UART2_RX)
 		proxy_set_critical_user(proxy_p, CRIT_USR_MUXD, 1);
+#endif
 	if (rx_ch == CCCI_MD_LOG_RX || (rx_ch == CCCI_SMEM_CH &&
 		strcmp(port->name, "ccci_ccb_dhl") == 0))
 		proxy_set_critical_user(proxy_p, CRIT_USR_MDLOG, 1);
@@ -1135,6 +1160,9 @@ int port_user_register(struct port_t *port)
 		proxy_set_critical_user(proxy_p, CRIT_USR_META, 1);
 	return 0;
 }
+#ifdef CONFIG_MTK_SRIL_SUPPORT
+EXPORT_SYMBOL(port_user_register);
+#endif
 
 int port_user_unregister(struct port_t *port)
 {
@@ -1592,30 +1620,30 @@ static inline void proxy_dispatch_md_status(struct port_proxy *proxy_p,
 static inline void proxy_dump_status(struct port_proxy *proxy_p)
 {
 	struct port_t *port = NULL;
-	/* hardcode, port number should not be larger than 64 */
-	unsigned long long port_full = 0;
-	unsigned int i, str_len = 0;
-	char full_port[124];
-	int ret;
+	unsigned int port_full_sum = 0;
+	unsigned int i, full_len;
+	/* the worst is all port full */
+	char port_full[352];
+	int ret = 0;
 
+	if (!proxy_p || !proxy_p->ports) {
+		CCCI_ERROR_LOG(0, TAG, "proxy_p or proxy_p->ports is NULL\n");
+		return;
+	}
+
+	full_len = sizeof(port_full);
+	memset(port_full, 0, full_len);
 	for (i = 0; i < proxy_p->port_number; i++) {
 		port = proxy_p->ports + i;
 		if (port->flags & PORT_F_RX_FULLED) {
-			port_full |= (1LL << i);
-			if (str_len < 124) {
-				ret = snprintf(full_port + str_len,
-					(124 - str_len), "%s;", port->name);
-				if (ret <= 0) {
-					CCCI_ERROR_LOG(proxy_p->md_id, TAG,
-						"port_full len > 124\n");
-					break;
-				}
-				str_len += ret;
-			}
+			port_full_sum++;
+			ret += scnprintf(port_full + ret, full_len - ret, "%d ",
+				port->rx_ch);
+			if (ret >= full_len)
+				break;
 		}
 		if (port->tx_busy_count != 0 || port->rx_busy_count != 0) {
-			CCCI_REPEAT_LOG(proxy_p->md_id, TAG,
-				"port %s busy count %d/%d\n", port->name,
+			CCCI_REPEAT_LOG(0, TAG, "port %s busy count %d/%d\n", port->name,
 				port->tx_busy_count, port->rx_busy_count);
 			port->tx_busy_count = 0;
 			port->rx_busy_count = 0;
@@ -1623,9 +1651,9 @@ static inline void proxy_dump_status(struct port_proxy *proxy_p)
 		if (port->ops->dump_info)
 			port->ops->dump_info(port, 0);
 	}
-	if (port_full)
-		CCCI_ERROR_LOG(proxy_p->md_id, TAG,
-			"port_full status=%llx, %s\n", port_full, full_port);
+	if (port_full_sum)
+		CCCI_ERROR_LOG(0, TAG, "port_full sum = %u, rx_ch: %s\n",
+			port_full_sum, port_full);
 }
 
 static inline int proxy_register_char_dev(struct port_proxy *proxy_p)
@@ -1772,6 +1800,10 @@ struct port_t *port_get_by_minor(int md_id, int minor)
 	return proxy_get_port(GET_PORT_PROXY(md_id), minor,
 			CCCI_INVALID_CH_ID);
 }
+#ifdef CONFIG_MTK_SRIL_SUPPORT
+EXPORT_SYMBOL(port_get_by_minor);
+#endif
+
 struct port_t *port_get_by_channel(int md_id, enum CCCI_CH ch)
 {
 	if (md_id < 0 || md_id >= MAX_MD_NUM) {

@@ -239,7 +239,7 @@ ____rb_erase_color(struct rb_node *parent, struct rb_root *root,
 		 */
 		sibling = parent->rb_right;
 		if (node != sibling) {	/* node == parent->rb_left */
-			if (rb_is_red(sibling)) {
+			if (sibling && rb_is_red(sibling)) {
 				/*
 				 * Case 1 - left rotate at parent
 				 *
@@ -351,7 +351,7 @@ ____rb_erase_color(struct rb_node *parent, struct rb_root *root,
 			break;
 		} else {
 			sibling = parent->rb_left;
-			if (rb_is_red(sibling)) {
+			if (sibling && rb_is_red(sibling)) {
 				/* Case 1 - right rotate at parent */
 				tmp1 = sibling->rb_right;
 				WRITE_ONCE(parent->rb_left, tmp1);

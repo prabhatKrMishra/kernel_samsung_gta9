@@ -57,11 +57,58 @@
 #include <linux/of_irq.h>
 #include <linux/of_address.h>
 #include <linux/reboot.h>
+/*Tab A9 code for AX6739A-12 by wenyaqi at 20230421 start*/
+#include <linux/iio/consumer.h>
+/*Tab A9 code for AX6739A-12 by wenyaqi at 20230421 end*/
+/*Tab A9 U code for AX6739AU-127 by wenyaqi at 20240102 start*/
+#include "gxy_battery_ttf.h"
+/*Tab A9 U code for AX6739AU-127 by wenyaqi at 20240102 end*/
 
 #include <asm/setup.h>
 
 #include "mtk_charger.h"
 #include "mtk_battery.h"
+
+/*Tab A9 code for SR-AX6739A-01-263 by zhawei at 20230522 start*/
+int g_tp_detect_usb_flag = 0;
+EXPORT_SYMBOL(g_tp_detect_usb_flag);
+
+static BLOCKING_NOTIFIER_HEAD(tp_usb_notifier);
+/**
+ *
+ * @Param[]: nb: < Pointer to head of tp_usb_notifier >
+ * @Return: < int execute result >
+ */
+int tp_usb_notifier_register(struct notifier_block *nb)
+{
+	return blocking_notifier_chain_register(&tp_usb_notifier, nb);
+}
+EXPORT_SYMBOL(tp_usb_notifier_register);
+
+/**
+ *
+ * @Param[]: nb: < Pointer to head of tp_usb_notifier >
+ * @Return: < int execute result >
+ */
+
+int tp_usb_notifier_unregister(struct notifier_block *nb)
+{
+	return blocking_notifier_chain_unregister(&tp_usb_notifier, nb);
+}
+EXPORT_SYMBOL(tp_usb_notifier_unregister);
+/**
+ *
+ * @Param[]: val: < event of usb insertion and removal >
+ * @Return: < int execute result >
+ * @Purpose:  < Notification of usb insertion and removal >
+ */
+
+int tp_usb_notifier_call_chain(unsigned long val, void *v)
+{
+	return blocking_notifier_call_chain(&tp_usb_notifier, val, v);
+}
+EXPORT_SYMBOL(tp_usb_notifier_call_chain);
+/*Tab A9 code for SR-AX6739A-01-263 by zhawei at 20230522 end*/
 
 struct tag_bootmode {
 	u32 size;
@@ -89,7 +136,7 @@ const char *chg_get_cmd(void)
 		if (!bootargs)
 			chr_err("%s: failed to get bootargs\n", __func__);
 		else {
-			strncpy(__chg_cmdline, bootargs, 100);
+			strcpy(__chg_cmdline, bootargs);
 			chr_err("%s: bootargs: %s\n", __func__, bootargs);
 		}
 	} else
@@ -168,10 +215,152 @@ int _mtk_enable_charging(struct mtk_charger *info,
 	return false;
 }
 
+/*Tab A9 code for SR-AX6739A-01-486 by qiaodan at 20230512 start*/
+int _mtk_enable_port_charging(struct mtk_charger *info,
+	bool en)
+{
+	chr_debug("%s en:%d\n", __func__, en);
+	if (info->algo.enable_port_charging != NULL) {
+		return info->algo.enable_port_charging(info, en);
+	}
+	return false;
+}
+/*Tab A9 code for SR-AX6739A-01-486 by qiaodan at 20230512 end*/
+
+/*Tab A9 code for SR-AX6739A-01-523 by hualei at 20230516 start*/
+int mtk_charger_set_shipmode(struct mtk_charger *info, bool enbale)
+{
+	int ret = 0;
+	struct charger_device *chg_dev = NULL;
+	int i = 0;
+	chr_debug("%s start", __func__);
+
+	if (info == NULL) {
+		return -ENODEV;
+	}
+
+	chg_dev = info->chg1_dev;
+
+	do {
+		charger_dev_set_shipmode(chg_dev, enbale);
+		msleep(100);
+		ret = charger_dev_get_shipmode(chg_dev);
+	} while ((i++ < GXY_SHIP_CYCLE) && !ret);
+
+	if (!ret) {
+		chr_err("Set shipmode Fail!\n", __func__);
+	}
+	return ret;
+}
+
+int mtk_charger_get_shippmode (struct mtk_charger *info)
+{
+	int en = 0;
+	struct charger_device *chg_dev = NULL;
+
+	chg_dev = info->chg1_dev;
+
+	en = charger_dev_get_shipmode(chg_dev);
+	return en;
+}
+/*Tab A9 code for SR-AX6739A-01-523 by hualei at 20230516 end*/
+
+/*Tab A9 code for SR-AX6739A-01-506 by hualei at 20230519 start*/
+int mtk_charger_dump_charger_register(struct mtk_charger *info)
+{
+	int ret = 0 ;
+	struct charger_device *chg_dev = NULL;
+
+	if (info == NULL) {
+	    return -ENODEV;
+	}
+	chg_dev = info->chg1_dev;
+	ret = charger_dev_dump_registers(chg_dev);
+	if (ret < 0) {
+	    pr_err("%s: dump_registers failed\n", __func__);
+	}
+	return ret;
+}
+/*Tab A9 code for SR-AX6739A-01-506 by hualei at 20230519 end*/
+
 int mtk_charger_notifier(struct mtk_charger *info, int event)
 {
 	return srcu_notifier_call_chain(&info->evt_nh, event, NULL);
 }
+
+/*Tab A9 code for SR-AX6739A-01-522 by gaozhengwei at 20230607 start*/
+#if !defined(CONFIG_ODM_CUSTOM_FACTORY_BUILD)
+static int read_range_data_from_node(struct device_node *node,
+					const char *prop_str, struct range_data *ranges,
+					u32 max_threshold, u32 max_value)
+{
+	int rc = 0;
+	int i = 0;
+	int length = 0;
+	int per_tuple_length = 0;
+	int tuples = 0;
+
+	rc = of_property_count_elems_of_size(node, prop_str, sizeof(u32));
+	if (rc < 0) {
+		pr_err("Count %s failed, rc=%d\n", prop_str, rc);
+		return rc;
+	}
+
+	length = rc;
+	per_tuple_length = sizeof(struct range_data) / sizeof(u32);
+	if (length % per_tuple_length) {
+		pr_err("%s length (%d) should be multiple of %d\n",
+			prop_str, length, per_tuple_length);
+		return -EINVAL;
+	}
+	tuples = length / per_tuple_length;
+
+	if (tuples > MAX_CV_ENTRIES) {
+		pr_err("too many entries(%d), only %d allowed\n",
+			tuples, MAX_CV_ENTRIES);
+		return -EINVAL;
+	}
+
+	rc = of_property_read_u32_array(node, prop_str,
+		(u32 *)ranges, length);
+	if (rc) {
+		pr_err("Read %s failed, rc=%d", prop_str, rc);
+		return rc;
+	}
+
+	for (i = 0; i < tuples; i++) {
+		if (ranges[i].low_threshold > ranges[i].high_threshold) {
+			pr_err("%s thresholds should be in ascendant ranges\n", prop_str);
+			rc = -EINVAL;
+			goto clean;
+		}
+
+		if (i != 0) {
+			if (ranges[i - 1].high_threshold > ranges[i].low_threshold) {
+				pr_err("%s thresholds should be in ascendant ranges\n", prop_str);
+				rc = -EINVAL;
+				goto clean;
+			}
+		}
+
+		if (ranges[i].low_threshold > max_threshold) {
+			ranges[i].low_threshold = max_threshold;
+		}
+		if (ranges[i].high_threshold > max_threshold) {
+			ranges[i].high_threshold = max_threshold;
+		}
+		if (ranges[i].value > max_value) {
+			ranges[i].value = max_value;
+		}
+	}
+
+	return rc;
+clean:
+	memset(ranges, 0, tuples * sizeof(struct range_data));
+	return rc;
+}
+#endif //!CONFIG_ODM_CUSTOM_FACTORY_BUILD
+/*Tab A9 code for SR-AX6739A-01-522 by gaozhengwei at 20230607 end*/
 
 static void mtk_charger_parse_dt(struct mtk_charger *info,
 				struct device *dev)
@@ -180,6 +369,11 @@ static void mtk_charger_parse_dt(struct mtk_charger *info,
 	u32 val = 0;
 	struct device_node *boot_node = NULL;
 	struct tag_bootmode *tag = NULL;
+	/*Tab A9 code for SR-AX6739A-01-522 by gaozhengwei at 20230607 start*/
+	#if !defined(CONFIG_ODM_CUSTOM_FACTORY_BUILD)
+	int rc = 0;
+	#endif //!CONFIG_ODM_CUSTOM_FACTORY_BUILD
+	/*Tab A9 code for SR-AX6739A-01-522 by gaozhengwei at 20230607 end*/
 
 	boot_node = of_parse_phandle(dev->of_node, "bootmode", 0);
 	if (!boot_node)
@@ -244,6 +438,16 @@ static void mtk_charger_parse_dt(struct mtk_charger *info,
 		info->data.max_charger_voltage = V_CHARGER_MAX;
 	}
 	info->data.max_charger_voltage_setting = info->data.max_charger_voltage;
+	/*Tab A9 code for SR-AX6739A-01-514 by qiaodan at 20230601 start*/
+	#if defined(CONFIG_CUSTOM_PROJECT_OT11)
+	if (of_property_read_u32(np, "max_fast_charger_voltage", &val) >= 0) {
+		info->data.max_fast_charger_voltage = val;
+	} else {
+		chr_err("use default V_FAST_CHARGER_MAX:%d\n", V_FAST_CHARGER_MAX);
+		info->data.max_fast_charger_voltage = V_FAST_CHARGER_MAX;
+	}
+	#endif //CONFIG_CUSTOM_PROJECT_OT11
+	/*Tab A9 code for SR-AX6739A-01-514 by qiaodan at 20230601 end*/
 
 	if (of_property_read_u32(np, "min_charger_voltage", &val) >= 0)
 		info->data.min_charger_voltage = val;
@@ -306,6 +510,58 @@ static void mtk_charger_parse_dt(struct mtk_charger *info,
 			JEITA_TEMP_BELOW_T0_CV);
 		info->data.jeita_temp_below_t0_cv = JEITA_TEMP_BELOW_T0_CV;
 	}
+
+	/*Tab A9 code for SR-AX6739A-01-504 by qiaodan at 20230506 start*/
+	#if defined(CONFIG_CUSTOM_PROJECT_OT11)
+	if (of_property_read_u32(np, "jeita_temp_above_t4_cur", &val) >= 0) {
+		info->data.jeita_temp_above_t4_cur = val;
+	} else {
+		chr_err("use default JEITA_TEMP_ABOVE_T4_CUR:%d\n",
+			JEITA_TEMP_ABOVE_T4_CUR);
+		info->data.jeita_temp_above_t4_cur = JEITA_TEMP_ABOVE_T4_CUR;
+	}
+
+	if (of_property_read_u32(np, "jeita_temp_t3_to_t4_cur", &val) >= 0) {
+		info->data.jeita_temp_t3_to_t4_cur = val;
+	} else {
+		chr_err("use default JEITA_TEMP_T3_TO_T4_CUR:%d\n",
+			JEITA_TEMP_T3_TO_T4_CUR);
+		info->data.jeita_temp_t3_to_t4_cur = JEITA_TEMP_T3_TO_T4_CUR;
+	}
+
+	if (of_property_read_u32(np, "jeita_temp_t2_to_t3_cur", &val) >= 0) {
+		info->data.jeita_temp_t2_to_t3_cur = val;
+	} else {
+		chr_err("use default JEITA_TEMP_T2_TO_T3_CUR:%d\n",
+			JEITA_TEMP_T2_TO_T3_CUR);
+		info->data.jeita_temp_t2_to_t3_cur = JEITA_TEMP_T2_TO_T3_CUR;
+	}
+
+	if (of_property_read_u32(np, "jeita_temp_t1_to_t2_cur", &val) >= 0) {
+		info->data.jeita_temp_t1_to_t2_cur = val;
+	} else {
+		chr_err("use default JEITA_TEMP_T1_TO_T2_CUR:%d\n",
+			JEITA_TEMP_T1_TO_T2_CUR);
+		info->data.jeita_temp_t1_to_t2_cur = JEITA_TEMP_T1_TO_T2_CUR;
+	}
+
+	if (of_property_read_u32(np, "jeita_temp_t0_to_t1_cur", &val) >= 0) {
+		info->data.jeita_temp_t0_to_t1_cur = val;
+	} else {
+		chr_err("use default JEITA_TEMP_T0_TO_T1_CUR:%d\n",
+			JEITA_TEMP_T0_TO_T1_CUR);
+		info->data.jeita_temp_t0_to_t1_cur = JEITA_TEMP_T0_TO_T1_CUR;
+	}
+
+	if (of_property_read_u32(np, "jeita_temp_below_t0_cur", &val) >= 0) {
+		info->data.jeita_temp_below_t0_cur = val;
+	} else {
+		chr_err("use default JEITA_TEMP_BELOW_T0_CUR:%d\n",
+			JEITA_TEMP_BELOW_T0_CUR);
+		info->data.jeita_temp_below_t0_cur = JEITA_TEMP_BELOW_T0_CUR;
+	}
+	#endif
+	/*Tab A9 code for SR-AX6739A-01-504 by qiaodan at 20230506 end*/
 
 	if (of_property_read_u32(np, "temp_t4_thres", &val) >= 0)
 		info->data.temp_t4_thres = val;
@@ -505,6 +761,31 @@ static void mtk_charger_parse_dt(struct mtk_charger *info,
 	/* fast charging algo support indicator */
 	info->enable_fast_charging_indicator =
 			of_property_read_bool(np, "enable_fast_charging_indicator");
+	/*Tab A9 code for SR-AX6739A-01-505 by lina at 20230510 start*/
+	#ifdef CONFIG_ODM_CUSTOM_D85_BUILD
+	info->data.battery_cv = D85_BATTERY_CV;
+	info->data.jeita_temp_above_t4_cv = D85_JEITA_TEMP_CV;
+	info->data.jeita_temp_t3_to_t4_cv = D85_JEITA_TEMP_CV;
+	info->data.jeita_temp_t2_to_t3_cv = D85_JEITA_TEMP_CV;
+	info->data.jeita_temp_t1_to_t2_cv = D85_JEITA_TEMP_CV;
+	info->data.jeita_temp_t0_to_t1_cv = D85_JEITA_TEMP_CV;
+	#endif
+	/*Tab A9 code for SR-AX6739A-01-505 by lina at 20230510 end*/
+
+	/*Tab A9 code for SR-AX6739A-01-522 by gaozhengwei at 20230607 start*/
+	#if !defined(CONFIG_ODM_CUSTOM_FACTORY_BUILD)
+	info->data.gxy_batt_aging_enable = of_property_read_bool(np,
+		"gxy-batt-aging-enable");
+
+	rc = read_range_data_from_node(np, "gxy,cv-ranges",
+		info->data.batt_cv_data,
+		MAX_CYCLE_COUNT, info->data.battery_cv);
+	if (rc < 0) {
+		pr_err("Read gxy,cv-ranges failed from dtsi, rc=%d\n", rc);
+		info->data.gxy_batt_aging_enable = false;
+	}
+	#endif //!CONFIG_ODM_CUSTOM_FACTORY_BUILD
+	/*Tab A9 code for SR-AX6739A-01-522 by gaozhengwei at 20230607 end*/
 }
 
 static void mtk_charger_start_timer(struct mtk_charger *info)
@@ -567,9 +848,14 @@ static void check_dynamic_mivr(struct mtk_charger *info)
 	bool is_fast_charge = false;
 	struct chg_alg_device *alg = NULL;
 
-	if (!info->enable_dynamic_mivr)
+	/*Tab A9 code for SR-AX6739A-01-494 by qiaodan at 20230502 start*/
+	if (!info->enable_dynamic_mivr) {
+		pr_notice("%s do not use\n", __func__);
 		return;
+	}
 
+	pr_notice("%s enter\n", __func__);
+	/*Tab A9 code for SR-AX6739A-01-494 by qiaodan at 20230502 end*/
 	for (i = 0; i < MAX_ALG_NO; i++) {
 		alg = info->alg[i];
 		if (alg == NULL)
@@ -743,6 +1029,112 @@ static void mtk_charger_set_algo_log_level(struct mtk_charger *info, int level)
 			chr_err("%s: set ALG_LOG_LEVEL fail, ret =%d", __func__, ret);
 	}
 }
+/*Tab A9 code for SR-AX6739A-01-530 by lina at 20230530 start*/
+#ifndef CONFIG_ODM_CUSTOM_FACTORY_BUILD
+int gxy_get_prop_batt_misc_event(struct mtk_charger *info)
+{
+	int gxy_batt_misc_event = BATT_MISC_EVENT_NONE;
+
+	/*Tab A9 U code for AX6739AU-127 by wenyaqi at 20240102 start*/
+	if (info->gxy_discharge_batt_full_flag != false) {
+		gxy_batt_misc_event |= BATT_MISC_EVENT_FULL_CAPACITY;
+	}
+	/*Tab A9 U code for AX6739AU-127 by wenyaqi at 20240102 end*/
+
+	chr_err("%s: %d",__func__,gxy_batt_misc_event);
+
+	return gxy_batt_misc_event;
+}
+#endif//!CONFIG_ODM_CUSTOM_FACTORY_BUILD
+/*Tab A9 code for SR-AX6739A-01-530 by lina at 20230530 end*/
+
+/*Tab A9 code for SR-AX6739A-01-453 by lina at 20230601 start*/
+#ifndef CONFIG_ODM_CUSTOM_FACTORY_BUILD
+#define SS_BAT_LOW_TEMP_SWELLING        120
+#define SS_BAT_HIGH_TEMP_SWELLING       450
+extern int g_usb_connected_unconfigured;
+int gxy_get_prop_batt_current_event(struct mtk_charger *info)
+{
+	int cur_chr_type = 0;
+	int battery_temperature = 0;
+	int gxy_batt_current_event = 0;
+
+	cur_chr_type = info->usb_type;
+	gxy_batt_current_event = SEC_BAT_CURRENT_EVENT_NONE;
+
+	if (cur_chr_type != POWER_SUPPLY_TYPE_UNKNOWN) {
+		battery_temperature = (info->battery_temp) * 10;
+		if (battery_temperature <= SS_BAT_LOW_TEMP_SWELLING) {
+			gxy_batt_current_event |= SEC_BAT_CURRENT_EVENT_LOW_TEMP_SWELLING;
+		}
+		if (battery_temperature >= SS_BAT_HIGH_TEMP_SWELLING) {
+			gxy_batt_current_event |= SEC_BAT_CURRENT_EVENT_HIGH_TEMP_SWELLING;
+		}
+		if (info->gxy_discharge_input_suspend == true) {
+			gxy_batt_current_event |= SEC_BAT_CURRENT_EVENT_SLATE;
+		}
+		if (g_usb_connected_unconfigured) {
+			gxy_batt_current_event |= SEC_BAT_CURRENT_EVENT_USB_100MA;
+		}
+	}
+	chr_err("%s batt_current_event: %d\n", __func__, gxy_batt_current_event);
+	return gxy_batt_current_event;
+}
+#endif  //!CONFIG_ODM_CUSTOM_FACTORY_BUILD
+/*Tab A9 code for SR-AX6739A-01-453 by lina at 20230601 end*/
+
+/*Tab A9  U code for AX6739AU-114 by wenyaqi at 20231212 start*/
+#ifndef CONFIG_ODM_CUSTOM_FACTORY_BUILD
+extern int gxy_send_src_caps(int slate_mode);
+extern int aw_retry_src_caps(int slate_mode);
+static void gxy_set_slate_mode(struct mtk_charger *info, int slate_mode)
+{
+	switch (info->gxy_tcpc_info) {
+		case GXY_BAT_TCPC_INFO_ET7304MQ:
+		case GXY_BAT_TCPC_INFO_CPS8851MRE:
+			gxy_send_src_caps(slate_mode);
+			break;
+		case GXY_BAT_TCPC_INFO_AW35615:
+			aw_retry_src_caps(slate_mode);
+			break;
+		default:
+			chr_err("%s: don't find tcpc_info\n", __func__);
+			break;
+	}
+	chr_debug("%s: slate_mode=%d\n", __func__, slate_mode);
+}
+#endif  //!CONFIG_ODM_CUSTOM_FACTORY_BUILD
+/*Tab A9  U code for AX6739AU-114 by wenyaqi at 20231212 end*/
+
+/*Tab A9 code for SR-AX6739A-01-486 by qiaodan at 20230514 start*/
+void gxy_charger_init(struct mtk_charger *info)
+{
+	info->gxy_cint.wake_up_charger = _wake_up_charger;
+	/*Tab A9 code for SR-AX6739A-01-523 by hualei at 20230516 start*/
+	info->gxy_cint.set_ship_mode = mtk_charger_set_shipmode;
+	info->gxy_cint.get_ship_mode = mtk_charger_get_shippmode;
+	/*Tab A9 code for SR-AX6739A-01-523 by hualei at 20230516 end*/
+	/*Tab A9 code for SR-AX6739A-01-506 by hualei at 20230519 start*/
+	info->gxy_cint.dump_charger_ic = mtk_charger_dump_charger_register;
+	/*Tab A9 code for SR-AX6739A-01-506 by hualei at 20230519 end*/
+	/*Tab A9 code for SR-AX6739A-01-530 by lina at 20230530 start*/
+	#ifndef CONFIG_ODM_CUSTOM_FACTORY_BUILD
+	info->gxy_cint.batt_misc_event = gxy_get_prop_batt_misc_event;
+	#endif//!CONFIG_ODM_CUSTOM_FACTORY_BUILD
+	/*Tab A9 code for SR-AX6739A-01-530 by lina at 20230530 end*/
+	/*Tab A9 code for SR-AX6739A-01-453 by lina at 20230601 start*/
+	#ifndef CONFIG_ODM_CUSTOM_FACTORY_BUILD
+	info->gxy_cint.batt_current_event = gxy_get_prop_batt_current_event;
+	#endif //!CONFIG_ODM_CUSTOM_FACTORY_BUILD
+	/*Tab A9 code for SR-AX6739A-01-453 by lina at 20230601 end*/
+	/*Tab A9  U code for AX6739AU-114 by wenyaqi at 20231212 start*/
+	#ifndef CONFIG_ODM_CUSTOM_FACTORY_BUILD
+	info->gxy_cint.set_slate_mode = gxy_set_slate_mode;
+	#endif //!CONFIG_ODM_CUSTOM_FACTORY_BUILD
+	/*Tab A9  U code for AX6739AU-114 by wenyaqi at 20231212 end*/
+	info->gxy_cint.batt_timetofull = gxy_ttf_display;
+}
+/*Tab A9 code for SR-AX6739A-01-486 by qiaodan at 20230514 end*/
 
 static ssize_t sw_jeita_show(struct device *dev, struct device_attribute *attr,
 					       char *buf)
@@ -1421,15 +1813,52 @@ static void chg_nl_data_handler(struct sk_buff *skb)
 	struct nlmsghdr *nlh;
 	struct sc_nl_msg_t *sc_msg, *sc_ret_msg;
 	int size = 0;
+	size_t fixed_part_size = offsetof(struct sc_nl_msg_t, sc_data);
+
+	if (skb->len < NLMSG_HDRLEN) {
+		chr_err("Received skb is too small\n");
+		return;
+	}
 
 	nlh = (struct nlmsghdr *)skb->data;
+	if (nlh->nlmsg_len < NLMSG_SPACE(sizeof(struct sc_nl_msg_t))) {
+		chr_err("Netlink message is too short.\n");
+		return;
+	}
+
 	pid = NETLINK_CREDS(skb)->pid;
 	uid = NETLINK_CREDS(skb)->uid;
 	seq = nlh->nlmsg_seq;
 
+	if (nlh->nlmsg_len < NLMSG_LENGTH(fixed_part_size)) {
+		chr_err("Netlink message is too short for sc_nl_msg_t header\n");
+		return;
+	}
+
+	if (nlh->nlmsg_len > skb->len) {
+		chr_err("Netlink message length exceeds skb length\n");
+		return;
+	}
+
 	data = NLMSG_DATA(nlh);
 
 	sc_msg = (struct sc_nl_msg_t *)data;
+
+	if (sc_msg->sc_data_len > SCD_NL_MSG_MAX_LEN) {
+		chr_err("sc_data_len exceeds SCD_NL_MSG_MAX_LEN\n");
+		return;
+	}
+
+	if (nlh->nlmsg_len < NLMSG_LENGTH(fixed_part_size + sc_msg->sc_data_len)) {
+		chr_err("Netlink message length is too short for sc_data\n");
+		return;
+        }
+
+	if (sc_msg->sc_ret_data_len > INT_MAX - SCD_NL_MSG_T_HDR_LEN) {
+		chr_err("Failed:sc_ret_data_len=%d maybe exceds INT_MAX\n",
+			sc_msg->sc_ret_data_len);
+		return;
+	}
 
 	size = sc_msg->sc_ret_data_len + SCD_NL_MSG_T_HDR_LEN;
 
@@ -1906,6 +2335,83 @@ static ssize_t sc_ibat_limit_store(
 }
 static DEVICE_ATTR_RW(sc_ibat_limit);
 
+/*Tab A9 code for SR-AX6739A-01-514 by qiaodan at 20230601 start*/
+#if defined(CONFIG_CUSTOM_PROJECT_OT11)
+int mtk_chg_enable_vbus_ovp(bool enable)
+{
+	int ret = 0;
+
+	chr_err("[%s] en:%d\n", __func__, enable);
+
+	return ret;
+}
+EXPORT_SYMBOL(mtk_chg_enable_vbus_ovp);
+
+/* return false if vbus is over max_charger_voltage */
+static bool mtk_chg_check_vbus(struct mtk_charger *info)
+{
+	int vchr = 0;
+	int i = 0;
+	int ret = 0;
+	bool is_fast_charge = false;
+	struct chg_alg_device *alg = NULL;
+
+	for (i = 0; i < MAX_ALG_NO; i++) {
+		alg = info->alg[i];
+		if (alg == NULL) {
+			continue;
+		}
+
+		ret = chg_alg_is_algo_ready(alg);
+		if (ret == ALG_RUNNING) {
+			is_fast_charge = true;
+			break;
+		}
+	}
+
+	chr_err("%s: is_fast_charge = %d, hv_voltage_switch1 = %d\n",
+		__func__, is_fast_charge, info->hv_voltage_switch1);
+
+	vchr = get_vbus(info) * 1000; /* uV */
+
+	if (is_fast_charge == true || info->hv_voltage_switch1 == true) {
+		if (vchr > info->data.max_fast_charger_voltage) {
+			chr_err("%s: fast charging vbus(%d mV) > %d mV\n", __func__, vchr / 1000,
+				info->data.max_fast_charger_voltage / 1000);
+			info->ovp_status = true;
+			return false;
+		}
+	} else if (vchr > info->data.max_charger_voltage) {
+		chr_err("%s: vbus(%d mV) > %d mV\n", __func__, vchr / 1000,
+			info->data.max_charger_voltage / 1000);
+		info->ovp_status = true;
+		return false;
+	} else {
+		chr_err("%s: hold current status\n", __func__);
+	}
+
+	info->ovp_status = false;
+
+	chr_err("%s: vbus = %d mV, normal settting = %d, fast settings = %d\n",
+		__func__, vchr / 1000, info->data.max_charger_voltage,
+		info->data.max_fast_charger_voltage);
+
+	return true;
+}
+
+static void mtk_battery_notify_VCharger_check(struct mtk_charger *info)
+{
+	#if defined(BATTERY_NOTIFY_CASE_0001_VCHARGER)
+	if (!info->ovp_status) {
+		info->notify_code &= ~CHG_VBUS_OV_STATUS;
+	} else {
+		info->notify_code |= CHG_VBUS_OV_STATUS;
+		chr_err("[%s] now in ovp status\n", __func__);
+		mtk_chgstat_notify(info);
+	}
+	#endif //BATTERY_NOTIFY_CASE_0001_VCHARGER
+}
+#else
 int mtk_chg_enable_vbus_ovp(bool enable)
 {
 	static struct mtk_charger *pinfo;
@@ -1973,6 +2479,8 @@ static void mtk_battery_notify_VCharger_check(struct mtk_charger *info)
 	}
 #endif
 }
+#endif //CONFIG_CUSTOM_PROJECT_OT11
+/*Tab A9 code for SR-AX6739A-01-514 by qiaodan at 20230601 end*/
 
 static void mtk_battery_notify_VBatTemp_check(struct mtk_charger *info)
 {
@@ -2126,12 +2634,33 @@ static void charger_check_status(struct mtk_charger *info)
 {
 	bool charging = true;
 	bool chg_dev_chgen = true;
+	/*Tab A9 code for SR-AX6739A-01-486 by qiaodan at 20230512 start*/
+	bool port_charging = true;
+	bool chg_dev_port_chgen = true;
+	/*Tab A9 code for SR-AX6739A-01-486 by qiaodan at 20230512 end*/
+	/*Tab A9 U code for AX6739AU-127 by wenyaqi at 20240102 start*/
+	#if !defined(CONFIG_ODM_CUSTOM_FACTORY_BUILD)
+	struct power_supply *bat_psy = NULL;
+	union power_supply_propval bat_status;
+	int ret;
+	#endif //!CONFIG_ODM_CUSTOM_FACTORY_BUILD
+	/*Tab A9 U code for AX6739AU-127 by wenyaqi at 20240102 end*/
+
+	/*Tab A9 code for AX6739A-723 by qiaodan at 20230606 start*/
+	static s_aconline_old = false;
+	static s_usbonline_old = false;
+	/*Tab A9 code for AX6739A-723 by qiaodan at 20230606 end*/
+
 	int temperature;
 	struct battery_thermal_protection_data *thermal;
 	int uisoc = 0;
 
 	if (get_charger_type(info) == POWER_SUPPLY_TYPE_UNKNOWN)
 		return;
+
+	/*Tab A9 code for SR-AX6739A-01-486 by qiaodan at 20230512 start*/
+	info->gxy_discharge_info = GXY_NORMAL_CHARGING;
+	/*Tab A9 code for SR-AX6739A-01-486 by qiaodan at 20230512 end*/
 
 	temperature = info->battery_temp;
 	thermal = &info->thermal;
@@ -2141,6 +2670,123 @@ static void charger_check_status(struct mtk_charger *info)
 	if (info->enable_sw_jeita == true || info->enable_vbat_mon != true ||
 	    info->batpro_done == true)
 		info->setting.vbat_mon_en = false;
+
+	/*Tab A9 code for SR-AX6739A-01-486 by qiaodan at 20230512 start*/
+	if (info->gxy_discharge_input_suspend == true) {
+		info->gxy_discharge_info |= GXY_DISCHARGE_INPUT_SUSPEND;
+		port_charging = false;
+		charging = false;
+		goto stop_charging;
+	}
+	/*Tab A9 code for SR-AX6739A-01-486 by qiaodan at 20230512 end*/
+	/*Tab A9 U code for AX6739AU-127 by wenyaqi at 20240102 start*/
+	/*Tab A9 code for SR-AX6739A-01-457 by qiaodan at 20230522 start*/
+	#if !defined(CONFIG_ODM_CUSTOM_FACTORY_BUILD)
+	if (info->gxy_discharge_batt_full_capacity == GXY_MAX_PROTECTION_FLAG ||
+		info->gxy_discharge_batt_full_capacity == GXY_SLEEP_PROTECTION_FLAG) {
+		if (uisoc >= GXY_PROTECT_CAPACITY_LEVEL) {
+			info->gxy_discharge_info |= GXY_DISCHARGE_BATT_FULL_CAPACITY;
+			info->gxy_discharge_batt_full_flag = GXY_MAX_PROTECTION_FLAG;
+			port_charging = true;
+			charging = false;
+			goto stop_charging;
+		} else if ((uisoc > (GXY_PROTECT_CAPACITY_LEVEL -
+			GXY_FULL_CAPACITY_RECHG_VALUE)) &&
+			info->gxy_discharge_batt_full_flag == GXY_MAX_PROTECTION_FLAG) {
+			info->gxy_discharge_info |= GXY_DISCHARGE_BATT_FULL_CAPACITY;
+			port_charging = true;
+			charging = false;
+			goto stop_charging;
+		} else {
+			info->gxy_discharge_batt_full_flag = false;
+		}
+	} else if (info->gxy_discharge_batt_full_capacity == GXY_HIGHSOC_PROTECTION_FLAG) {
+		if (uisoc >= GXY_PROTECT_CAPACITY_LEVEL) {
+			info->gxy_discharge_info |= GXY_DISCHARGE_BATT_FULL_CAPACITY;
+			info->gxy_discharge_batt_full_flag = GXY_HIGHSOC_PROTECTION_FLAG;
+			port_charging = false;
+			charging = false;
+			goto stop_charging;
+		} else if ((uisoc > (GXY_PROTECT_CAPACITY_LEVEL -
+			GXY_FULL_CAPACITY_RECHG_VALUE)) &&
+			info->gxy_discharge_batt_full_flag == GXY_HIGHSOC_PROTECTION_FLAG) {
+			info->gxy_discharge_info |= GXY_DISCHARGE_BATT_FULL_CAPACITY;
+			port_charging = false;
+			charging = false;
+			goto stop_charging;
+		} else {
+			info->gxy_discharge_batt_full_flag = false;
+		}
+	} else {
+		info->gxy_discharge_batt_full_flag = false;
+	}
+	#endif //!CONFIG_ODM_CUSTOM_FACTORY_BUILD
+	/*Tab A9 code for SR-AX6739A-01-457 by qiaodan at 20230522 end*/
+
+	#if !defined(CONFIG_ODM_CUSTOM_FACTORY_BUILD)
+	if (info->gxy_batt_soc_rechg) {
+		bat_psy = power_supply_get_by_name("battery");
+		ret = power_supply_get_property(bat_psy,
+			POWER_SUPPLY_PROP_STATUS, &bat_status);
+		if (ret < 0) {
+			chr_err("%s: get battery status fail\n", __func__);
+			info->gxy_batt_soc_rechg_flag = false;
+		} else if (bat_status.intval == POWER_SUPPLY_STATUS_FULL) {
+			info->gxy_discharge_info |= GXY_DISCHARGE_SOC_RECHG;
+			info->gxy_batt_soc_rechg_flag = true;
+			port_charging = true;
+			charging = false;
+			goto stop_charging;
+		} else if ((uisoc > GXY_BASIC_PROTECT_RECHG_SOC) &&
+			info->gxy_batt_soc_rechg_flag) {
+			info->gxy_discharge_info |= GXY_DISCHARGE_SOC_RECHG;
+			port_charging = true;
+			charging = false;
+			goto stop_charging;
+		} else {
+			info->gxy_batt_soc_rechg_flag = false;
+		}
+	} else {
+		info->gxy_batt_soc_rechg_flag = false;
+	}
+	#endif //!CONFIG_ODM_CUSTOM_FACTORY_BUILD
+	/*Tab A9 U code for AX6739AU-127 by wenyaqi at 20240102 end*/
+
+	/*Tab A9 code for SR-AX6739A-01-455 by qiaodan at 20230524 start*/
+	#if !defined(CONFIG_ODM_CUSTOM_FACTORY_BUILD)
+	if (info->gxy_discharge_store_mode) {
+		if (uisoc >= info->store_mode_charging_max) {
+			info->gxy_discharge_info |= GXY_DISCHARGE_STORE_MODE;
+			info->gxy_discharge_store_mode_flag = true;
+			port_charging = false;
+			charging = false;
+			goto stop_charging;
+		} else if ((uisoc > info->store_mode_charging_min) &&
+			info->gxy_discharge_store_mode_flag) {
+			info->gxy_discharge_info |= GXY_DISCHARGE_STORE_MODE;
+			port_charging = false;
+			charging = false;
+			goto stop_charging;
+		} else {
+			info->gxy_discharge_store_mode_flag = false;
+		}
+	} else {
+		info->gxy_discharge_store_mode_flag = false;
+	}
+	#endif //!CONFIG_ODM_CUSTOM_FACTORY_BUILD
+	/*Tab A9 code for SR-AX6739A-01-455 by qiaodan at 20230524 end*/
+
+	/*Tab A9 code for SR-AX6739A-01-487 by qiaodan at 20230515 start*/
+	#if defined(CONFIG_ODM_CUSTOM_FACTORY_BUILD)
+	if ((info->gxy_discharge_batt_cap_control == true) &&
+		(uisoc >= BATT_CAP_CONTROL_CAPACITY)) {
+		info->gxy_discharge_info |= GXY_DISCHARGE_BATT_CAP_CONTROL;
+		port_charging = false;
+		charging = false;
+		goto stop_charging;
+	}
+	#endif //CONFIG_ODM_CUSTOM_FACTORY_BUILD
+	/*Tab A9 code for SR-AX6739A-01-487 by qiaodan at 20230515 end*/
 
 	if (info->enable_sw_jeita == true) {
 		do_sw_jeita_state_machine(info);
@@ -2225,14 +2871,40 @@ stop_charging:
 		info->can_charging, charging, info->safety_timer_cmd,
 		info->enable_vbat_mon, info->batpro_done);
 
+	/*Tab A9 code for SR-AX6739A-01-486 by qiaodan at 20230512 start*/
 	charger_dev_is_enabled(info->chg1_dev, &chg_dev_chgen);
+	charger_dev_is_port_charging_enabled(info->chg1_dev, &chg_dev_port_chgen);
 
-	if (charging != info->can_charging)
+	if (port_charging != info->port_can_charging) {
+		_mtk_enable_port_charging(info, port_charging);
 		_mtk_enable_charging(info, charging);
-	else if (charging == false && chg_dev_chgen == true)
+		power_supply_changed(info->psy1);
+	} else if ((port_charging == false) && (chg_dev_port_chgen == true)) {
+		_mtk_enable_port_charging(info, false);
+		_mtk_enable_charging(info, false);
+		power_supply_changed(info->psy1);
+	} else if (charging != info->can_charging) {
 		_mtk_enable_charging(info, charging);
+	} else if ((charging == false) && (chg_dev_chgen == true)) {
+		_mtk_enable_charging(info, charging);
+	}
 
+	chr_err("gxy_dis_info1:%d, before-charging=%d,port_charging=%d,after-port_can_charging=%d, can_charging=%d\n",
+		info->gxy_discharge_info, charging, port_charging,
+		info->port_can_charging, info->can_charging);
+
+	info->port_can_charging = port_charging;
 	info->can_charging = charging;
+	/*Tab A9 code for SR-AX6739A-01-486 by qiaodan at 20230512 end*/
+
+	/*Tab A9 code for AX6739A-723 by qiaodan at 20230606 start*/
+	if ((s_aconline_old != info->ac_online) || (s_usbonline_old != info->usb_online)) {
+		s_aconline_old = info->ac_online;
+		s_usbonline_old = info->usb_online;
+		chr_err("%s online is different\n", __func__);
+		power_supply_changed(info->psy1);
+	}
+	/*Tab A9 code for AX6739A-723 by qiaodan at 20230606 end*/
 }
 
 static bool charger_init_algo(struct mtk_charger *info)
@@ -2249,6 +2921,40 @@ static bool charger_init_algo(struct mtk_charger *info)
 		return false;
 	}
 
+	/*Tab A9 code for SR-AX6739A-01-499 by wenyaqi at 20230515 start*/
+	#if defined(CONFIG_CUSTOM_PROJECT_OT11)
+	alg = get_chg_alg_by_name("afc");
+	info->alg[idx] = alg;
+	if (alg == NULL) {
+		chr_err("get afc fail\n");
+		/*Tab A9 code for AX6739A-1442 by wenyaqi at 20230625 start*/
+		return false;
+		/*Tab A9 code for AX6739A-1442 by wenyaqi at 20230625 end*/
+	} else {
+		chr_err("get afc success\n");
+		alg->config = info->config;
+		alg->alg_id = AFC_ID;
+		chg_alg_init_algo(alg);
+		register_chg_alg_notifier(alg, &info->chg_alg_nb);
+		chr_err("afc success,%s\n",dev_name(&alg->dev));
+	}
+	idx++;
+
+	alg = get_chg_alg_by_name("pd");
+	info->alg[idx] = alg;
+	if (alg == NULL) {
+		chr_err("get pd fail\n");
+		/*Tab A9 code for AX6739A-1442 by wenyaqi at 20230625 start*/
+		return false;
+		/*Tab A9 code for AX6739A-1442 by wenyaqi at 20230625 end*/
+	} else {
+		chr_err("get pd success\n");
+		alg->config = info->config;
+		alg->alg_id = PDC_ID;
+		chg_alg_init_algo(alg);
+		register_chg_alg_notifier(alg, &info->chg_alg_nb);
+	}
+	#else
 	alg = get_chg_alg_by_name("pe5");
 	info->alg[idx] = alg;
 	if (alg == NULL)
@@ -2312,6 +3018,8 @@ static bool charger_init_algo(struct mtk_charger *info)
 		chg_alg_init_algo(alg);
 		register_chg_alg_notifier(alg, &info->chg_alg_nb);
 	}
+	#endif // CONFIG_CUSTOM_PROJECT_OT11
+	/*Tab A9 code for SR-AX6739A-01-499 by wenyaqi at 20230515 end*/
 
 	chr_err("config is %d\n", info->config);
 	if (info->config == DUAL_CHARGERS_IN_SERIES) {
@@ -2395,6 +3103,24 @@ static int mtk_charger_plug_out(struct mtk_charger *info)
 	pdata1->input_current_limit_by_aicl = -1;
 	pdata2->disable_charging_count = 0;
 
+	/*Tab A9 code for SR-AX6739A-01-457 by qiaodan at 20230522 start*/
+	#if !defined(CONFIG_ODM_CUSTOM_FACTORY_BUILD)
+	info->gxy_discharge_batt_full_flag = false;
+	#endif //!CONFIG_ODM_CUSTOM_FACTORY_BUILD
+	/*Tab A9 code for SR-AX6739A-01-457 by qiaodan at 20230522 end*/
+
+	/*Tab A9 code for SR-AX6739A-01-455 by qiaodan at 20230524 start*/
+	#if !defined(CONFIG_ODM_CUSTOM_FACTORY_BUILD)
+	info->gxy_discharge_store_mode_flag = false;
+	#endif // !CONFIG_ODM_CUSTOM_FACTORY_BUILD
+	/*Tab A9 code for SR-AX6739A-01-455 by qiaodan at 20230524 end*/
+
+	/*Tab A9 U code for AX6739AU-127 by wenyaqi at 20240102 start*/
+	#if !defined(CONFIG_ODM_CUSTOM_FACTORY_BUILD)
+	info->gxy_batt_soc_rechg_flag = false;
+	#endif // !CONFIG_ODM_CUSTOM_FACTORY_BUILD
+	/*Tab A9 U code for AX6739AU-127 by wenyaqi at 20240102 end*/
+
 	notify.evt = EVT_PLUG_OUT;
 	notify.value = 0;
 	for (i = 0; i < MAX_ALG_NO; i++) {
@@ -2410,7 +3136,14 @@ static int mtk_charger_plug_out(struct mtk_charger *info)
 
 	if (info->enable_vbat_mon)
 		charger_dev_enable_6pin_battery_charging(info->chg1_dev, false);
-
+	/*Tab A9 code for SR-AX6739A-01-263 by zhawei at 20230522 start*/
+	if (g_tp_detect_usb_flag) {
+		tp_usb_notifier_call_chain(TP_USB_PLUGOUT_STATE, NULL);
+	}
+	/*Tab A9 code for SR-AX6739A-01-263 by zhawei at 20230522 end*/
+	/*Tab A9 U code for AX6739AU-127 by wenyaqi at 20240205 start*/
+	gxy_ttf_work_cancel();
+	/*Tab A9 U code for AX6739AU-127 by wenyaqi at 20240205 end*/
 	return 0;
 }
 
@@ -2429,6 +3162,9 @@ static int mtk_charger_plug_in(struct mtk_charger *info,
 	info->charger_thread_polling = true;
 
 	info->can_charging = true;
+	/*Tab A9 code for SR-AX6739A-01-486 by qiaodan at 20230512 start*/
+	info->port_can_charging = true;
+	/*Tab A9 code for SR-AX6739A-01-486 by qiaodan at 20230512 end*/
 	//info->enable_dynamic_cv = true;
 	info->safety_timeout = false;
 	info->vbusov_stat = false;
@@ -2453,7 +3189,14 @@ static int mtk_charger_plug_in(struct mtk_charger *info,
 	wakeup_sc_algo_cmd(&info->sc.data, SC_EVENT_PLUG_IN, 0);
 	charger_dev_plug_in(info->chg1_dev);
 	mtk_charger_force_disable_power_path(info, CHG1_SETTING, false);
-
+	/*Tab A9 code for SR-AX6739A-01-263 by zhawei at 20230522 start*/
+	if (g_tp_detect_usb_flag) {
+		tp_usb_notifier_call_chain(TP_USB_PLUGIN_STATE, NULL);
+	}
+	/*Tab A9 code for SR-AX6739A-01-263 by zhawei at 20230522 end*/
+	/*Tab A9 U code for AX6739AU-127 by wenyaqi at 20240205 start*/
+	gxy_ttf_work_start();
+	/*Tab A9 U code for AX6739AU-127 by wenyaqi at 20240205 end*/
 	return 0;
 }
 
@@ -2528,7 +3271,11 @@ static void kpoc_power_off_check(struct mtk_charger *info)
 					break;
 				}
 				if (info->is_suspend == false) {
-					chr_err("%s, not in suspend, shutdown\n", __func__);
+					/*Tab A9 code for P230626-05554 by qiaodan at 20230707 start*/
+					chr_err("%s, not in suspend, shutdown prepare\n", __func__);
+					msleep(4000);
+					chr_err("%s, not in suspend, shutdown entering\n", __func__);
+					/*Tab A9 code for P230626-05554 by qiaodan at 20230707 end*/
 					kernel_power_off();
 				} else {
 					chr_err("%s, suspend! cannot shutdown\n", __func__);
@@ -2548,8 +3295,15 @@ static void charger_status_check(struct mtk_charger *info)
 	int ret;
 	bool charging = true;
 
+/*Tab A9 code for SR-AX6739A-01-494 by qiaodan at 20230502 start*/
+#if defined(CONFIG_CUSTOM_PROJECT_OT11)
+	chg_psy = power_supply_get_by_name("charger");
+#else
 	chg_psy = devm_power_supply_get_by_phandle(&info->pdev->dev,
 						       "charger");
+#endif
+/*Tab A9 code for SR-AX6739A-01-494 by qiaodan at 20230502 end*/
+
 	if (IS_ERR_OR_NULL(chg_psy)) {
 		chr_err("%s Couldn't get chg_psy\n", __func__);
 	} else {
@@ -2598,6 +3352,9 @@ static int charger_routine_thread(void *arg)
 	struct mtk_charger *info = arg;
 	unsigned long flags;
 	unsigned int init_times = 3;
+	/*Tab A9 code for AX6739A-1442 by wenyaqi at 20230625 start*/
+	unsigned int init_fast_chg_times = 3;
+	/*Tab A9 code for AX6739A-1442 by wenyaqi at 20230625 end*/
 	static bool is_module_init_done;
 	bool is_charger_on;
 	int ret;
@@ -2621,6 +3378,14 @@ static int charger_routine_thread(void *arg)
 				}
 			}
 			else {
+				/*Tab A9 code for AX6739A-1442 by wenyaqi at 20230625 start*/
+				if (init_fast_chg_times > 0) {
+					chr_err("retry to init fast charger\n");
+					init_fast_chg_times = init_fast_chg_times - 1;
+					msleep(1000);
+					continue;
+				}
+				/*Tab A9 code for AX6739A-1442 by wenyaqi at 20230625 end*/
 				if (init_times > 0) {
 					chr_err("retry to init charger\n");
 					init_times = init_times - 1;
@@ -2668,6 +3433,9 @@ static int charger_routine_thread(void *arg)
 		check_dynamic_mivr(info);
 		charger_check_status(info);
 		kpoc_power_off_check(info);
+		/*Tab A9 U code for AX6739AU-127 by wenyaqi at 20240102 start*/
+		gxy_ttf_work_start();
+		/*Tab A9 U code for AX6739AU-127 by wenyaqi at 20240102 end*/
 
 		if (is_disable_charger(info) == false &&
 			is_charger_on == true &&
@@ -3192,6 +3960,192 @@ int psy_charger_set_property(struct power_supply *psy,
 	return 0;
 }
 
+/*Tab A9 code for AX6739A-12 by wenyaqi at 20230421 start*/
+/* ============================================================ */
+/* pmic control start*/
+/* ============================================================ */
+/*VBUS is connected to VCDT through 330K and 39K resistor voltage division*/
+#define R_CHARGER_1	330
+#define R_CHARGER_2	39
+
+static enum power_supply_property chr_type_properties[] = {
+	POWER_SUPPLY_PROP_VOLTAGE_NOW,
+};
+
+static int get_vbus_voltage(struct mtk_charger *info,
+	int *val)
+{
+	int ret = 0;
+
+	/*Tab A9 code for AX6739A-1522 by lina at 20230626 start*/
+	if (!IS_ERR(info->chan_vbus) && info->chan_vbus != NULL) {
+		ret = iio_read_channel_processed(info->chan_vbus, val);
+		if (ret < 0)
+			chr_err("[%s]read fail,ret=%d\n", __func__, ret);
+	} else {
+		chr_err("[%s]chan error %d\n", __func__, info->chan_vbus);
+		ret = -ENOTSUPP;
+	}
+	/*Tab A9 code for AX6739A-1522 by lina at 20230626 end*/
+	if (ret < 0) {
+		chr_err("[%s]read error, set default vbus to 0\n", __func__);
+		*val = 0;
+	}
+
+	*val = (((R_CHARGER_1 +
+		R_CHARGER_2) * 100 * *val) /
+		R_CHARGER_2) / 100;
+
+	return ret;
+}
+
+static int psy_chr_type_get_property(struct power_supply *psy,
+	enum power_supply_property psp, union power_supply_propval *val)
+{
+	struct mtk_charger *info = NULL;
+	int vbus = 0;
+
+	info = (struct mtk_charger *)power_supply_get_drvdata(psy);
+	if (info == NULL) {
+		chr_err("%s: failed to get info\n", __func__);
+		return -EINVAL;
+	}
+	chr_err("%s: prop:%d\n", __func__, psp);
+
+	switch (psp) {
+	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
+		get_vbus_voltage(info, &vbus);
+		val->intval = vbus;
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	return 0;
+}
+/*Tab A9 code for AX6739A-12 by wenyaqi at 20230421 end*/
+
+/*Tab A9 code for SR-AX6739A-01-488 by qiaodan at 20230503 start*/
+static enum power_supply_property psy_ac_properties[] = {
+	POWER_SUPPLY_PROP_ONLINE,
+};
+
+static int psy_ac_get_property(struct power_supply *psy,
+	enum power_supply_property psp, union power_supply_propval *val)
+{
+	struct mtk_charger *info = NULL;
+
+	info = (struct mtk_charger *)power_supply_get_drvdata(psy);
+	if (info == NULL) {
+		chr_err("%s: failed to get info\n", __func__);
+		return -EINVAL;
+	}
+
+	chr_debug("%s: prop:%d\n", __func__, psp);
+
+	switch (psp) {
+	case POWER_SUPPLY_PROP_ONLINE:
+		val->intval = info->ac_online;
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static enum power_supply_property psy_usb_properties[] = {
+	POWER_SUPPLY_PROP_ONLINE,
+	POWER_SUPPLY_PROP_VOLTAGE_NOW,
+};
+
+static int psy_usb_get_property(struct power_supply *psy,
+	enum power_supply_property psp, union power_supply_propval *val)
+{
+	struct mtk_charger *info = NULL;
+
+	info = (struct mtk_charger *)power_supply_get_drvdata(psy);
+	if (info == NULL) {
+		chr_err("%s: failed to get info\n", __func__);
+		return -EINVAL;
+	}
+
+	chr_debug("%s: prop:%d\n", __func__, psp);
+
+	switch (psp) {
+	case POWER_SUPPLY_PROP_ONLINE:
+		val->intval = info->usb_online;
+		break;
+	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
+		val->intval = get_vbus(info);
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	return 0;
+}
+/*Tab A9 code for SR-AX6739A-01-488 by qiaodan at 20230503 end*/
+
+/*Tab A9 code for SR-AX6739A-01-473 by hualei at 20230525 start*/
+static enum power_supply_property psy_otg_properties[] = {
+	POWER_SUPPLY_PROP_ONLINE,
+};
+
+static int psy_otg_get_property(struct power_supply *psy,
+	enum power_supply_property psp, union power_supply_propval *val)
+{
+	struct mtk_charger *info = NULL;
+
+	info = (struct mtk_charger *)power_supply_get_drvdata(psy);
+
+	if (info == NULL) {
+		chr_err("%s: failed to get info\n", __func__);
+		return -EINVAL;
+	}
+
+	chr_debug("%s: prop:%d\n", __func__, psp);
+
+	switch (psp) {
+	case POWER_SUPPLY_PROP_ONLINE:
+		val->intval = info->otg_online;
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+int psy_otg_set_property(struct power_supply *psy,
+	enum power_supply_property psp, const union power_supply_propval *val)
+{
+	struct mtk_charger *info = NULL;
+
+	info = (struct mtk_charger *)power_supply_get_drvdata(psy);
+	if (info == NULL) {
+		chr_err("%s: failed to get info\n", __func__);
+		return -EINVAL;
+	}
+
+	chr_debug("%s: prop:%d\n", __func__, psp);
+
+	switch (psp) {
+	case POWER_SUPPLY_PROP_ONLINE:
+		if (val->intval == 0) {
+			info->otg_online = false;
+		} else {
+			info->otg_online = true;
+		}
+		break;
+	default:
+		return -EINVAL;
+	}
+
+return 0;
+}
+/*Tab A9 code for SR-AX6739A-01-473 by hualei at 20230525 end*/
+
 static void mtk_charger_external_power_changed(struct power_supply *psy)
 {
 	struct mtk_charger *info;
@@ -3203,13 +4157,12 @@ static void mtk_charger_external_power_changed(struct power_supply *psy)
 
 	info = (struct mtk_charger *)power_supply_get_drvdata(psy);
 
-	if (info == NULL) {
+	if (IS_ERR_OR_NULL(info))
 		pr_notice("%s: failed to get info\n", __func__);
-		return;
-	}
+
 	chg_psy = info->chg_psy;
 
-	if (chg_psy == NULL) {
+	if (IS_ERR_OR_NULL(chg_psy)) {
 		pr_notice("%s Couldn't get chg_psy\n", __func__);
 		chg_psy = devm_power_supply_get_by_phandle(&info->pdev->dev,
 						       "charger");
@@ -3257,6 +4210,9 @@ int notify_adapter_event(struct notifier_block *notifier,
 		pinfo->pd_type = MTK_PD_CONNECT_NONE;
 		pinfo->pd_reset = false;
 		mutex_unlock(&pinfo->pd_lock);
+		/*Tab A9 code for SR-AX6739A-01-482 by qiaodan at 20230516 start*/
+		gxy_usb_set_pdhub_flag(false);
+		/*Tab A9 code for SR-AX6739A-01-482 by qiaodan at 20230516 end*/
 		mtk_chg_alg_notify_call(pinfo, EVT_DETACH, 0);
 		/* reset PE40 */
 		break;
@@ -3279,6 +4235,9 @@ int notify_adapter_event(struct notifier_block *notifier,
 		pinfo->pd_reset = false;
 		mutex_unlock(&pinfo->pd_lock);
 		/* PD is ready */
+		/*Tab A9 code for SR-AX6739A-01-503 by qiaodan at 20230514 start*/
+		_wake_up_charger(pinfo);
+		/*Tab A9 code for SR-AX6739A-01-503 by qiaodan at 20230514 end*/
 		break;
 
 	case MTK_PD_CONNECT_PE_READY_SNK_PD30:
@@ -3288,6 +4247,9 @@ int notify_adapter_event(struct notifier_block *notifier,
 		pinfo->pd_reset = false;
 		mutex_unlock(&pinfo->pd_lock);
 		/* PD30 is ready */
+		/*Tab A9 code for SR-AX6739A-01-503 by qiaodan at 20230514 start*/
+		_wake_up_charger(pinfo);
+		/*Tab A9 code for SR-AX6739A-01-503 by qiaodan at 20230514 end*/
 		break;
 
 	case MTK_PD_CONNECT_PE_READY_SNK_APDO:
@@ -3339,6 +4301,9 @@ static int mtk_charger_probe(struct platform_device *pdev)
 	struct mtk_charger *info = NULL;
 	int i;
 	char *name = NULL;
+	/*Tab A9 code for AX6739A-12 by wenyaqi at 20230421 start*/
+	struct iio_channel *chan_vbus = NULL;
+	/*Tab A9 code for AX6739A-12 by wenyaqi at 20230421 end*/
 	struct netlink_kernel_cfg cfg = {
 		.input = chg_nl_data_handler,
 	};
@@ -3400,8 +4365,15 @@ static int mtk_charger_probe(struct platform_device *pdev)
 	info->psy1 = power_supply_register(&pdev->dev, &info->psy_desc1,
 			&info->psy_cfg1);
 
+	/*Tab A9 code for SR-AX6739A-01-486 by qiaodan at 20230512 start*/
+	#if defined(CONFIG_CUSTOM_PROJECT_OT11)
+	info->chg_psy = power_supply_get_by_name("charger");
+	#else
 	info->chg_psy = devm_power_supply_get_by_phandle(&pdev->dev,
 		"charger");
+	#endif
+	/*Tab A9 code for SR-AX6739A-01-486 by qiaodan at 20230512 end*/
+
 	if (IS_ERR_OR_NULL(info->chg_psy))
 		chr_err("%s: devm power fail to get chg_psy\n", __func__);
 
@@ -3464,6 +4436,85 @@ static int mtk_charger_probe(struct platform_device *pdev)
 		chr_err("register psy dvchg2 fail:%ld\n",
 			PTR_ERR(info->psy_dvchg2));
 
+	/*Tab A9 code for AX6739A-12 by wenyaqi at 20230421 start*/
+	chan_vbus = devm_iio_channel_get(
+		&pdev->dev, "pmic_vbus");
+	if (IS_ERR(chan_vbus)) {
+		chr_err("mt6366 charger type requests probe deferral ret:%d\n",
+			chan_vbus);
+		return -EPROBE_DEFER;
+	}
+	info->psy_pmic_desc.name = "mtk_charger_type";
+	info->psy_pmic_desc.type = POWER_SUPPLY_TYPE_UNKNOWN;
+	info->psy_pmic_desc.properties = chr_type_properties;
+	info->psy_pmic_desc.num_properties =
+		ARRAY_SIZE(chr_type_properties);
+	info->psy_pmic_desc.get_property = psy_chr_type_get_property;
+	info->psy_pmic_cfg.drv_data = info;
+	info->psy_pmic = power_supply_register(&pdev->dev,
+						 &info->psy_pmic_desc,
+						 &info->psy_pmic_cfg);
+	if (IS_ERR(info->psy_pmic))
+		chr_err("register psy pmic fail:%ld\n",
+			PTR_ERR(info->psy_pmic));
+	info->chan_vbus = devm_iio_channel_get(
+		&pdev->dev, "pmic_vbus");
+	if (IS_ERR(info->chan_vbus)) {
+		chr_err("chan_vbus auxadc get fail, ret=%d\n",
+			PTR_ERR(info->chan_vbus));
+	}
+	/*Tab A9 code for AX6739A-12 by wenyaqi at 20230421 end*/
+
+	/*Tab A9 code for SR-AX6739A-01-488 by qiaodan at 20230503 start*/
+	info->psy_main1_desc.name = "ac";
+	info->psy_main1_desc.type = POWER_SUPPLY_TYPE_MAINS;
+	info->psy_main1_desc.properties = psy_ac_properties;
+	info->psy_main1_desc.num_properties =
+		ARRAY_SIZE(psy_ac_properties);
+	info->psy_main1_desc.get_property = psy_ac_get_property;
+	info->psy_main1_cfg.drv_data = info;
+	info->psy_main1 = power_supply_register(&pdev->dev,
+						 &info->psy_main1_desc,
+						 &info->psy_main1_cfg);
+	if (IS_ERR(info->psy_main1)) {
+		chr_err("register psy ac fail:%ld\n",
+			PTR_ERR(info->psy_main1));
+	}
+
+	info->psy_main2_desc.name = "usb";
+	info->psy_main2_desc.type = POWER_SUPPLY_TYPE_USB;
+	info->psy_main2_desc.properties = psy_usb_properties;
+	info->psy_main2_desc.num_properties =
+		ARRAY_SIZE(psy_usb_properties);
+	info->psy_main2_desc.get_property = psy_usb_get_property;
+	info->psy_main2_cfg.drv_data = info;
+	info->psy_main2 = power_supply_register(&pdev->dev,
+						 &info->psy_main2_desc,
+						 &info->psy_main2_cfg);
+	if (IS_ERR(info->psy_main2)) {
+		chr_err("register psy usb fail:%ld\n",
+			PTR_ERR(info->psy_main2));
+	}
+	/*Tab A9 code for SR-AX6739A-01-488 by qiaodan at 20230503 end*/
+
+	/*Tab A9 code for SR-AX6739A-01-473 by hualei at 20230525 start*/
+	info->psy_main3_desc.name = "otg";
+	info->psy_main3_desc.type = POWER_SUPPLY_TYPE_UNKNOWN;
+	info->psy_main3_desc.properties = psy_otg_properties;
+	info->psy_main3_desc.num_properties =
+		ARRAY_SIZE(psy_otg_properties);
+	info->psy_main3_desc.get_property = psy_otg_get_property;
+	info->psy_main3_desc.set_property = psy_otg_set_property;
+	info->psy_main3_cfg.drv_data = info;
+	info->psy_main3 = power_supply_register(&pdev->dev,
+						 &info->psy_main3_desc,
+						 &info->psy_main3_cfg);
+	if (IS_ERR(info->psy_main3)) {
+		chr_err("register psy otg fail:%ld\n",
+			PTR_ERR(info->psy_main3));
+	}
+	/*Tab A9 code for SR-AX6739A-01-473 by hualei at 20230525 end*/
+
 	info->log_level = CHRLOG_ERROR_LEVEL;
 
 	info->pd_adapter = get_adapter_by_name("pd_adapter");
@@ -3485,10 +4536,61 @@ static int mtk_charger_probe(struct platform_device *pdev)
 
 	info->chg_alg_nb.notifier_call = chg_alg_event;
 
+	/*Tab A9 code for SR-AX6739A-01-503|SR-AX6739A-01-499 by wenyaqi at 20230515 start*/
+	#if defined(CONFIG_CUSTOM_PROJECT_OT11)
+	info->fast_charging_indicator = PDC_ID | AFC_ID;
+	#else
 	info->fast_charging_indicator = 0;
+	#endif
+	/*Tab A9 code for SR-AX6739A-01-503|SR-AX6739A-01-499 by wenyaqi at 20230515 end*/
+
+	/*Tab A9 code for SR-AX6739A-01-486 by qiaodan at 20230512 start*/
+	/*for discharge info initial*/
+	info->gxy_discharge_input_suspend = false;
+	/*Tab A9 code for SR-AX6739A-01-486 by qiaodan at 20230512 end*/
+	/*Tab A9 code for SR-AX6739A-01-487 by qiaodan at 20230515 start*/
+	#if defined(CONFIG_ODM_CUSTOM_FACTORY_BUILD)
+	info->gxy_discharge_batt_cap_control = true;
+	#endif //CONFIG_ODM_CUSTOM_FACTORY_BUILD
+	/*Tab A9 code for SR-AX6739A-01-487 by qiaodan at 20230515 end*/
+	/*Tab A9 U code for AX6739AU-127 by wenyaqi at 20240102 start*/
+	/*Tab A9 code for SR-AX6739A-01-457 by qiaodan at 20230522 start*/
+	#if !defined(CONFIG_ODM_CUSTOM_FACTORY_BUILD)
+	info->gxy_discharge_batt_full_capacity = GXY_FULL_CAPACITY_LEVEL;
+	info->gxy_discharge_batt_full_flag = false;
+	#endif //!CONFIG_ODM_CUSTOM_FACTORY_BUILD
+	/*Tab A9 code for SR-AX6739A-01-457 by qiaodan at 20230522 end*/
+
+	#if !defined(CONFIG_ODM_CUSTOM_FACTORY_BUILD)
+	info->gxy_batt_soc_rechg = false;
+	info->gxy_batt_soc_rechg_flag = false;
+	#endif //!CONFIG_ODM_CUSTOM_FACTORY_BUILD
+	info->afc_result = 0;
+	gxy_ttf_init();
+	/*Tab A9 U code for AX6739AU-127 by wenyaqi at 20240102 end*/
+
+	/*Tab A9 code for SR-AX6739A-01-455 by qiaodan at 20230524 start*/
+	#if !defined(CONFIG_ODM_CUSTOM_FACTORY_BUILD)
+	info->store_mode_charging_max = STORE_MODE_CAPACITY_MAX;
+	info->store_mode_charging_min =  STORE_MODE_CAPACITY_MIN;
+	info->gxy_discharge_store_mode_flag = false;
+	#endif //!CONFIG_ODM_CUSTOM_FACTORY_BUILD
+	/*Tab A9 code for SR-AX6739A-01-455 by qiaodan at 20230524 end*/
+
+	/*Tab A9 code for SR-AX6739A-01-514 by qiaodan at 20230601 start*/
+	#if defined(CONFIG_CUSTOM_PROJECT_OT11)
+	info->hv_voltage_switch1 = false;
+	info->ovp_status = false;
+	#endif //CONFIG_CUSTOM_PROJECT_OT11
+	/*Tab A9 code for SR-AX6739A-01-514 by qiaodan at 20230601 end*/
+
 	info->enable_meta_current_limit = 1;
 	info->is_charging = false;
 	info->safety_timer_cmd = -1;
+
+	/*Tab A9 code for SR-AX6739A-01-486 by qiaodan at 20230514 start*/
+	gxy_charger_init(info);
+	/*Tab A9 code for SR-AX6739A-01-486 by qiaodan at 20230514 end*/
 
 	/* 8 = KERNEL_POWER_OFF_CHARGING_BOOT */
 	/* 9 = LOW_POWER_OFF_CHARGING_BOOT */

@@ -175,4 +175,10 @@ obj-$(CCCI_OBJ) += platform/
 
 endif
 
+# S-RIL Support
+ifeq ($(CONFIG_MTK_SRIL_SUPPORT), y)
+obj-$(CCCI_OBJ) += cpif.o
+cpif-$(CCCI_OBJ) := modem_io_device.o
+endif
+
 endif

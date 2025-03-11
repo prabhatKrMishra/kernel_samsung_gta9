@@ -6,7 +6,6 @@ MTK_PLATFORM := isp6s
 MTK_SENSOR_PROJECT :=
 MTK_DERIVED_PLATFORM :=
 
-
 IMGSENSOR_DRIVER_PATH := $(srctree)/drivers/misc/mediatek/imgsensor/src
 COMMON_VERSION := v1_1
 subdir-ccflags-y += -I$(IMGSENSOR_DRIVER_PATH)/common/$(COMMON_VERSION) \

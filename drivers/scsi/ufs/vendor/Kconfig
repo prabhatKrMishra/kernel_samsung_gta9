@@ -87,3 +87,11 @@ config UFSRINGBUF_POC
 	  UFS RingBuffer POC test
 	  1. set default vendor_signature & vendor_parameter for test
 	  2. Set custom vender_parameter
+
+config SEC_UFS_FEATURE
+	tristate "SEC specific UFS feature"
+	depends on SCSI_UFSHCD
+	help
+	  Enable Samsung feature support
+	  Enabling this allows kernel to use SEC specific feature
+	  defined and implemented by SEC.

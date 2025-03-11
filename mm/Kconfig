@@ -133,12 +133,17 @@ config SPARSEMEM_VMEMMAP
 	  pfn_to_page and page_to_pfn operations.  This is the most
 	  efficient option when sufficient kernel resources are available.
 
+
 config HAVE_MEMBLOCK_PHYS_MAP
 	bool
 
 config HAVE_FAST_GUP
 	depends on MMU
 	bool
+
+config MEMBLOCK_MEMSIZE
+	bool "memblock based reserved memory profiling"
+	default y
 
 # Don't discard allocated memory used to track "memory" and "reserved" memblocks
 # after early boot, so it can still be used to test for validity of memory.
@@ -854,7 +859,7 @@ config SPECULATIVE_PAGE_FAULT
        bool "Speculative page faults"
        default y
        depends on ARCH_SUPPORTS_SPECULATIVE_PAGE_FAULT
-       depends on MMU && SMP
+       depends on MMU && SMP && !NUMA
        help
          Try to handle user space page faults without holding the mmap_sem.
 
@@ -868,6 +873,22 @@ config SPECULATIVE_PAGE_FAULT
 	 detected or because underlying PMD or PTE tables are not yet
 	 allocating, it is failing its processing and a classic page fault
 	 is then tried.
+
+config PAGE_BOOST
+	bool "PAGE_BOOST feature"
+	depends on MMU
+	default y
+	help
+	  Enable this for PAGE_BOOST feature
+
+config PAGE_BOOST_RECORDING
+	bool "PAGE_BOOST recording feature"
+	depends on PAGE_BOOST
+	default y
+	help
+	  Record Everything for the chosen process.
+	  As Android executes an app one by one, only allow 1 recording
+	  at a time.
 
 config GUP_BENCHMARK
 	bool "Enable infrastructure for get_user_pages() and related calls benchmarking"
@@ -907,6 +928,46 @@ config ARCH_HAS_HUGEPD
 config MAPPING_DIRTY_HELPERS
         bool
 
+config KSWAPD_CPU
+	hex "Set kswapd cpu affinity by default"
+	default 0x3F
+	help
+	  Set kswapd cpu affinity by default. 0x3F means allowing CPU as 0 to 5.
+	  To disable this config, set this to 0.
+
+config MMAP_READAROUND_LIMIT
+	int "Limit mmap readaround upperbound"
+	default 16
+	help
+	  Inappropriate mmap readaround size can hurt device performance
+	  during the sluggish situation. Add the hard upper-limit for
+	  mmap readaround.
+
+config FAULT_AROUND_BYTES
+	int "Fault around bytes"
+	default 32768
+	range 4096 65536
+	help
+	  The number of bytes to be mapped around the fault.
+
+config DIRECT_RECLAIM_FILE_PAGES_ONLY
+	bool "Reclaim file pages only on direct reclaim path"
+	depends on SWAP
+	default y
+
+config BALANCE_ANON_FILE_RECLAIM
+	bool "During reclaim treat anon and file backed pages equally"
+	depends on SWAP
+	default y
+	help
+	  When performing memory reclaim treat anonymous and file backed pages
+	  equally.
+	  Swapping anonymous pages out to memory can be efficient enough to justify
+	  treating anonymous and file backed pages equally.
+
 source "mm/damon/Kconfig"
 
 endmenu
+
+source "mm/sec_mm/Kconfig"
+

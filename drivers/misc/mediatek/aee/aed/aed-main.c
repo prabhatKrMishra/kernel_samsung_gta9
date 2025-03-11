@@ -1568,7 +1568,7 @@ static void show_map_vma(unsigned char *Userthread_maps,
 	struct path base_path;
 	char tpath[512];
 	char *path_p = NULL;
-	char str[256];
+	char str[512];
 	int len;
 
 	if (file) {

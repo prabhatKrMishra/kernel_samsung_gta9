@@ -132,6 +132,18 @@
 #define HWOCV_SWOCV_DIFF			300
 #define HWOCV_SWOCV_DIFF_LT			1500
 #define HWOCV_SWOCV_DIFF_LT_TEMP	5
+/* Tab A9 code for SR-AX6739A-01-492 by hualei at 2023/5/4 start */
+#ifdef CONFIG_ODM_CUSTOM_FACTORY_BUILD
+#define HWOCV_OLDOCV_DIFF	0
+#define HWOCV_OLDOCV_DIFF_CHR	0
+#define SWOCV_OLDOCV_DIFF	0
+#define SWOCV_OLDOCV_DIFF_CHR	0
+#define VBAT_OLDOCV_DIFF	0
+#define SWOCV_OLDOCV_DIFF_EMB	0	/* 0mV */
+
+#define VIR_OLDOCV_DIFF_EMB	0	/* 0mV */
+#define VIR_OLDOCV_DIFF_EMB_LT	0	/* 0mV */
+#else
 #define HWOCV_OLDOCV_DIFF			400
 #define HWOCV_OLDOCV_DIFF_CHR		800
 #define SWOCV_OLDOCV_DIFF			300
@@ -141,6 +153,8 @@
 
 #define VIR_OLDOCV_DIFF_EMB			10000	/* 1000mV */
 #define VIR_OLDOCV_DIFF_EMB_LT		10000	/* 1000mV */
+#endif
+/* Tab A9 code for SR-AX6739A-01-492 by hualei at 2023/5/4 end */
 #define VIR_OLDOCV_DIFF_EMB_TMP		5
 
 #define TNEW_TOLD_PON_DIFF			5
@@ -449,9 +463,13 @@ int g_temperature[MAX_TABLE] = {
 
 #define BAT_NTC_10 1
 #define BAT_NTC_47 0
-
+/*Tab A9 code for SR-AX6739A-01-515 by qiaodan at 20230502 start*/
 #if (BAT_NTC_10 == 1)
+#if defined(CONFIG_CUSTOM_PROJECT_OT11)
+#define RBAT_PULL_UP_R             390000
+#else
 #define RBAT_PULL_UP_R             24000
+#endif
 #endif
 
 #if (BAT_NTC_47 == 1)
@@ -463,6 +481,31 @@ int g_temperature[MAX_TABLE] = {
 #define BIF_NTC_R 16000
 
 #if (BAT_NTC_10 == 1)
+#if defined(CONFIG_CUSTOM_PROJECT_OT11)
+struct fg_temp fg_temp_table[21] = {
+		{-40, 4397100},
+		{-35, 3088600},
+		{-30, 2197200},
+		{-25, 1581880},
+		{-20, 1151040},
+		{-15, 846580},
+		{-10, 628990},
+		{-5, 471630},
+		{0, 357010},
+		{5, 272500},
+		{10, 209710},
+		{15, 162650},
+		{20, 127080},
+		{25, 100000},
+		{30, 79222},
+		{35, 63167},
+		{40, 50677},
+		{45, 40904},
+		{50, 33195},
+		{55, 27091},
+		{60, 22224},
+};
+#else
 struct fg_temp fg_temp_table[21] = {
 		{-40, 195652},
 		{-35, 148171},
@@ -487,7 +530,8 @@ struct fg_temp fg_temp_table[21] = {
 		{60, 3014}
 };
 #endif
-
+#endif
+/*Tab A9 code for SR-AX6739A-01-515 by qiaodan at 20230502 end*/
 #if (BAT_NTC_47 == 1)
 struct fg_temp fg_temp_table[21] = {
 		{-40, 1747920},

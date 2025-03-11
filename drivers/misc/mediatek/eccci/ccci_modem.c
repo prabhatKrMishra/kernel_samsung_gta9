@@ -75,7 +75,14 @@ struct ccci_smem_region md1_6297_noncacheable_fat[] = {
 		SMF_NCLR_FIRST, },
 	{SMEM_USER_CCISM_MCU,	0, (720+1)*1024,	SMF_NCLR_FIRST, },
 	{SMEM_USER_CCISM_MCU_EXP, 0, (120+1)*1024,	SMF_NCLR_FIRST, },
+#ifdef CUST_FT_BIGDATA
+	{SMEM_USER_MD_BIGDATA,	0,	512,	0, },
+	{SMEM_USER_MD_IPCA_BIGDATA,	0,	128,	0, },
+	//must keep 1M size
+	{SMEM_USER_RESERVED, 0, 0x4580,	 0, },
+#else
 	{SMEM_USER_RESERVED, 0, 18*1024,	 0, },
+#endif
 	{SMEM_USER_MD_DRDI, 0, BANK4_DRDI_SMEM_SIZE, SMF_NCLR_FIRST, },
 	{SMEM_USER_MD_DATA, 0, 0 /*5*1024*1024*/, SMF_NCLR_FIRST, },
 	{SMEM_USER_MAX, }, /* tail guard */
@@ -116,6 +123,10 @@ struct ccci_smem_region md1_6293_noncacheable_fat[] = {
 	SMF_NCLR_FIRST, },
 {SMEM_USER_CCISM_MCU,		160*1024, (720+1)*1024, SMF_NCLR_FIRST, },
 {SMEM_USER_CCISM_MCU_EXP,	881*1024, (120+1)*1024, SMF_NCLR_FIRST, },
+#ifdef CUST_FT_BIGDATA
+{SMEM_USER_MD_BIGDATA,	881*1024+121*1024,	512,	0},
+{SMEM_USER_MD_IPCA_BIGDATA,	881*1024+121*1024+512,	128,	0},
+#endif
 {SMEM_USER_RAW_DFD,		1*1024*1024,	448*1024,	0, },
 {SMEM_USER_RAW_UDC_DATA, (1*1024+448)*1024, 0*1024*1024,	0, },
 {SMEM_USER_RAW_AMMS_POS,	(1*1024 + 448)*1024,	0,
@@ -1503,6 +1514,18 @@ static void config_ap_side_feature(struct ccci_modem *md,
 		md_feature->feature_set[MD_POS_SHARE_MEMORY].support_mask =
 			CCCI_FEATURE_NOT_SUPPORT;
 
+#ifdef CUST_FT_BIGDATA
+	md_feature->feature_set[CCCI_MD_BIGDATA_SHARE_MEMORY].support_mask
+		= CCCI_FEATURE_MUST_SUPPORT;
+	md_feature->feature_set[CCCI_MD_IPCA_BIGDATA_SHARE_MEMORY].support_mask
+		= CCCI_FEATURE_MUST_SUPPORT;
+#else
+	md_feature->feature_set[CCCI_MD_BIGDATA_SHARE_MEMORY].support_mask
+		= CCCI_FEATURE_NOT_SUPPORT;
+	md_feature->feature_set[CCCI_MD_IPCA_BIGDATA_SHARE_MEMORY].support_mask
+		= CCCI_FEATURE_NOT_SUPPORT;
+#endif
+
 	/* notice: CCB_SHARE_MEMORY should be set to support
 	 * when at least one CCB region exists
 	 */
@@ -1624,6 +1647,10 @@ static void config_ap_side_feature(struct ccci_modem *md,
 	else
 		md_feature->feature_set[MD_DATA_SMEM_INF].support_mask =
 				CCCI_FEATURE_NOT_SUPPORT;
+#ifdef CUST_FT_EE_TRIGGER_REBOOT
+	md_feature->feature_set[AP_DEBUG_LEVEL].support_mask =
+		CCCI_FEATURE_MUST_SUPPORT;
+#endif
 }
 
 unsigned int align_to_2_power(unsigned int n)
@@ -1760,6 +1787,9 @@ int ccci_md_prepare_runtime_data(unsigned char md_id, unsigned char *data,
 	struct timespec64 t;
 	unsigned int c2k_flags = 0;
 	int adc_val = 0;
+#ifdef CUST_FT_EE_TRIGGER_REBOOT
+	int debug_level;
+#endif
 
 	CCCI_BOOTUP_LOG(md->index, TAG,
 		"prepare_runtime_data  AP total %u features\n",
@@ -2116,6 +2146,22 @@ int ccci_md_prepare_runtime_data(unsigned char md_id, unsigned char *data,
 				append_runtime_feature(&rt_data, &rt_feature,
 				&rt_shm);
 				break;
+#ifdef CUST_FT_BIGDATA
+			case CCCI_MD_BIGDATA_SHARE_MEMORY:
+				ccci_smem_region_set_runtime(md_id,
+					SMEM_USER_MD_BIGDATA,
+					&rt_feature, &rt_shm);
+				append_runtime_feature(&rt_data, &rt_feature,
+				&rt_shm);
+				break;
+			case CCCI_MD_IPCA_BIGDATA_SHARE_MEMORY:
+				ccci_smem_region_set_runtime(md_id,
+					SMEM_USER_MD_IPCA_BIGDATA,
+					&rt_feature, &rt_shm);
+				append_runtime_feature(&rt_data, &rt_feature,
+				&rt_shm);
+				break;
+#endif
 			case MD_PHY_CAPTURE:
 				if (md->hw_info->plat_val->md_gen >= 6297)
 					ccci_sib_region_set_runtime(&rt_feature,
@@ -2209,6 +2255,15 @@ int ccci_md_prepare_runtime_data(unsigned char md_id, unsigned char *data,
 				append_runtime_feature(&rt_data, &rt_feature,
 				rt_mem_view);
 				break;
+#ifdef CUST_FT_EE_TRIGGER_REBOOT
+			case AP_DEBUG_LEVEL:
+				rt_feature.data_len = sizeof(int);
+				debug_level = ccci_get_ap_debug_level();
+				CCCI_NORMAL_LOG(-1, TAG, "AP_DEBUG_LEVEL:%d\n", debug_level);
+				append_runtime_feature(&rt_data,
+					&rt_feature, &debug_level);
+				break;
+#endif
 #ifdef CCCI_SUPPORT_AP_MD_SECURE_FEATURE
 			case SECURITY_SHARE_MEMORY:
 				ccci_smem_region_set_runtime(md_id,
@@ -2429,8 +2484,13 @@ int exec_ccci_kern_func_by_md_id(int md_id, unsigned int id, char *buf,
 				MD_SW_MD2_TX_POWER;
 			unsigned int mode = *((unsigned int *)buf);
 
+			/*send tx power status for swtp and carkit*/
 			ret = ccci_port_send_msg_to_md(md_id, CCCI_SYSTEM_TX,
 				msg_id, mode, 0);
+#ifdef CUST_FT_CARKIT_ENABLE
+			ret = ccci_port_send_msg_to_md(md_id, CCCI_SYSTEM_TX,
+				MD_CARKIT_STATUS, mode, 0);
+#endif
 		}
 		break;
 	case ID_DUMP_MD_SLEEP_MODE:

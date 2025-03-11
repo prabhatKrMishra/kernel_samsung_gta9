@@ -8,7 +8,7 @@
 
 #include <drm/mediatek_drm.h>
 
-#define MAX_SESSION_COUNT 4
+#define MAX_SESSION_COUNT 3
 
 #define MTK_SESSION_MODE(id) (((id) >> 24) & 0xff)
 #define MTK_SESSION_TYPE(id) (((id) >> 16) & 0xff)
@@ -18,8 +18,7 @@
 enum MTK_SESSION_TYPE {
 	MTK_SESSION_PRIMARY = 1,
 	MTK_SESSION_EXTERNAL = 2,
-	MTK_SESSION_MEMORY = 3,
-	MTK_SESSION_SP = 4,
+	MTK_SESSION_MEMORY = 3
 };
 
 struct mtk_session_mode_tb {

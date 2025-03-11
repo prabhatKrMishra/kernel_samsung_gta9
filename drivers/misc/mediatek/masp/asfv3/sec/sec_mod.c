@@ -51,7 +51,7 @@
 
 #define MOD                         "MASP"
 
-#define SEC_DEV_NAME                "sec"
+#define SEC_DEV_NAME                "mtk_sec"
 #define SEC_MAJOR                   182
 
 #define TRACE_FUNC()                MSG_FUNC(SEC_DEV_NAME)

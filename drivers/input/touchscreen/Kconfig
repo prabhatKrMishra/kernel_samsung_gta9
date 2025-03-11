@@ -132,19 +132,6 @@ config TOUCHSCREEN_ATMEL_MXT
 	  To compile this driver as a module, choose M here: the
 	  module will be called atmel_mxt_ts.
 
-config TOUCHSCREEN_MTK_GT1151
-	bool "GT1151 for Mediatek package"
-	default n
-	help
-	Say Y here if you have GT1151 touch panel.
-
-	If unsure, say N.
-
-	To compile this dirver as a module, choose M here: the
-	module will be called.
-
-source "drivers/input/touchscreen/GT1151/Kconfig"
-
 config TOUCHSCREEN_ATMEL_MXT_T37
 	bool "Support T37 Diagnostic Data"
 	depends on TOUCHSCREEN_ATMEL_MXT
@@ -1371,17 +1358,12 @@ config TOUCHSCREEN_MT6895_ALPHA_SUPPORT
 	  Set Y or M to select this feature for specific platform-mt6895,
 	  and set N to disable.
 
-config TOUCHSCREEN_HIMAX_CHIPSET
-	bool "Himax touchpanel CHIPSET"
-	help
-	  Say Y here if you have a Himax CHIPSET touchscreen.
-	  HIMAX controllers are multi touch controllers which can
-	  report 10 touches at a time.
+# Tab A9 code for SR-AX6739A-01-271 by suyurui at 20230427 start
+config FACTORY_TEST
+    tristate "only factory test"
 
-          If unsure, say N.
-
-source "drivers/input/touchscreen/hxchipset/Kconfig"
-source "drivers/input/touchscreen/GT9966/Kconfig"
-
+# Tab A9 code for SR-AX6739A-01-271 by suyurui at 20230427 end
+# Tab A9 code for SR-AX6739A-01-259 by wenghailong at 20230510 start
+source "drivers/input/touchscreen/ot11/touch_common/Kconfig"
+# Tab A9 code for SR-AX6739A-01-259 by wenghailong at 20230510 end
 endif
-

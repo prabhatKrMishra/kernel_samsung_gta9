@@ -126,6 +126,12 @@ void pd_dpm_vcs_enable_vconn(struct pd_port *pd_port, uint8_t role);
 int pd_dpm_send_source_cap_ext(struct pd_port *pd_port);
 #endif	/* CONFIG_USB_PD_REV30_SRC_CAP_EXT_LOCAL */
 
+/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 start */
+#if CONFIG_USB_PD_REV30_SNK_CAP_EXT_LOCAL
+int pd_dpm_send_sink_cap_ext(struct pd_port *pd_port);
+#endif	/* CONFIG_USB_PD_REV30_SNK_CAP_EXT_LOCAL */
+/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 end */
+
 #if CONFIG_USB_PD_REV30_SRC_CAP_EXT_REMOTE
 void pd_dpm_inform_source_cap_ext(struct pd_port *pd_port);
 #endif	/* CONFIG_USB_PD_REV30_SRC_CAP_EXT_REMOTE */
@@ -165,6 +171,12 @@ void pd_dpm_inform_country_codes(struct pd_port *pd_port);
 #if CONFIG_USB_PD_REV30_COUNTRY_INFO_LOCAL
 int pd_dpm_send_country_info(struct pd_port *pd_port);
 #endif	/* CONFIG_USB_PD_REV30_COUNTRY_INFO_LOCAL */
+
+/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 start */
+#if CONFIG_USB_PD_REV30_REVISION_LOCAL
+int pd_dpm_send_revision(struct pd_port *pd_port);
+#endif	/* CONFIG_USB_PD_REV30_REVISION_LOCAL */
+/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 end */
 
 #if CONFIG_USB_PD_REV30_COUNTRY_INFO_REMOTE
 void pd_dpm_inform_country_info(struct pd_port *pd_port);

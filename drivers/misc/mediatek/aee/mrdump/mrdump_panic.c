@@ -34,6 +34,13 @@
 
 /* for arm_smccc_smc */
 #include <linux/arm-smccc.h>
+/* Tab A9 code for SR-AX6739A-01-372 by Tangyuhang at 20230601 start */
+#ifdef CONFIG_ODM_CUSTOM_FACTORY_BUILD
+extern void dump_backtrace_hq(struct pt_regs *regs, struct task_struct *tsk,
+		    const char *loglvl,char *str);
+#endif
+/* Tab A9 code for SR-AX6739A-01-372 by Tangyuhang at 20230601 end */
+
 
 static struct pt_regs saved_regs;
 
@@ -114,7 +121,13 @@ static void mrdump_cblock_update(enum AEE_REBOOT_MODE reboot_mode,
 	int cpu;
 	size_t msg_count;
 	elf_gregset_t *reg;
-
+/* Tab A9 code for SR-AX6739A-01-372 by Tangyuhang at 20230601 start */
+#ifdef CONFIG_ODM_CUSTOM_FACTORY_BUILD
+	char *trace_msg = NULL;
+	char *err_msg = "Kernel Panic OT11";
+	struct task_struct *tsk = current;
+#endif
+/* Tab A9 code for SR-AX6739A-01-372 by Tangyuhang at 20230601 end */
 	local_irq_disable();
 
 	switch (reboot_mode) {
@@ -159,12 +172,32 @@ static void mrdump_cblock_update(enum AEE_REBOOT_MODE reboot_mode,
 				elf_core_copy_kernel_regs(reg, regs);
 			mrdump_save_control_register(creg);
 		}
+/* Tab A9 code for SR-AX6739A-01-372 by Tangyuhang at 20230601 start */
+#ifdef CONFIG_ODM_CUSTOM_FACTORY_BUILD
+  		trace_msg = kzalloc(512, GFP_ATOMIC);
+		if (!trace_msg) {
+			pr_err("alloc trace_msg memory faild\n");
+			snprintf(crash_record->msg, sizeof(crash_record->msg), err_msg);
+			goto out;
+		}
+		dump_backtrace_hq(regs, tsk, crash_record->msg, trace_msg);
+		msg_count = strlen(trace_msg);
+		if (msg_count >= sizeof(crash_record->msg))
+			msg_count = sizeof(crash_record->msg) - 1;
+		memcpy_toio(crash_record->msg, trace_msg, msg_count);
+		__raw_writeb(0, &crash_record->msg[msg_count]);
+		kfree(trace_msg);
+#else
 		msg_count = strlen(msg);
 		if (msg_count >= sizeof(crash_record->msg))
 			msg_count = sizeof(crash_record->msg) - 1;
 		memcpy_toio(crash_record->msg, msg, msg_count);
 		__raw_writeb(0, &crash_record->msg[msg_count]);
-
+#endif
+#ifdef CONFIG_ODM_CUSTOM_FACTORY_BUILD
+out:
+#endif
+/* Tab A9 code for SR-AX6739A-01-372 by Tangyuhang at 20230601 end */
 		crash_record->fault_cpu = cpu;
 
 		/* FIXME: Check reboot_mode is valid */
@@ -178,6 +211,37 @@ void mrdump_regist_hang_bt(void (*fn)(void))
 	p_show_task_info = fn;
 }
 EXPORT_SYMBOL_GPL(mrdump_regist_hang_bt);
+
+#if IS_ENABLED(CONFIG_SEC_DEBUG)
+/*******************************************************
+    Module loading order for SEC_DEBUG
+
+    < ko_order_table.csv >
+	sec_deub.ko 
+	mrdump.ko
+	...
+	mtk-pmic-keys.ko
+	sec_reboot.ko
+	sec_rst.ko
+	sec_ext.ko
+*******************************************************/
+
+extern void sec_debug_dump_info(struct pt_regs *regs);
+#if IS_ENABLED(CONFIG_SEC_DEBUG_EXTRA_INFO)		
+extern void sec_debug_set_extra_info_fault(unsigned long addr, struct pt_regs *regs);
+#endif		
+
+static void (*reset_delay)(void);
+void register_mrdump_reset_delay(void (*func)(void))
+{
+	if (!func)
+		return;
+
+	reset_delay = func;
+	pr_info("%s done!\n", __func__);
+}
+EXPORT_SYMBOL(register_mrdump_reset_delay);
+#endif
 
 static int num_die;
 atomic_t first_cpu = ATOMIC_INIT(-1);
@@ -262,6 +326,17 @@ int mrdump_common_die(int reboot_reason, const char *msg,
 	case AEE_FIQ_STEP_COMMON_DIE_DONE:
 		aee_rr_rec_fiq_step(AEE_FIQ_STEP_COMMON_DIE_DONE);
 	default:
+#if IS_ENABLED(CONFIG_SEC_DEBUG)
+		sec_debug_dump_info(regs);
+
+#if IS_ENABLED(CONFIG_SEC_DEBUG_EXTRA_INFO)		
+ 	if (!user_mode(regs))
+		sec_debug_set_extra_info_fault((unsigned long)regs->pc, regs);
+#endif		
+
+		if (reset_delay)
+			reset_delay();
+#endif
 		aee_nested_printf("num_die-%d, last_step-%d, next_step-%d\n",
 				  num_die, last_step, next_step);
 		aee_exception_reboot(reboot_reason);
@@ -272,9 +347,16 @@ int mrdump_common_die(int reboot_reason, const char *msg,
 }
 EXPORT_SYMBOL(mrdump_common_die);
 
+#if IS_ENABLED(CONFIG_SEC_DEBUG)
+extern void sec_upload_cause(void *buf);
+#endif
+
 int ipanic(struct notifier_block *this, unsigned long event, void *ptr)
 {
 	crash_setup_regs(&saved_regs, NULL);
+#if IS_ENABLED(CONFIG_SEC_DEBUG)
+	sec_upload_cause(ptr);
+#endif
 	return mrdump_common_die(AEE_REBOOT_MODE_KERNEL_PANIC,
 				 "Kernel Panic", &saved_regs);
 }
@@ -282,6 +364,9 @@ int ipanic(struct notifier_block *this, unsigned long event, void *ptr)
 static int ipanic_die(struct notifier_block *self, unsigned long cmd, void *ptr)
 {
 	struct die_args *dargs = (struct die_args *)ptr;
+#if IS_ENABLED(CONFIG_SEC_DEBUG)
+	sec_upload_cause((void *)(dargs->str));
+#endif
 	return mrdump_common_die(AEE_REBOOT_MODE_KERNEL_OOPS,
 				 "Kernel Oops", dargs->regs);
 }

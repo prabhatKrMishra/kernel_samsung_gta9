@@ -128,13 +128,14 @@ wait:
 				g_rvr_msg->lock.wait_rx,
 				g_rvr_msg->count,
 				msecs_to_jiffies(REVISER_REMOTE_TIMEOUT));
+
 	if (ret == -ERESTARTSYS) {
 		LOG_ERR("Wake up by signal!, retry again %d\n", retry);
 		msleep(20);
 		retry++;
 		goto wait;
 	}
-	if (!ret) {
+	if (ret == 0) {
 		LOG_ERR("wait command timeout!!\n");
 		ret = -ETIME;
 		goto out;

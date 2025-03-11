@@ -87,22 +87,22 @@ void mtk_dp_debug(const char *opt)
 		else if (strncmp(opt + 6, "8ch", 3) == 0)
 			mtk_dp_force_audio(6, 0xff, 0xff);
 
-		if (strncmp(opt + 9, "32fs", 4) == 0)
+		if (strncmp(opt + min_t(int, strlen(opt), 9), "32fs", 4) == 0)
 			mtk_dp_force_audio(0xff, 0, 0xff);
-		else if (strncmp(opt + 9, "44fs", 4) == 0)
+		else if (strncmp(opt + min_t(int, strlen(opt), 9), "44fs", 4) == 0)
 			mtk_dp_force_audio(0xff, 1, 0xff);
-		else if (strncmp(opt + 9, "48fs", 4) == 0)
+		else if (strncmp(opt + min_t(int, strlen(opt), 9), "48fs", 4) == 0)
 			mtk_dp_force_audio(0xff, 2, 0xff);
-		else if (strncmp(opt + 9, "96fs", 4) == 0)
+		else if (strncmp(opt + min_t(int, strlen(opt), 9), "96fs", 4) == 0)
 			mtk_dp_force_audio(0xff, 3, 0xff);
-		else if (strncmp(opt + 9, "192f", 4) == 0)
+		else if (strncmp(opt + min_t(int, strlen(opt), 9), "192f", 4) == 0)
 			mtk_dp_force_audio(0xff, 4, 0xff);
 
-		if (strncmp(opt + 13, "16bit", 5) == 0)
+		if (strncmp(opt + min_t(int, strlen(opt), 13), "16bit", 5) == 0)
 			mtk_dp_force_audio(0xff, 0xff, 0);
-		else if (strncmp(opt + 13, "20bit", 5) == 0)
+		else if (strncmp(opt + min_t(int, strlen(opt), 13), "20bit", 5) == 0)
 			mtk_dp_force_audio(0xff, 0xff, 1);
-		else if (strncmp(opt + 13, "24bit", 5) == 0)
+		else if (strncmp(opt + min_t(int, strlen(opt), 13), "24bit", 5) == 0)
 			mtk_dp_force_audio(0xff, 0xff, 2);
 
 	} else if (strncmp(opt, "dptest:", 7) == 0) {
@@ -136,7 +136,7 @@ void mtk_dp_debug(const char *opt)
 
 		ret = sscanf(opt, "adjust_phy:%d,%d,%d\n", &index, &c0, &cp1);
 		if (ret != 3) {
-			DPTXERR("ret = %d\n", ret);
+			DPTXERR("ret = %s\n", ret);
 			return;
 		}
 
@@ -151,7 +151,7 @@ void mtk_dp_debug(const char *opt)
 
 		ret = sscanf(opt, "pattern:%d,%d\n", &enable, &resolution);
 		if (ret != 2) {
-			DPTXMSG("ret = %d\n", ret);
+			DPTXMSG("ret = %s\n", ret);
 			return;
 		}
 
@@ -164,7 +164,7 @@ void mtk_dp_debug(const char *opt)
 
 		ret = sscanf(opt, "maxlinkrate:%d,%d\n", &enable, &maxlinkrate);
 		if (ret != 2) {
-			DPTXMSG("ret = %d\n", ret);
+			DPTXMSG("ret = %s\n", ret);
 			return;
 		}
 
@@ -178,7 +178,7 @@ void mtk_dp_debug(const char *opt)
 
 			ret = sscanf(opt, "video_clock:%d,%d\n", &clksrc, &con1);
 			if (ret != 2) {
-				DPTXERR("ret = %d\n", ret);
+				DPTXERR("ret = %s\n", ret);
 				return;
 			}
 			mtk_dp_clock_debug(clksrc, con1);
@@ -224,16 +224,16 @@ static ssize_t mtk_dp_debug_read(struct file *file, char __user *ubuf,
 	int ret = 0;
 	char *buffer;
 
-	buffer = kmalloc(PAGE_SIZE / 8, GFP_KERNEL);
+	buffer = kmalloc(PAGE_SIZE/8, GFP_KERNEL);
 	if (!buffer)
 		return -ENOMEM;
 
 	switch (g_infoIndex) {
 	case DP_INFO_HDCP:
-		ret = mtk_dp_hdcp_getInfo(buffer, PAGE_SIZE / 8);
+		ret = mtk_dp_hdcp_getInfo(buffer, PAGE_SIZE/8);
 		break;
 	case DP_INFO_PHY:
-		ret = mtk_dp_phy_getInfo(buffer, PAGE_SIZE / 8);
+		ret = mtk_dp_phy_getInfo(buffer, PAGE_SIZE/8);
 		break;
 	default:
 		DPTXERR("Invalid inedx!");

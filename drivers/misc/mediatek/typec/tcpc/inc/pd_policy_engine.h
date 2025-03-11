@@ -225,6 +225,11 @@ enum pd_pe_state {
 #if CONFIG_USB_PD_REV30_SRC_CAP_EXT_REMOTE
 	PE_SNK_GET_SOURCE_CAP_EXT,
 #endif	/* CONFIG_USB_PD_REV30_SRC_CAP_EXT_REMOTE */
+/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 start */
+#if CONFIG_USB_PD_REV30_SNK_CAP_EXT_LOCAL
+	PE_SNK_GIVE_SINK_CAP_EXT,
+#endif	/* CONFIG_USB_PD_REV30_SNK_CAP_EXT_LOCAL */
+/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 end */
 #if CONFIG_USB_PD_REV30_STATUS_REMOTE
 	PE_SNK_GET_SOURCE_STATUS,
 #endif	/* CONFIG_USB_PD_REV30_STATUS_REMOTE */
@@ -287,6 +292,11 @@ enum pd_pe_state {
 #if CONFIG_USB_PD_REV30_SRC_CAP_EXT_REMOTE
 	PE_DR_SRC_GET_SOURCE_CAP_EXT,
 #endif	/* CONFIG_USB_PD_REV30_SRC_CAP_EXT_REMOTE */
+/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 start */
+#if CONFIG_USB_PD_REV30_SNK_CAP_EXT_LOCAL
+	PE_DR_SRC_GIVE_SINK_CAP_EXT,
+#endif	/* CONFIG_USB_PD_REV30_SNK_CAP_EXT_LOCAL */
+/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 end */
 #endif	/* CONFIG_USB_PD_REV30 */
 #endif	/* CONFIG_USB_PD_PR_SWAP */
 
@@ -394,6 +404,11 @@ enum pd_pe_state {
 #if CONFIG_USB_PD_REV30_COUNTRY_INFO_LOCAL
 	PE_GIVE_COUNTRY_INFO,
 #endif	/* CONFIG_USB_PD_REV30_COUNTRY_INFO_LOCAL */
+/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 start */
+#if CONFIG_USB_PD_REV30_REVISION_LOCAL
+	PE_GIVE_REVISION,
+#endif	/* CONFIG_USB_PD_REV30_REVISION_LOCAL */
+/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 end */
 	PE_VDM_NOT_SUPPORTED,
 #endif /* CONFIG_USB_PD_REV30 */
 
@@ -601,6 +616,12 @@ void pe_snk_get_source_cap_ext_entry(
 void pe_snk_get_source_cap_ext_exit(
 	struct pd_port *pd_port);
 #endif	/* CONFIG_USB_PD_REV30_SRC_CAP_EXT_REMOTE */
+/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 start */
+#if CONFIG_USB_PD_REV30_SNK_CAP_EXT_LOCAL
+void pe_snk_give_sink_cap_ext_entry(
+	struct pd_port *pd_port);
+#endif	/* CONFIG_USB_PD_REV30_SNK_CAP_EXT_LOCAL */
+/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 end */
 #if CONFIG_USB_PD_REV30_STATUS_REMOTE
 void pe_snk_get_source_status_entry(
 	struct pd_port *pd_port);
@@ -699,6 +720,12 @@ void pe_dr_snk_get_sink_cap_exit(
 	struct pd_port *pd_port);
 void pe_dr_snk_give_source_cap_entry(
 	struct pd_port *pd_port);
+/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 start */
+#if CONFIG_USB_PD_REV30_SNK_CAP_EXT_LOCAL
+void pe_dr_src_give_sink_cap_ext_entry(
+	struct pd_port *pd_port);
+#endif	/* CONFIG_USB_PD_REV30_SNK_CAP_EXT_LOCAL */
+/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 end */
 
 /* get same role cap for PD30 */
 #if CONFIG_USB_PD_REV30
@@ -904,6 +931,12 @@ void pe_get_country_info_exit(
 void pe_give_country_info_entry(
 	struct pd_port *pd_port);
 #endif	/* CONFIG_USB_PD_REV30_COUNTRY_INFO_LOCAL */
+/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 start */
+#if CONFIG_USB_PD_REV30_REVISION_LOCAL
+void pe_give_revision_entry(
+	struct pd_port *pd_port);
+#endif	/* CONFIG_USB_PD_REV30_REVISION_LOCAL */
+/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 end */
 void pe_vdm_not_supported_entry(
 	struct pd_port *pd_port);
 #endif /* CONFIG_USB_PD_REV30 */

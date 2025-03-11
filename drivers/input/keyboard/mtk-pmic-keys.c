@@ -17,24 +17,10 @@
 #include <linux/mfd/mt6359p/registers.h>
 #include <linux/mfd/mt6363/registers.h>
 #include <linux/mfd/mt6397/registers.h>
-#include <linux/mfd/mt6358/core.h>
 #include <linux/mfd/mt6363/core.h>
 #include <linux/mfd/mt6366/core.h>
 #include <linux/mfd/mt6397/core.h>
-#include <linux/mfd/mt6357/registers.h>
-#include <linux/mfd/mt6357/core.h>
 
-/* 6358 pmic define */
-#define MT6358_TOPSTATUS			(0x28)
-#define MT6358_PSC_TOP_INT_CON0			(0x910)
-#define MT6358_TOP_RST_MISC			(0x14c)
-#define MT6358_PWRKEY_DEB_MASK			1
-#define MT6358_HOMEKEY_DEB_MASK			3
-#define MT6358_RG_INT_EN_HOMEKEY_MASK           1
-#define MT6358_RG_INT_EN_PWRKEY_MASK            0
-#define MT6358_PWRKEY_RST_SHIFT                 9
-#define MT6358_HOMEKEY_RST_SHIFT                8
-#define MT6358_RST_DU_SHIFT                     12
 
 #define MT6366_TOPSTATUS			(0x28)
 #define MT6366_PSC_TOP_INT_CON0			(0x910)
@@ -67,9 +53,13 @@
 #define RST_PWRKEY_HOME2_MODE			2
 #define RST_PWRKEY_HOME_HOME2_MODE		3
 #define INVALID_VALUE				0
-#define MT6357_PWRKEY_RST_SHIFT			9
-#define MT6357_HOMEKEY_RST_SHIFT		8
-#define MT6357_RST_DU_SHIFT			12
+
+/*Tab A9 code for SR-AX6739A-01-334 by zhangxiongyi at 20230518 start*/
+#ifdef CONFIG_CUSTOM_PROJECT_OT11
+extern void get_volumedown_state(int keycode,int pressed);
+extern void get_power_state(int keycode,int pressed);
+#endif
+/*Tab A9 code for SR-AX6739A-01-334 by zhangxiongyi at 20230518 end*/
 struct mtk_pmic_keys_regs {
 	u32 deb_reg;
 	u32 deb_mask;
@@ -172,42 +162,6 @@ static const struct mtk_pmic_regs mt6366_regs = {
 	.rst_du_shift = MT6366_RST_DU_SHIFT,
 };
 
-static const struct mtk_pmic_regs mt6357_regs = {
-	.keys_regs[MTK_PMIC_PWRKEY_INDEX] =
-		MTK_PMIC_KEYS_REGS(MT6357_TOPSTATUS,
-		MT6357_PWRKEY_DEB_MASK,
-		MT6357_PSC_TOP_INT_CON0,
-		MT6357_RG_INT_EN_PWRKEY_MASK),
-	.keys_regs[MTK_PMIC_HOMEKEY_INDEX] =
-		MTK_PMIC_KEYS_REGS(MT6357_TOPSTATUS,
-		MT6357_HOMEKEY_DEB_MASK,
-		MT6357_PSC_TOP_INT_CON0,
-		MT6357_RG_INT_EN_HOMEKEY_MASK),
-	.release_irq = true,
-	.pmic_rst_reg = MT6357_TOP_RST_MISC,
-	.pwrkey_rst_shift = MT6357_PWRKEY_RST_SHIFT,
-	.homekey_rst_shift = MT6357_HOMEKEY_RST_SHIFT,
-	.rst_du_shift = MT6357_RST_DU_SHIFT,
-};
-
-static const struct mtk_pmic_regs mt6358_regs = {
-	.keys_regs[MTK_PMIC_PWRKEY_INDEX] =
-		MTK_PMIC_KEYS_REGS(MT6358_TOPSTATUS,
-		MT6358_PWRKEY_DEB_MASK,
-		MT6358_PSC_TOP_INT_CON0,
-		MT6358_RG_INT_EN_PWRKEY_MASK),
-	.keys_regs[MTK_PMIC_HOMEKEY_INDEX] =
-		MTK_PMIC_KEYS_REGS(MT6358_TOPSTATUS,
-		MT6358_HOMEKEY_DEB_MASK,
-		MT6358_PSC_TOP_INT_CON0,
-		MT6358_RG_INT_EN_HOMEKEY_MASK),
-	.release_irq = true,
-	.pmic_rst_reg = MT6358_TOP_RST_MISC,
-	.pwrkey_rst_shift = MT6358_PWRKEY_RST_SHIFT,
-	.homekey_rst_shift = MT6358_HOMEKEY_RST_SHIFT,
-	.rst_du_shift = MT6358_RST_DU_SHIFT,
-};
-
 struct mtk_pmic_keys_info {
 	struct mtk_pmic_keys *keys;
 	const struct mtk_pmic_keys_regs *regs;
@@ -302,6 +256,12 @@ static irqreturn_t mtk_pmic_keys_release_irq_handler_thread(
 		__pm_relax(info->suspend_lock);
 	dev_info(info->keys->dev, "release key =%d using PMIC\n",
 			info->keycode);
+	/*Tab A9 code for SR-AX6739A-01-334 by zhangxiongyi at 20230518 start*/
+	#ifdef CONFIG_CUSTOM_PROJECT_OT11
+	get_volumedown_state(info->keycode,0);
+	get_power_state(info->keycode,0);
+	#endif
+	/*Tab A9 code for SR-AX6739A-01-334 by zhangxiongyi at 20230518 end*/
 	return IRQ_HANDLED;
 }
 
@@ -327,7 +287,12 @@ static irqreturn_t mtk_pmic_keys_irq_handler_thread(int irq, void *data)
 		__pm_relax(info->suspend_lock);
 	dev_info(info->keys->dev, "(%s) key =%d using PMIC\n",
 		 pressed ? "pressed" : "released", info->keycode);
-
+	/*Tab A9 code for SR-AX6739A-01-334 by zhangxiongyi at 20230518 start*/
+	#ifdef CONFIG_CUSTOM_PROJECT_OT11
+	get_power_state(info->keycode,1);
+	get_volumedown_state(info->keycode,1);
+	#endif
+	/*Tab A9 code for SR-AX6739A-01-334 by zhangxiongyi at 20230518 end*/
 	return IRQ_HANDLED;
 }
 
@@ -370,6 +335,58 @@ static int mtk_pmic_key_setup(struct mtk_pmic_keys *keys,
 
 	return 0;
 }
+
+#if IS_ENABLED(CONFIG_SEC_DEBUG)
+struct mtk_pmic_keys *secdbg_keys;
+
+int mtk_pmic_pwrkey_status(void)
+{
+	struct mtk_pmic_keys_info *pwrkey;
+	const struct mtk_pmic_keys_regs *regs;
+	u32 key_deb, pressed;
+
+	if (!secdbg_keys)
+		return -EINVAL;
+
+	pwrkey = &secdbg_keys->keys[MTK_PMIC_PWRKEY_INDEX];
+	regs = pwrkey->regs;
+
+	regmap_read(secdbg_keys->regmap, regs->deb_reg, &key_deb);
+	dev_info(secdbg_keys->dev, "Read register 0x%x and mask 0x%x and value: 0x%x\n",
+		 regs->deb_reg, 1 << regs->deb_mask, key_deb);
+	key_deb &= 1 << regs->deb_mask;
+	pressed = !key_deb;
+
+	dev_info(secdbg_keys->dev, "%s power key\n", pressed ? "pressed" : "released");
+
+	return pressed;
+}
+EXPORT_SYMBOL(mtk_pmic_pwrkey_status);
+
+int mtk_pmic_homekey_status(void)
+{
+	struct mtk_pmic_keys_info *homekey;
+	const struct mtk_pmic_keys_regs *regs;
+	u32 key_deb, pressed;
+
+	if (!secdbg_keys)
+		return -EINVAL;
+
+	homekey = &secdbg_keys->keys[MTK_PMIC_HOMEKEY_INDEX];
+	regs = homekey->regs;
+
+	regmap_read(secdbg_keys->regmap, regs->deb_reg, &key_deb);
+	dev_info(secdbg_keys->dev, "Read register 0x%x and mask 0x%x and value: 0x%x\n",
+		 regs->deb_reg, 1 << regs->deb_mask, key_deb);
+	key_deb &= 1 << regs->deb_mask;
+	pressed = !key_deb;
+
+	dev_info(secdbg_keys->dev, "%s home key\n", pressed ? "pressed" : "released");
+
+	return pressed;
+}
+EXPORT_SYMBOL(mtk_pmic_homekey_status);
+#endif
 
 static int __maybe_unused mtk_pmic_keys_suspend(struct device *dev)
 {
@@ -416,12 +433,6 @@ static const struct of_device_id of_mtk_pmic_keys_match_tbl[] = {
 	},  {
 		.compatible = "mediatek,mt6366-keys",
 		.data = &mt6366_regs,
-	}, {
-		.compatible = "mediatek,mt6358-keys",
-		.data = &mt6358_regs,
-	}, {
-		.compatible = "mediatek,mt6357-keys",
-		.data = &mt6357_regs,
 	}, {
 		/* sentinel */
 	}
@@ -521,6 +532,9 @@ static int mtk_pmic_keys_probe(struct platform_device *pdev)
 		return error;
 	}
 
+#if IS_ENABLED(CONFIG_SEC_DEBUG)
+	secdbg_keys = keys;
+#endif
 	mtk_pmic_keys_lp_reset_setup(keys, mtk_pmic_regs);
 
 	platform_set_drvdata(pdev, keys);

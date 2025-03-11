@@ -8,6 +8,15 @@ obj-$(CONFIG_TCPC_MT6362)		+= tcpc_mt6362.o
 obj-$(CONFIG_TCPC_MT6370)		+= tcpc_mt6370.o
 obj-$(CONFIG_TCPC_MT6375)		+= tcpc_mt6375.o
 obj-$(CONFIG_TCPC_RT1711H)		+= tcpc_rt1711h.o
+# Tab A9 code for SR-AX6739A-01-494 by qiaodan at 20230502 start
+obj-$(CONFIG_TCPC_ET7304)		+= tcpc_et7304.o
+# Tab A9 code for SR-AX6739A-01-494 by qiaodan at 20230502 end
+# Tab A9 code for SR-AX6739A-01-497 by wenyaqi at 20230506 start
+obj-$(CONFIG_TCPC_AW35615)		+= tcpc_aw35615/
+# Tab A9 code for SR-AX6739A-01-497 by wenyaqi at 20230506 end
+#Tab A9 code for SR-AX6739A-01-498 by lina at 20230505 start
+obj-$(CONFIG_TCPC_CPS8851)		+= tcpc_cps8851.o
+#Tab A9 code for SR-AX6739A-01-498 by lina at 20230505 end
 
 tcpc_class-objs := tcpci_core.o tcpci_typec.o tcpci_timer.o tcpm.o tcpci.o tcpci_alert.o
 

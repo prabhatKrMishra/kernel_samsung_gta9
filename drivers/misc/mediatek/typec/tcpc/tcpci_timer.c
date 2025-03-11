@@ -238,6 +238,10 @@ static const char *const tcpc_timer_name[] = {
 #define DECL_TCPC_TIMEOUT_RANGE(enum, min, max)	\
 	TIMEOUT_RANGE(min, max)
 
+/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 start */
+#define PD_TIMER_SENDER_RESPONSE_TIMEOUT_20 TIMEOUT_VAL(26)
+#define PD_TIMER_SENDER_RESPONSE_TIMEOUT_30 TIMEOUT_VAL(28)
+
 static const uint32_t tcpc_timer_timeout[PD_TIMER_NR] = {
 #if IS_ENABLED(CONFIG_USB_POWER_DELIVERY)
 DECL_TCPC_TIMEOUT_RANGE(PD_TIMER_DISCOVER_ID, 40, 50),
@@ -249,7 +253,8 @@ DECL_TCPC_TIMEOUT_RANGE(PD_TIMER_PS_SOURCE_OFF, 750, 920),
 DECL_TCPC_TIMEOUT_RANGE(PD_TIMER_PS_SOURCE_ON, 390, 480),
 
 DECL_TCPC_TIMEOUT_RANGE(PD_TIMER_PS_TRANSITION, 450, 550),
-DECL_TCPC_TIMEOUT_RANGE(PD_TIMER_SENDER_RESPONSE, 24, 30),
+//DECL_TCPC_TIMEOUT_RANGE(PD_TIMER_SENDER_RESPONSE, 24, 30),
+DECL_TCPC_TIMEOUT_RANGE(PD_TIMER_SENDER_RESPONSE, 24, 30), /* Not used. */
 DECL_TCPC_TIMEOUT_RANGE(PD_TIMER_SINK_REQUEST, 100, 100),
 DECL_TCPC_TIMEOUT_RANGE(PD_TIMER_SINK_WAIT_CAP, 310, 620),
 DECL_TCPC_TIMEOUT_RANGE(PD_TIMER_SOURCE_CAPABILITY, 100, 200),
@@ -269,7 +274,8 @@ DECL_TCPC_TIMEOUT_RANGE(PD_TIMER_SOURCE_TRANSITION, 25, 35),
 DECL_TCPC_TIMEOUT_RANGE(PD_TIMER_SRC_RECOVER, 660, 1000),
 
 #if CONFIG_USB_PD_REV30
-DECL_TCPC_TIMEOUT_RANGE(PD_TIMER_CK_NOT_SUPPORTED, 40, 50),
+DECL_TCPC_TIMEOUT_RANGE(PD_TIMER_CK_NOT_SUPPORTED, 40, 45),
+/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 end */
 #if CONFIG_USB_PD_REV30_COLLISION_AVOID
 DECL_TCPC_TIMEOUT_RANGE(PD_TIMER_SINK_TX, 16, 20),	/* 16 ~ 20 */
 #endif	/* CONFIG_USB_PD_REV30_COLLISION_AVOID */
@@ -361,6 +367,11 @@ static inline void on_pe_timer_timeout(
 		struct tcpc_device *tcpc, uint32_t timer_id)
 {
 	struct pd_event pd_event = {0};
+/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 start */
+#ifdef CONFIG_USB_PD_CHECK_RX_PENDING_IF_SRTOUT
+	int timeout = -1;
+#endif /* CONFIG_USB_PD_CHECK_RX_PENDING_IF_SRTOUT */
+/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 end */
 
 	pd_event.event_type = PD_EVT_TIMER_MSG;
 	pd_event.msg = timer_id;
@@ -417,6 +428,29 @@ static inline void on_pe_timer_timeout(
 		TCPC_INFO("pe_idle tout\n");
 		pd_put_pe_event(&tcpc->pd_port, PD_PE_IDLE);
 		break;
+
+/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 start */
+#ifdef CONFIG_USB_PD_CHECK_RX_PENDING_IF_SRTOUT
+	case PD_TIMER_SENDER_RESPONSE:
+		if (!tcpc->alert_done.done) {
+			/* alert thread is handling, but not sure is TXRX event
+			just for not block TXRX event ASAP */
+			TCPC_INFO("alert_pending\n");
+			timeout =
+			wait_for_completion_interruptible_timeout(&tcpc->alert_done,
+								  msecs_to_jiffies(3));
+			TCPC_INFO("timeout = %d\n", timeout);
+			/* if get rx_event, no need to put SENDER_RESPONSE event */
+			if (timeout > 0 && tcpc->is_rx_event)
+				break;
+		}
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5,4,0))
+		fallthrough;
+#else
+		/* pass through */
+#endif
+#endif /* CONFIG_USB_PD_CHECK_RX_PENDING_IF_SRTOUT */
+/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 end */
 
 	default:
 		pd_put_event(tcpc, &pd_event, false);
@@ -1226,6 +1260,11 @@ void tcpc_enable_timer(struct tcpc_device *tcpc, uint32_t timer_id)
 {
 	uint32_t r, mod, tout;
 
+/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 start */
+#if IS_ENABLED(CONFIG_USB_POWER_DELIVERY)
+	uint8_t pd_rev = pd_get_rev(&tcpc->pd_port, tcpc->pd_port.last_sop_type);
+#endif	/* CONFIG_USB_POWER_DELIVERY */
+
 	TCPC_TIMER_EN_DBG(tcpc, timer_id);
 	if (timer_id >= PD_TIMER_NR) {
 		PD_BUG_ON(1);
@@ -1238,6 +1277,16 @@ void tcpc_enable_timer(struct tcpc_device *tcpc, uint32_t timer_id)
 	tcpc_set_timer_enable_mask(tcpc, timer_id);
 
 	tout = tcpc_timer_timeout[timer_id];
+
+#if IS_ENABLED(CONFIG_USB_POWER_DELIVERY)
+	if (timer_id == PD_TIMER_SENDER_RESPONSE) {
+		tout = pd_rev >= PD_REV30 ?
+			PD_TIMER_SENDER_RESPONSE_TIMEOUT_30 :
+			PD_TIMER_SENDER_RESPONSE_TIMEOUT_20;
+	}
+#endif	/* CONFIG_USB_POWER_DELIVERY */
+/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 end */
+
 #if PD_DYNAMIC_SENDER_RESPONSE
 	if ((timer_id == PD_TIMER_SENDER_RESPONSE) &&
 		(tout > tcpc->tx_time_diff) && (tcpc->tx_time_diff > 2000)) {
@@ -1370,7 +1419,7 @@ int tcpci_timer_init(struct tcpc_device *tcpc)
 		tcpc->tcpc_timer[i].function = tcpc_timer_call[i];
 	}
 	tcpc->wakeup_wake_lock =
-		wakeup_source_register(NULL, "tcpc_wakeup_wake_lock");
+		wakeup_source_register(&tcpc->dev, "tcpc_wakeup_wake_lock");
 	INIT_DELAYED_WORK(&tcpc->wake_up_work, wake_up_work_func);
 	alarm_init(&tcpc->wake_up_timer, ALARM_REALTIME, tcpc_timer_wakeup);
 

@@ -418,16 +418,12 @@ static void mtk_imgsys_vb2_buf_queue(struct vb2_buffer *vb)
 	struct vb2_v4l2_buffer *b = to_vb2_v4l2_buffer(vb);
 	struct mtk_imgsys_dev_buffer *dev_buf =
 					mtk_imgsys_vb2_buf_to_dev_buf(vb);
-	struct mtk_imgsys_request *req = NULL;
+	struct mtk_imgsys_request *req =
+				mtk_imgsys_media_req_to_imgsys_req(vb->request);
 	struct mtk_imgsys_video_device *node =
 					mtk_imgsys_vbq_to_node(vb->vb2_queue);
 	struct mtk_imgsys_pipe *pipe = vb2_get_drv_priv(vb->vb2_queue);
 	int buf_count;
-
-	if (!vb->request)
-		return;
-
-	req = mtk_imgsys_media_req_to_imgsys_req(vb->request);
 
 	dev_buf->dev_fmt = node->dev_q.dev_fmt;
 	//support std mode dynamic change buf info & fmt
@@ -697,22 +693,13 @@ static int mtk_imgsys_videoc_try_fmt(struct file *file, void *fh,
 	struct mtk_imgsys_video_device *node = mtk_imgsys_file_to_node(file);
 	const struct mtk_imgsys_dev_format *dev_fmt;
 	struct v4l2_format try_fmt;
-	unsigned int idx;
 
 	memset(&try_fmt, 0, sizeof(try_fmt));
 
 	dev_fmt = mtk_imgsys_pipe_find_fmt(pipe, node,
 					f->fmt.pix_mp.pixelformat);
 	if (!dev_fmt) {
-		idx = node->desc->default_fmt_idx;
-		if (idx >= node->desc->num_fmts) {
-			idx = 0;
-			dev_info(pipe->imgsys_dev->dev,
-				"%s:%s: invalid idx(%d), must < num_fmts(%d)\n",
-			__func__, node->desc->name, idx, node->desc->num_fmts);
-		}
-
-		dev_fmt = &node->desc->fmts[idx];
+		dev_fmt = &node->desc->fmts[node->desc->default_fmt_idx];
 		dev_dbg(pipe->imgsys_dev->dev,
 			"%s:%s:%s: dev_fmt(%d) not found, use default(%d)\n",
 			__func__, pipe->desc->name, node->desc->name,
@@ -741,7 +728,6 @@ static int mtk_imgsys_videoc_s_fmt(struct file *file, void *fh,
 	struct mtk_imgsys_video_device *node = mtk_imgsys_file_to_node(file);
 	struct mtk_imgsys_pipe *pipe = video_drvdata(file);
 	const struct mtk_imgsys_dev_format *dev_fmt;
-	unsigned int idx;
 
 	if (pipe->streaming || vb2_is_busy(&node->dev_q.vbq))
 		return -EBUSY;
@@ -749,15 +735,7 @@ static int mtk_imgsys_videoc_s_fmt(struct file *file, void *fh,
 	dev_fmt = mtk_imgsys_pipe_find_fmt(pipe, node,
 					f->fmt.pix_mp.pixelformat);
 	if (!dev_fmt) {
-		idx = node->desc->default_fmt_idx;
-		if (idx >= node->desc->num_fmts) {
-			idx = 0;
-			dev_info(pipe->imgsys_dev->dev,
-				"%s:%s: invalid idx(%d), must < num_fmts(%d)\n",
-			__func__, node->desc->name, idx, node->desc->num_fmts);
-		}
-
-		dev_fmt = &node->desc->fmts[idx];
+		dev_fmt = &node->desc->fmts[node->desc->default_fmt_idx];
 		dev_dbg(pipe->imgsys_dev->dev,
 			"%s:%s:%s: dev_fmt(%d) not found, use default(%d)\n",
 			__func__, pipe->desc->name, node->desc->name,
@@ -860,28 +838,21 @@ static int mtk_imgsys_videoc_s_meta_fmt(struct file *file, void *fh,
 	struct mtk_imgsys_video_device *node = mtk_imgsys_file_to_node(file);
 	struct mtk_imgsys_pipe *pipe = video_drvdata(file);
 	const struct mtk_imgsys_dev_format *dev_fmt;
-	unsigned int idx;
 
 	if (pipe->streaming || vb2_is_busy(&node->dev_q.vbq))
 		return -EBUSY;
 
 	dev_fmt = mtk_imgsys_pipe_find_fmt(pipe, node,
 						f->fmt.meta.dataformat);
-	if (!dev_fmt) {
-		idx = node->desc->default_fmt_idx;
-		if (idx >= node->desc->num_fmts) {
-			idx = 0;
-			dev_info(pipe->imgsys_dev->dev,
-				"%s:%s: invalid idx(%d), must < num_fmts(%d)\n",
-			__func__, node->desc->name, idx, node->desc->num_fmts);
-		}
 
-		dev_fmt = &node->desc->fmts[idx];
-		dev_info(pipe->imgsys_dev->dev,
-			"%s:%s:%s: dev_fmt(%d) not found, use default(%d)\n",
-			__func__, pipe->desc->name, node->desc->name,
-			f->fmt.meta.dataformat, dev_fmt->format);
-	}
+		if (!dev_fmt) {
+			dev_fmt =
+				&node->desc->fmts[node->desc->default_fmt_idx];
+			dev_info(pipe->imgsys_dev->dev,
+				"%s:%s:%s: dev_fmt(%d) not found, use default(%d)\n",
+				__func__, pipe->desc->name, node->desc->name,
+				f->fmt.meta.dataformat, dev_fmt->format);
+		}
 
 	memset(&node->vdev_fmt, 0, sizeof(node->vdev_fmt));
 
@@ -930,19 +901,15 @@ static int mtk_imgsys_vidioc_qbuf(struct file *file, void *priv,
 	struct mtk_imgsys_video_device *node = mtk_imgsys_file_to_node(file);
 	struct vb2_buffer *vb;
 	struct mtk_imgsys_dev_buffer *dev_buf;
-	int ret = 0;
-#ifdef DYNAMIC_FMT
 	struct buf_info dyn_buf_info;
-	int i = 0;
+	int ret = 0, i = 0;
 	unsigned long user_ptr = 0;
+	struct mtk_imgsys_request *imgsys_req;
+	struct media_request *req;
 #ifndef USE_V4L2_FMT
 	struct v4l2_plane_pix_format *vfmt;
 	struct plane_pix_format *bfmt;
 #endif
-#endif
-	struct mtk_imgsys_request *imgsys_req;
-	struct media_request *req;
-
 	if ((buf->index >= VB2_MAX_FRAME) || (buf->index < 0)) {
 		dev_info(pipe->imgsys_dev->dev, "[%s] error vb2 index %d\n", __func__, buf->index);
 		return -EINVAL;
@@ -967,7 +934,6 @@ static int mtk_imgsys_vidioc_qbuf(struct file *file, void *priv,
 	imgsys_req->tstate.time_qbuf = ktime_get_boottime_ns()/1000;
 	media_request_put(req);
 	if (!is_desc_fmt(node->dev_q.dev_fmt)) {
-#ifdef DYNAMIC_FMT
 		user_ptr =
 			(((unsigned long)(buf->m.planes[0].reserved[0]) << 32) |
 			((unsigned long)buf->m.planes[0].reserved[1]));
@@ -1040,7 +1006,6 @@ static int mtk_imgsys_vidioc_qbuf(struct file *file, void *priv,
 				dev_buf->compose = node->compose;
 			}
 		}
-#endif
 	} else {
 		dev_dbg(pipe->imgsys_dev->dev,
 			"[%s]%s:%s: no need to cache bufinfo,videonode fmt is DESC or SingleDevice(%d)!\n",
@@ -1484,9 +1449,6 @@ static int mtkdip_ioc_add_kva(struct v4l2_subdev *subdev, void *arg)
 	dma_addr_t dma_addr;
 	int i;
 
-	if (fd_info->fd_num > FD_MAX)
-		return -EINVAL;
-
 	kva_list = get_fd_kva_list();
 	for (i = 0; i < fd_info->fd_num; i++) {
 		buf_va_info = (struct buf_va_info_t *)
@@ -1574,9 +1536,6 @@ static int mtkdip_ioc_del_kva(struct v4l2_subdev *subdev, void *arg)
 	struct list_head *ptr = NULL;
 	int i;
 
-	if (fd_info->fd_num > FD_MAX)
-		return -EINVAL;
-
 	kva_list = get_fd_kva_list();
 	for (i = 0; i < fd_info->fd_num; i++) {
 		find = false;
@@ -1639,9 +1598,6 @@ static int mtkdip_ioc_add_iova(struct v4l2_subdev *subdev, void *arg)
 		return -EINVAL;
 		dev_dbg(pipe->imgsys_dev->dev, "%s:NULL usrptr\n", __func__);
 	}
-
-	if (fd_tbl->fd_num > FD_MAX)
-		return -EINVAL;
 
 	size = sizeof(*kfd) * fd_tbl->fd_num;
 	kfd = vzalloc(size);
@@ -1734,7 +1690,7 @@ static int mtkdip_ioc_del_iova(struct v4l2_subdev *subdev, void *arg)
 	size_t size;
 	int i, ret;
 
-	if ((!fd_tbl->fds) || (!fd_tbl->fd_num) || (fd_tbl->fd_num > FD_MAX)) {
+	if ((!fd_tbl->fds) || (!fd_tbl->fd_num)) {
 		return -EINVAL;
 		dev_dbg(pipe->imgsys_dev->dev, "%s:NULL usrptr\n", __func__);
 	}

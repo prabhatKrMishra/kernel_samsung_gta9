@@ -366,8 +366,7 @@ static unsigned long timevaldiff(struct timespec64 *starttime,
 	unsigned long msec;
 
 	msec = (finishtime->tv_sec-starttime->tv_sec)*1000;
-	msec += DO_COMMON_DIV(DO_COMMON_DIV((finishtime->tv_nsec-starttime->tv_nsec),
-		NSEC_PER_USEC), 1000);
+	msec += (finishtime->tv_nsec-starttime->tv_nsec) / NSEC_PER_USEC / 1000;
 
 	return msec;
 }
@@ -380,8 +379,8 @@ static void disp_aal_notify_backlight_log(int bl_1024)
 	unsigned long tusec;
 
 	ktime_get_ts64(&aal_time);
-	tsec = (unsigned long)DO_COMMMON_MOD(aal_time.tv_sec, 100);
-	tusec = (unsigned long)DO_COMMON_DIV(DO_COMMON_DIV(aal_time.tv_nsec, NSEC_PER_USEC), 1000);
+	tsec = (unsigned long)aal_time.tv_sec % 100;
+	tusec = (unsigned long)aal_time.tv_nsec / NSEC_PER_USEC / 1000;
 
 	diff_mesc = timevaldiff(&g_aal_log_prevtime, &aal_time);
 	if (!debug_api_log)
@@ -1068,7 +1067,6 @@ static void disp_aal_dre3_config(struct mtk_ddp_comp *comp,
 		if (comp->id == DDP_COMPONENT_AAL0) {
 			cmdq_pkt_write(handle, comp->cmdq_base,
 				dre3_pa + MDP_AAL_TILE_00,
-				(0x0 << 23) | (0x1 << 22) |
 				(0x1 << 21) | (0x1 << 20) |
 				(init_regs->dre0_blk_num_x_end << 15) |
 				(init_regs->dre0_blk_num_x_start << 10) |
@@ -1077,7 +1075,6 @@ static void disp_aal_dre3_config(struct mtk_ddp_comp *comp,
 		} else if (comp->id == DDP_COMPONENT_AAL1) {
 			cmdq_pkt_write(handle, comp->cmdq_base,
 				dre3_pa + MDP_AAL_TILE_00,
-				(0x1 << 23) | (0x0 << 22) |
 				(0x1 << 21) | (0x1 << 20) |
 				(init_regs->dre1_blk_num_x_end << 15) |
 				(init_regs->dre1_blk_num_x_start << 10) |
@@ -1419,7 +1416,7 @@ int disp_aal_set_param(struct mtk_ddp_comp *comp, struct cmdq_pkt *handle,
 	//For 120Hz rotation issue
 	ktime_get_ts64(&end);
 	time_use = (end.tv_sec-start.tv_sec) * 1000000
-		+ DO_COMMON_DIV((end.tv_nsec-start.tv_nsec), NSEC_PER_USEC);
+		+ (end.tv_nsec-start.tv_nsec) / NSEC_PER_USEC;
 	//pr_notice("set_param time_use is %lu us\n",time_use);
 	// tbd. to be fixd
 	if (time_use < 260) {
@@ -1645,6 +1642,14 @@ static bool disp_aal_read_dre3(struct mtk_ddp_comp *comp,
 	if (disp_aal_read_single_hist(comp) != true)
 		return false;
 
+	writel(aal_data->data->aal_dre_hist_start,
+		dre3_va + DISP_AAL_SRAM_RW_IF_2);
+	if (disp_aal_reg_poll(comp, DISP_AAL_SRAM_STATUS,
+		(0x1 << 17), (0x1 << 17)) != true) {
+		AALERR("DISP_AAL_SRAM_STATUS ERROR\n");
+		return false;
+	}
+
 	AALIRQ_LOG("start\n");
 	if (dump_blk_x >= 0 && dump_blk_x < 16
 		&& dump_blk_y >= 0 && dump_blk_y < 8)
@@ -1655,7 +1660,6 @@ static bool disp_aal_read_dre3(struct mtk_ddp_comp *comp,
 		hist_offset <= aal_data->data->aal_dre_hist_end;
 			hist_offset += 4) {
 
-		writel(hist_offset, dre3_va + DISP_AAL_SRAM_RW_IF_2);
 		read_value = readl(dre3_va + DISP_AAL_SRAM_RW_IF_3);
 
 		if (arry_offset >= AAL_DRE30_HIST_REGISTER_NUM)
@@ -1677,21 +1681,21 @@ static bool disp_aal_read_dre3(struct mtk_ddp_comp *comp,
 
 		if (comp->id == DDP_COMPONENT_AAL0) {
 			for (i = 0; i < 8; i++) {
-				g_aal_hist.MaxHis_denominator_pipe0[i] = readl(dre3_va +
+				g_aal_hist.MaxHis_denominator_pipe0[i] = readl(comp->regs +
 					MDP_AAL_DUAL_PIPE00 + (i << 2));
 			}
 			for (j = 0; j < 8; j++) {
-				g_aal_hist.MaxHis_denominator_pipe0[j+i] = readl(dre3_va +
+				g_aal_hist.MaxHis_denominator_pipe0[j+i] = readl(comp->regs +
 					MDP_AAL_DUAL_PIPE08 + (j << 2));
 			}
 
 		} else if (comp->id == DDP_COMPONENT_AAL1) {
 			for (i = 0; i < 8; i++) {
-				g_aal_hist.MaxHis_denominator_pipe1[i] = readl(dre3_va +
+				g_aal_hist.MaxHis_denominator_pipe1[i] = readl(comp->regs +
 					MDP_AAL_DUAL_PIPE00 + (i << 2));
 			}
 			for (j = 0; j < 8; j++) {
-				g_aal_hist.MaxHis_denominator_pipe1[j+i] = readl(dre3_va +
+				g_aal_hist.MaxHis_denominator_pipe1[j+i] = readl(comp->regs +
 					MDP_AAL_DUAL_PIPE08 + (j << 2));
 			}
 		}
@@ -2418,6 +2422,7 @@ static void ddp_aal_restore(struct mtk_ddp_comp *comp)
 static bool debug_skip_first_br;
 static void mtk_aal_prepare(struct mtk_ddp_comp *comp)
 {
+	int ret = 0;
 	struct mtk_disp_aal *aal_data = comp_to_aal(comp);
 	bool first_restore = (atomic_read(&aal_data->is_clock_on) == 0);
 
@@ -2437,9 +2442,12 @@ static void mtk_aal_prepare(struct mtk_ddp_comp *comp)
 			atomic_read(&aal_data->is_clock_on),
 			atomic_read(&g_aal_data->is_clock_on));
 
-	if (g_aal_fo->mtk_dre30_support && aal_data->dre3_hw.clk) {
-		if (clk_prepare(aal_data->dre3_hw.clk))
-			AALERR("%s clk prepare error\n", __func__);
+	if (g_aal_fo->mtk_dre30_support) {
+		if (aal_data->dre3_hw.clk) {
+			ret = clk_prepare(aal_data->dre3_hw.clk);
+			if (ret < 0)
+				DDPPR_ERR("failed to prepare dre3_hw.clk\n");
+		}
 	}
 	if (!first_restore && !debug_skip_first_br)
 		return;
@@ -2727,13 +2735,7 @@ static int mtk_aal_sof_irq_trigger(void *data)
 	while (1) {
 		disp_aal_wait_sof_irq();
 		atomic_set(&g_aal_sof_irq_available, 0);
-
-		if (kthread_should_stop()) {
-			AALERR("%s stopped\n", __func__);
-			break;
-		}
 	}
-	return 0;
 }
 
 static irqreturn_t mtk_disp_aal_irq_handler(int irq, void *dev_id)
@@ -2939,26 +2941,6 @@ static int mtk_disp_aal_remove(struct platform_device *pdev)
 	return 0;
 }
 
-static const struct mtk_disp_aal_data mt6765_aal_driver_data = {
-	.support_shadow     = false,
-	.need_bypass_shadow = false,
-	.aal_dre_hist_start = 1024,
-	.aal_dre_hist_end   = 4092,
-	.aal_dre_gain_start = 4096,
-	.aal_dre_gain_end   = 6268,
-	.bitShift = 16,
-};
-
-static const struct mtk_disp_aal_data mt6768_aal_driver_data = {
-	.support_shadow     = false,
-	.need_bypass_shadow = false,
-	.aal_dre_hist_start = 1024,
-	.aal_dre_hist_end   = 4092,
-	.aal_dre_gain_start = 4096,
-	.aal_dre_gain_end   = 6268,
-	.bitShift = 16,
-};
-
 static const struct mtk_disp_aal_data mt6885_aal_driver_data = {
 	.support_shadow     = false,
 	.need_bypass_shadow = false,
@@ -3040,10 +3022,6 @@ static const struct mtk_disp_aal_data mt6855_aal_driver_data = {
 };
 
 static const struct of_device_id mtk_disp_aal_driver_dt_match[] = {
-	{ .compatible = "mediatek,mt6765-disp-aal",
-	  .data = &mt6765_aal_driver_data},
-	{ .compatible = "mediatek,mt6768-disp-aal",
-	  .data = &mt6768_aal_driver_data},
 	{ .compatible = "mediatek,mt6789-disp-aal",
 	  .data = &mt6789_aal_driver_data},
 	{ .compatible = "mediatek,mt6885-disp-aal",

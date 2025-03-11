@@ -22,7 +22,7 @@
 
 
 #define LOG_PARAM_INFO_SIZE 64
-#define MAX_SUPPORTED_LOG_PARAMS_COUNT 32
+#define MAX_SUPPORTED_LOG_PARAMS_COUNT 12
 char mtk_vdec_tmp_log[LOG_PROPERTY_SIZE];
 char mtk_venc_tmp_log[LOG_PROPERTY_SIZE];
 char mtk_vdec_tmp_prop[LOG_PROPERTY_SIZE];
@@ -287,6 +287,7 @@ struct vdec_fb *mtk_vcodec_get_fb(struct mtk_vcodec_ctx *ctx)
 		}
 		pfb->status = FB_ST_INIT;
 		dst_buf_info->used = true;
+		ctx->fb_list[pfb->index + 1] = (uintptr_t)pfb;
 
 		mtk_v4l2_debug(1, "[%d] id=%d pfb=0x%p %llx VA=%p dma_addr[0]=%lx dma_addr[1]=%lx Size=%zx fd:%x, dma_general_buf = %p, general_buf_fd = %d",
 				ctx->id, dst_buf->index, pfb, (unsigned long long)pfb,
@@ -353,11 +354,6 @@ int mtk_dma_sync_sg_range(const struct sg_table *sgt,
 	unsigned int contig_size = 0;
 	int ret, i;
 
-	if (sgt == NULL || dev == NULL || size == 0) {
-		mtk_v4l2_err("sgt 0x%x dev 0x%x size %d invalid", sgt, dev, size);
-		return -1;
-	}
-
 	sgt_tmp = kzalloc(sizeof(*sgt_tmp), GFP_KERNEL);
 	if (!sgt_tmp)
 		return -1;
@@ -387,6 +383,7 @@ int mtk_dma_sync_sg_range(const struct sg_table *sgt,
 		dma_sync_sg_for_cpu(dev, sgt_tmp->sgl, sgt_tmp->nents, direction);
 	} else {
 		mtk_v4l2_debug(0, "direction %d not correct\n", direction);
+		kfree(sgt_tmp);
 		return -1;
 	}
 	mtk_v4l2_debug(4, "flush nents %d total nents %d\n",
@@ -602,7 +599,6 @@ static void mtk_vcodec_sync_log(struct mtk_vcodec_dev *dev,
 	struct mtk_vcodec_log_param *pram, *tmp;
 	struct list_head *plist;
 	struct mutex *plist_mutex;
-	int param_count;
 
 	if (index == MTK_VCODEC_LOG_INDEX_LOG) {
 		plist = &dev->log_param_list;
@@ -629,29 +625,8 @@ static void mtk_vcodec_sync_log(struct mtk_vcodec_dev *dev,
 		}
 	}
 
-	// remove disabled log param from list if value is empty
-	param_count = 0;
-	list_for_each_entry_safe(pram, tmp, plist, list) {
-		if (strlen(pram->param_val) == 0) {
-			mtk_v4l2_debug(8, "remove deprecated key: %s, value: %s\n",
-				pram->param_key, pram->param_val);
-			list_del_init(&pram->list);
-			kfree(pram);
-		} else {
-			param_count++;
-		}
-	}
-
-	// don't allow add if param count exceeds the limit
-	if (param_count >= MAX_SUPPORTED_LOG_PARAMS_COUNT) {
-		mtk_v4l2_debug(0, "cannot add due to param count[%d] exceeds the limit[%d]\n",
-			param_count, MAX_SUPPORTED_LOG_PARAMS_COUNT);
-		mutex_unlock(plist_mutex);
-		return;
-	}
-
 	// cannot find, add new
-	pram = kzalloc(sizeof(*pram), GFP_KERNEL);
+	pram = vzalloc(sizeof(*pram));
 	strncpy(pram->param_key, param_key, LOG_PARAM_INFO_SIZE - 1);
 	strncpy(pram->param_val, param_val, LOG_PARAM_INFO_SIZE - 1);
 	pram->param_val[LOG_PARAM_INFO_SIZE-1] = '\0';
@@ -659,6 +634,15 @@ static void mtk_vcodec_sync_log(struct mtk_vcodec_dev *dev,
 		pram->param_key, pram->param_val);
 	list_add(&pram->list, plist);
 
+	// remove disabled log param from list if value is empty
+	list_for_each_entry_safe(pram, tmp, plist, list) {
+		if (strlen(pram->param_val) == 0) {
+			mtk_v4l2_debug(8, "remove deprecated key: %s, value: %s\n",
+				pram->param_key, pram->param_val);
+			list_del_init(&pram->list);
+			vfree(pram);
+		}
+	}
 	mutex_unlock(plist_mutex);
 }
 
@@ -690,7 +674,7 @@ static void mtk_vcodec_build_log_string(struct mtk_vcodec_dev *dev,
 	mutex_lock(plist_mutex);
 
 	if (dev->vfd_dec) {
-		memset(vdec_temp_str, 0x00, LOG_PROPERTY_SIZE);
+		memset(vdec_temp_str, 0x00, 1024);
 		list_for_each_entry(pram, plist, list) {
 			mtk_v4l2_debug(8, "existed log param %s: %s\n",
 					pram->param_key, pram->param_val);
@@ -707,7 +691,7 @@ static void mtk_vcodec_build_log_string(struct mtk_vcodec_dev *dev,
 			mtk_v4l2_debug(8, "build mtk_vdec_property: %s\n", mtk_vdec_property);
 		}
 	} else {
-		memset(venc_temp_str, 0x00, LOG_PROPERTY_SIZE);
+		memset(venc_temp_str, 0x00, 1024);
 		list_for_each_entry(pram, plist, list) {
 			mtk_v4l2_debug(8, "existed log param %s: %s\n",
 					pram->param_key, pram->param_val);
@@ -731,25 +715,16 @@ void mtk_vcodec_set_log(struct mtk_vcodec_dev *dev, const char *val,
 	enum mtk_vcodec_log_index log_index)
 {
 	int i, argc = 0;
-	char (*argv)[LOG_PARAM_INFO_SIZE] = NULL;
+	char argv[MAX_SUPPORTED_LOG_PARAMS_COUNT * 2][LOG_PARAM_INFO_SIZE] = {0};
 	char *temp = NULL;
 	char *token = NULL;
 	long temp_val = 0;
-	char *log = NULL;
+	char log[LOG_PROPERTY_SIZE] = {0};
 
 	if (dev == NULL || val == NULL || strlen(val) == 0)
 		return;
 
 	mtk_v4l2_debug(0, "val: %s, log_index: %d", val, log_index);
-
-	argv = kzalloc(MAX_SUPPORTED_LOG_PARAMS_COUNT * 2 * LOG_PARAM_INFO_SIZE, GFP_KERNEL);
-	if (!argv)
-		return;
-	log = kzalloc(LOG_PROPERTY_SIZE, GFP_KERNEL);
-	if (!log) {
-		kfree(argv);
-		return;
-	}
 
 	strncpy(log, val, LOG_PROPERTY_SIZE - 1);
 	temp = log;
@@ -788,30 +763,9 @@ void mtk_vcodec_set_log(struct mtk_vcodec_dev *dev, const char *val,
 		pr_info("mtk_vcodec_perf: %d\n", mtk_vcodec_perf);
 		pr_info("mtk_v4l2_dbg_level: %d\n", mtk_v4l2_dbg_level);
 	}
-
-	kfree(argv);
-	kfree(log);
 }
 EXPORT_SYMBOL_GPL(mtk_vcodec_set_log);
 
-long long div_64(long long a, long long b)
-{
-#if IS_ENABLED(CONFIG_64BIT)
-	return (a/b);
-#else
-	uint32_t rem = 0;
-	uint64_t dividend, divisor;
-
-	dividend = (a >= 0) ? a : (-a);
-	divisor = (b >= 0) ? b : (-b);
-	rem = do_div(dividend, divisor);
-	a = ((a < 0) ^ (b < 0)) ?
-		(0LL - (long long)dividend) :
-		(long long)dividend;
-	return a;
-#endif
-}
-EXPORT_SYMBOL_GPL(div_64);
 
 MODULE_LICENSE("GPL v2");
 

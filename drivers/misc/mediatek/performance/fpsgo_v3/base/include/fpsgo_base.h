@@ -130,9 +130,6 @@ struct fbt_boost_info {
 	int enq_raw[QUOTA_MAX_SIZE];
 	int enq_sum;
 	int enq_avg;
-	int deq_raw[QUOTA_MAX_SIZE];
-	int deq_sum;
-	int deq_avg;
 
 	/* GCC */
 	int gcc_quota;

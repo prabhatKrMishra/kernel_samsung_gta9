@@ -158,6 +158,15 @@ static inline bool pd_process_ctrl_msg(
 			return true;
 		break;
 #endif	/* CONFIG_USB_PD_REV30_STATUS_LOCAL */
+/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 start */
+#if CONFIG_USB_PD_REV30_SNK_CAP_EXT_LOCAL
+	case PD_CTRL_GET_SINK_CAP_EXT:
+		if (PE_MAKE_STATE_TRANSIT_SINGLE(
+			PE_SNK_READY, PE_SNK_GIVE_SINK_CAP_EXT))
+			return true;
+		break;
+#endif	/* CONFIG_USB_PD_REV30_SNK_CAP_EXT_LOCAL */
+/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 end */
 #endif	/* CONFIG_USB_PD_REV30 */
 
 	default:

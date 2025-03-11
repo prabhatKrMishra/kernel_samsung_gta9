@@ -42,6 +42,30 @@ config MTK_BOARD_THERMAL
 	  and temperature convert table should be specified in
 	  device tree.
 
+# Tab A9 code for AX6739A-2537 by lina at 20230728 start
+config GXY_VIRTUAL_BACK_TEMP
+	tristate "virtual back NTC temp driver"
+	help
+	  Enable this option if you want to get PCB temperature
+	  via on-board NTC for Mediatek platforms.
+	  This driver reads the voltage value from TIA hardware
+	  which is responsible for reading all PMIC AUXADC channels
+	  sequentially. The address of TIA register for each channel
+	  and temperature convert table should be specified in
+	  device tree.
+
+config GXY_VIRTUAL_FRONT_TEMP
+	tristate "virtual front NTC temp driver"
+	help
+	  Enable this option if you want to get PCB temperature
+	  via on-board NTC for Mediatek platforms.
+	  This driver reads the voltage value from TIA hardware
+	  which is responsible for reading all PMIC AUXADC channels
+	  sequentially. The address of TIA register for each channel
+	  and temperature convert table should be specified in
+	  device tree.
+# Tab A9 code for AX6739A-2537 by lina at 20230728 end
+
 config MTK_PMIC_THERMAL
 	tristate "PMIC thermal sensor driver for Mediatek SoCs"
 	depends on MT635X_EFUSE

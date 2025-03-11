@@ -117,6 +117,23 @@ EXPORT_SYMBOL(mtk_custom_get_gpu_freq_level_count);
 
 /* -------------------------------------------------------------------------- */
 
+unsigned long (*mtk_get_custom_boost_gpu_freq_fp)(void) = NULL;
+EXPORT_SYMBOL(mtk_get_custom_boost_gpu_freq_fp);
+
+bool mtk_get_custom_boost_gpu_freq(unsigned long *pulFreq)
+{
+	if (mtk_get_custom_boost_gpu_freq_fp != NULL) {
+		if (pulFreq) {
+			*pulFreq = mtk_get_custom_boost_gpu_freq_fp();
+			return true;
+		}
+	}
+	return false;
+}
+EXPORT_SYMBOL(mtk_get_custom_boost_gpu_freq);
+
+/* -------------------------------------------------------------------------- */
+
 void (*mtk_custom_boost_gpu_freq_fp)(unsigned int ui32FreqLevel) = NULL;
 EXPORT_SYMBOL(mtk_custom_boost_gpu_freq_fp);
 
@@ -129,6 +146,23 @@ bool mtk_custom_boost_gpu_freq(unsigned int ui32FreqLevel)
 	return false;
 }
 EXPORT_SYMBOL(mtk_custom_boost_gpu_freq);
+
+/* -------------------------------------------------------------------------- */
+
+unsigned long (*mtk_get_custom_upbound_gpu_freq_fp)(void) = NULL;
+EXPORT_SYMBOL(mtk_get_custom_upbound_gpu_freq_fp);
+
+bool mtk_get_custom_upbound_gpu_freq(unsigned long *pulFreq)
+{
+	if (mtk_get_custom_upbound_gpu_freq_fp != NULL) {
+		if (pulFreq) {
+			*pulFreq = mtk_get_custom_upbound_gpu_freq_fp();
+			return true;
+		}
+	}
+	return false;
+}
+EXPORT_SYMBOL(mtk_get_custom_upbound_gpu_freq);
 
 /* -------------------------------------------------------------------------- */
 
@@ -567,35 +601,7 @@ bool mtk_get_dvfs_loading_mode(unsigned int *pui32LoadingMode)
 	return false;
 }
 EXPORT_SYMBOL(mtk_get_dvfs_loading_mode);
-/* ------------------------------------------------------------------------ */
-void (*mtk_dvfs_workload_mode_fp)(int i32WorkloadMode) = NULL;
-EXPORT_SYMBOL(mtk_dvfs_workload_mode_fp);
 
-bool mtk_dvfs_workload_mode(int i32WorkloadMode)
-{
-	if (mtk_dvfs_workload_mode_fp != NULL) {
-		mtk_dvfs_workload_mode_fp(i32WorkloadMode);
-		return true;
-	}
-	return false;
-}
-EXPORT_SYMBOL(mtk_dvfs_workload_mode);
-
-int (*mtk_get_dvfs_workload_mode_fp)(void) = NULL;
-EXPORT_SYMBOL(mtk_get_dvfs_workload_mode_fp);
-
-bool mtk_get_dvfs_workload_mode(unsigned int *pui32WorkloadMode)
-{
-	if ((mtk_get_dvfs_workload_mode_fp != NULL) &&
-		(pui32WorkloadMode != NULL)) {
-
-		*pui32WorkloadMode = mtk_get_dvfs_workload_mode_fp();
-		return true;
-	}
-	return false;
-}
-EXPORT_SYMBOL(mtk_get_dvfs_workload_mode);
-/* ------------------------------------------------------------------------ */
 void (*mtk_set_fastdvfs_mode_fp)(unsigned int u32Mode) = NULL;
 EXPORT_SYMBOL(mtk_set_fastdvfs_mode_fp);
 

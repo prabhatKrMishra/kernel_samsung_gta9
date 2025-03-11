@@ -448,7 +448,7 @@ static void imx586_set_pdaf_reg_setting(struct subdrv_ctx *ctx,
 
 static kal_uint16 read_cmos_eeprom_8(struct subdrv_ctx *ctx, kal_uint16 addr)
 {
-	u8 val = 0;
+	u8 val;
 
 	adaptor_i2c_rd_u8(ctx->i2c_client, 0xa0 >> 1, addr, &val);
 
@@ -878,21 +878,17 @@ static kal_uint16 gain2reg(struct subdrv_ctx *ctx, const kal_uint32 gain)
  *************************************************************************/
 static kal_uint32 set_gain(struct subdrv_ctx *ctx, kal_uint32 gain)
 {
-	kal_uint16 reg_gain;
-	kal_uint32 min_gain, max_gain;
+	kal_uint16 reg_gain, min_gain;
+	kal_uint32 max_gain;
 
-	min_gain = BASEGAIN;
-	max_gain = imgsensor_info.max_gain;
+	max_gain = imgsensor_info.max_gain;//setuphere for mode use
+	min_gain = BASEGAIN;//setuphere for mode use
 
-	//16x for full size mode
-	switch (ctx->sensor_mode) {
-	case IMGSENSOR_MODE_CUSTOM3:
-	case IMGSENSOR_MODE_CUSTOM4:
-	case IMGSENSOR_MODE_CUSTOM6:
+	if (ctx->sensor_mode == IMGSENSOR_MODE_CUSTOM3 ||//16x for full size mode
+			ctx->sensor_mode == IMGSENSOR_MODE_CUSTOM4 ||
+			ctx->sensor_mode == IMGSENSOR_MODE_CUSTOM6) {
+		/* 8K6K */
 		max_gain = 16 * BASEGAIN;
-		break;
-	default:
-		break;
 	}
 
 	if (gain < min_gain || gain > max_gain) {
@@ -4069,8 +4065,7 @@ static int get_resolution(struct subdrv_ctx *ctx,
 	int i = 0;
 
 	for (i = SENSOR_SCENARIO_ID_MIN; i < SENSOR_SCENARIO_ID_MAX; i++) {
-		if (i < imgsensor_info.sensor_mode_num &&
-			i < ARRAY_SIZE(imgsensor_winsize_info)) {
+		if (i < imgsensor_info.sensor_mode_num) {
 			sensor_resolution->SensorWidth[i] = imgsensor_winsize_info[i].w2_tg_size;
 			sensor_resolution->SensorHeight[i] = imgsensor_winsize_info[i].h2_tg_size;
 		} else {
@@ -4078,6 +4073,8 @@ static int get_resolution(struct subdrv_ctx *ctx,
 			sensor_resolution->SensorHeight[i] = 0;
 		}
 	}
+
+
 
 	return ERROR_NONE;
 } /* get_resolution */
@@ -4176,7 +4173,6 @@ static int control(struct subdrv_ctx *ctx,
 	case SENSOR_SCENARIO_ID_CUSTOM15:
 		//imgsensor.sensor_mode = scenario_id;
 		custom5_15(ctx, image_window, sensor_config_data);
-		break;
 	case SENSOR_SCENARIO_ID_NORMAL_PREVIEW:
 		preview(ctx, image_window, sensor_config_data);
 		break;
@@ -4228,7 +4224,7 @@ static kal_uint32 seamless_switch(struct subdrv_ctx *ctx,
 	_is_seamless = true;
 	memset(_i2c_data, 0x0, sizeof(_i2c_data));
 	_size_to_write = 0;
-	LOG_INF("%s %d, %d, %d, %d, %d sizeof(_i2c_data) %lu\n",
+	LOG_INF("%s %d, %d, %d, %d, %d sizeof(_i2c_data) %d\n",
 		__func__, scenario_id, shutter, gain,
 		shutter_2ndframe, gain_2ndframe, sizeof(_i2c_data));
 
@@ -4835,20 +4831,7 @@ static int feature_control(
 		break;
 	case SENSOR_FEATURE_GET_GAIN_RANGE_BY_SCENARIO:
 		*(feature_data + 1) = imgsensor_info.min_gain;
-
-		switch (*feature_data) {
-		/* non-binning */
-		case SENSOR_SCENARIO_ID_CUSTOM3:
-		case SENSOR_SCENARIO_ID_CUSTOM4:
-		case SENSOR_SCENARIO_ID_CUSTOM6:
-			*(feature_data + 2) = BASEGAIN * 16;
-			break;
-		/* binning */
-		default:
-			*(feature_data + 2) = imgsensor_info.max_gain;
-			break;
-		}
-
+		*(feature_data + 2) = imgsensor_info.max_gain;
 		break;
 	case SENSOR_FEATURE_GET_BASE_GAIN_ISO_AND_STEP:
 		*(feature_data + 0) = imgsensor_info.min_gain_iso;
@@ -5456,7 +5439,6 @@ break;
 		case SENSOR_SCENARIO_ID_NORMAL_CAPTURE:
 			memcpy((void *)pvcinfo, (void *)&SENSOR_VC_INFO[7],
 				sizeof(struct SENSOR_VC_INFO_STRUCT));
-			break;
 		case SENSOR_SCENARIO_ID_CUSTOM6:
 			memcpy((void *)pvcinfo, (void *)&SENSOR_VC_INFO[8],
 				sizeof(struct SENSOR_VC_INFO_STRUCT));

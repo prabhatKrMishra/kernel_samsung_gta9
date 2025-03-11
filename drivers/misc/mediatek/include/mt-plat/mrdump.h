@@ -72,9 +72,13 @@ struct mrdump_arm64_reg {
 
 struct mrdump_crash_record {
 	int reboot_mode;
-
+/* Tab A9 code for SR-AX6739A-01-372 by Tangyuhang at 20230601 start */
+#ifdef CONFIG_ODM_CUSTOM_FACTORY_BUILD
+	char msg[304];
+#else
 	char msg[128];
-
+#endif
+/* Tab A9 code for SR-AX6739A-01-372 by Tangyuhang at 20230601 end */
 	uint32_t fault_cpu;
 
 	union {

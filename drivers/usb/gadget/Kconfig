@@ -222,6 +222,15 @@ config USB_F_ACC
 config USB_F_AUDIO_SRC
 	tristate
 
+config USB_F_ACC
+	tristate
+
+config USB_F_CONN_GADGET
+	tristate
+
+config USB_F_SS_MON_GADGET
+	tristate
+
 # this first set of drivers all depend on bulk-capable hardware.
 
 config USB_CONFIGFS
@@ -385,6 +394,28 @@ config USB_CONFIGFS_F_FS
 	  implemented in kernel space (for instance Ethernet, serial or
 	  mass storage) and other are implemented in user space.
 
+config USB_CONFIGFS_F_DM
+	tristate "DM gadget"
+	depends on USB_CONFIGFS
+	select USB_F_DM
+	help
+	  USB gadget DM(Diagnosis Monitor) support
+
+config USB_CONFIGFS_F_CONN_GADGET
+	tristate "Conn gadget function"
+	depends on USB_CONFIGFS
+	select USB_F_CONN_GADGET
+	help
+	  USB Sidesync function support
+
+config USB_CONFIGFS_F_SS_MON_GADGET
+	tristate "F_SAMSUNG gadget"
+	depends on USB_CONFIGFS
+	select USB_F_SS_MON_GADGET
+	help
+	 Driver for control to Samsung Usb device layer
+	 For Samung working scenario and saving debug log, etc
+
 config USB_CONFIGFS_F_ACC
 	bool "Accessory gadget"
 	depends on USB_CONFIGFS
@@ -401,6 +432,14 @@ config USB_CONFIGFS_F_AUDIO_SRC
 	select USB_F_AUDIO_SRC
 	help
 	  USB gadget Audio Source support
+
+config USB_CONFIGFS_UEVENT
+	bool "Uevent notification of Gadget state"
+	depends on USB_CONFIGFS
+	help
+	  Enable uevent notifications to userspace when the gadget
+	  state changes. The gadget can be in any of the following
+	  three states: "CONNECTED/DISCONNECTED/CONFIGURED"
 
 config USB_CONFIGFS_F_UAC1
 	bool "Audio Class 1.0"
@@ -515,6 +554,14 @@ config USB_CONFIGFS_F_TCM
 	  interface 0 (primary) and UAS is on alternative interface 1.
 	  Both protocols can work on USB2.0 and USB3.0.
 	  UAS utilizes the USB 3.0 feature called streams support.
+
+config USB_ANDROID_SAMSUNG_COMPOSITE
+	bool "Samsung Composite function"
+	default n
+	help
+	  Provides SAMSUNG composite driver.
+	  Multi Configuration.
+	  If you enable this option, android composite will be changed.
 
 source "drivers/usb/gadget/legacy/Kconfig"
 

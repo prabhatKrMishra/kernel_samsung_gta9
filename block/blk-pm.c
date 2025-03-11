@@ -204,15 +204,13 @@ EXPORT_SYMBOL(blk_pre_runtime_resume);
 void blk_post_runtime_resume(struct request_queue *q)
 {
 #if IS_ENABLED(CONFIG_MTK_BLOCK_IO_PM_DEBUG)
-	if (q->dev)
-		trace_blk_post_runtime_resume_start(q);
+	trace_blk_post_runtime_resume_start(q);
 #endif
 
 	blk_set_runtime_active(q);
 
 #if IS_ENABLED(CONFIG_MTK_BLOCK_IO_PM_DEBUG)
-	if (q->dev)
-		trace_blk_post_runtime_resume_end(q);
+	trace_blk_post_runtime_resume_end(q);
 #endif
 }
 EXPORT_SYMBOL(blk_post_runtime_resume);
@@ -256,7 +254,7 @@ void blk_set_runtime_active(struct request_queue *q)
 		blk_clear_pm_only(q);
 
 #if IS_ENABLED(CONFIG_MTK_BLOCK_IO_PM_DEBUG)
-	trace_blk_set_runtime_active_end(q);
+	trace_blk_set_runtime_active_start(q);
 #endif
 }
 EXPORT_SYMBOL(blk_set_runtime_active);

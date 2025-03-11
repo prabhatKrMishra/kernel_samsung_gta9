@@ -21,6 +21,11 @@ void pe_snk_startup_entry(struct pd_port *pd_port)
 	uint8_t msg_id_last = pd_port->pe_data.msg_id_rx[TCPC_TX_SOP];
 #endif	/* CONFIG_USB_PD_IGNORE_PS_RDY_AFTER_PR_SWAP */
 
+	/*Tab A9 code for P230612-08698 by qiaodan at 20230614 start*/
+	#if IS_ENABLED(CONFIG_USB_POWER_DELIVERY)
+	pd_port->pe_data.pd_connected = false;
+	#endif // CONFIG_USB_POWER_DELIVERY
+	/*Tab A9 code for P230612-08698 by qiaodan at 20230614 end*/
 	pd_reset_protocol_layer(pd_port, false);
 
 	if (pr_swap) {
@@ -257,6 +262,21 @@ void pe_snk_get_source_cap_ext_exit(struct pd_port *pd_port)
 }
 
 #endif	/* CONFIG_USB_PD_REV30_SRC_CAP_EXT_REMOTE */
+
+/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 start */
+/*
+ * [PD3.1] Figure 8-150 Sink Give Sink Capabilities Extended State Diagram
+ */
+
+#if CONFIG_USB_PD_REV30_SNK_CAP_EXT_LOCAL
+void pe_snk_give_sink_cap_ext_entry(struct pd_port *pd_port)
+{
+	PE_STATE_WAIT_TX_SUCCESS(pd_port);
+
+	pd_dpm_send_sink_cap_ext(pd_port);
+}
+#endif	/* CONFIG_USB_PD_REV30_SNK_CAP_EXT_LOCAL */
+/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 end */
 
 /*
  * [PD3.0] Figure 8-79 Sink Port Get Source Status State Diagram

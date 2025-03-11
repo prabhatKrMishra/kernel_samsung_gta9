@@ -27,6 +27,25 @@
 #endif
 
 /* The switch of log message */
+/*Tab A9 code for AX6739A-1934 by lina at 20230713 start*/
+#ifdef CONFIG_ODM_CUSTOM_D85_BUILD
+#define TYPEC_INFO_ENABLE	1
+#define TYPEC_INFO2_ENABLE	1
+#define PE_EVENT_DBG_ENABLE	1
+#define PE_STATE_INFO_ENABLE	1
+#define TCPC_INFO_ENABLE	1
+#define TCPC_TIMER_DBG_EN	1
+#define TCPC_TIMER_INFO_EN	1
+#define PE_INFO_ENABLE		1
+#define TCPC_DBG_ENABLE		1
+#define TCPC_DBG2_ENABLE	1
+#define DPM_INFO_ENABLE		1
+#define DPM_INFO2_ENABLE	1
+#define DPM_DBG_ENABLE		1
+#define PD_ERR_ENABLE		1
+#define PE_DBG_ENABLE		1
+#define TYPEC_DBG_ENABLE	1
+#else
 #define TYPEC_INFO_ENABLE	1
 #define TYPEC_INFO2_ENABLE	1
 #define PE_EVENT_DBG_ENABLE	1
@@ -43,7 +62,8 @@
 #define PD_ERR_ENABLE		1
 #define PE_DBG_ENABLE		0
 #define TYPEC_DBG_ENABLE	0
-
+#endif//CONFIG_ODM_CUSTOM_D85_BUILD
+/*Tab A9 code for AX6739A-1934 by lina at 20230713 end*/
 
 #define DP_INFO_ENABLE		1
 #define DP_DBG_ENABLE		1
@@ -523,6 +543,9 @@ struct tcpc_device {
 	u32 boot_type;
 	u32 alert_mask;
 	struct completion alert_done;
+	/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 start */
+	bool is_rx_event;
+	/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 end */
 	long long alert_max_access_time;
 };
 
@@ -553,7 +576,28 @@ static inline bool pd_check_rev30(struct pd_port *pd_port)
 {
 	return pd_get_rev(pd_port, TCPC_TX_SOP) >= PD_REV30;
 }
+
+/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 start */
+static inline uint8_t pd_get_svdm_ver(struct pd_port *pd_port, uint8_t sop_type)
+{
+	uint8_t svdm_ver;
+
+	svdm_ver = (PD_REV_MAJOR >= 3 && PD_REV_MINOR >= 1 &&
+		PD_VER_MAJOR >= 1 && PD_VER_MINOR >= 6) ?
+		SVDM_VER21 : SVDM_VER20;
+
+	if (pd_get_rev(pd_port, sop_type) < PD_REV30)
+		return SVDM_VER10;
+
+#if CONFIG_USB_PD_REV30_SYNC_SVDM_VER
+	svdm_ver = sop_type == TCPC_TX_SOP ?
+		pd_port->svdm_version[0] : pd_port->svdm_version[1];
+#endif	/* CONFIG_USB_PD_REV30_SYNC_SVDM_VER */
+
+	return svdm_ver;
+}
 #endif /* CONFIG_USB_POWER_DELIVERY */
+/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 end */
 
 #if IS_ENABLED(CONFIG_PD_DBG_INFO)
 #define __RT_DBG_INFO	pd_dbg_info
