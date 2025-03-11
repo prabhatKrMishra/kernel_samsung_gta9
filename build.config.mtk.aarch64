@@ -23,3 +23,40 @@ KMI_SYMBOL_LIST=android/abi_gki_aarch64_mtk
 GKI_MODULES_LIST=android/gki_aarch64_modules
 ABI_DEFINITION=android/abi_gki_aarch64.xml
 SKIP_CP_KERNEL_HDR=1
+
+# Strip kernel modules
+DO_NOT_STRIP_MODULES=0
+
+# Build flavour
+TARGET_BUILD_VARIANT=user
+
+MAKE_GOALS="${MAKE_GOALS} Image.gz dtbs"
+
+# Processor
+CONFIG_MTK_PLATFORM=mt6789
+
+# GPU
+export CONFIG_MACH_MT6789=y
+export CONFIG_MTK_GPU_VERSION="mali valhall r32p1 mt6789"
+export CONFIG_MALI_BASE_MODULES=y
+
+# Wlan Adaptor
+export WLAN_ADAPTOR_MODULE_NAME="wmt_chrdev_wifi"
+
+# Wlan Core gen4m
+export WLAN_MODULE_NAME="wlan_drv_gen4m_6789"
+export CONFIG_MTK_COMBO_WIFI_HIF=axi
+export MTK_COMBO_CHIP=SOC2_1X1
+export BT_PLATFORM=connac1x
+export WLAN_CHIP_ID=6789
+export MTK_ANDROID_WMT=y
+export MTK_ANDROID_EMI=y
+export WIFI_IP_SET=1
+export MTK_WLAN_SERVICE=yes
+
+# Bluetooth configuration
+export BT_PLATFORM="connac1x"
+
+# FMRadio
+export CFG_FM_PLAT="mt6631_6635"
+export CFG_FM_CHIP_ID="${CFG_FM_PLAT}"

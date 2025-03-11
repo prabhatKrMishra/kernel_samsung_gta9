@@ -1,6 +1,9 @@
 # SPDX-License-Identifier: GPL-2.0
 # Copyright (c) 2021 Mediatek Inc.
 
+
+DRIVER_ROOT := $(KERNEL_SRC)/../vendor/mediatek/kernel_modules/connectivity/fmradio
+
 $(info [fm_drv:Makefile] M = $(M))
 $(info [fm_drv:Makefile] FM_CHIP_ID = $(FM_CHIP_ID))
 $(info [fm_drv:Makefile] FM_CHIP = $(FM_CHIP))

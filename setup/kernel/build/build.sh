@@ -936,6 +936,7 @@ if [[ -z "${SKIP_EXT_MODULES}" ]] && [[ -n "${EXT_MODULES}" ]]; then
   echo " Building external modules and installing them into staging directory"
 
   for EXT_MOD in ${EXT_MODULES}; do
+    echo ${EXT_MOD}
     # The path that we pass in via the variable M needs to be a relative path
     # relative to the kernel source directory. The source files will then be
     # looked for in ${KERNEL_DIR}/${EXT_MOD_REL} and the object files (i.e. .o
@@ -955,7 +956,6 @@ if [[ -z "${SKIP_EXT_MODULES}" ]] && [[ -n "${EXT_MODULES}" ]]; then
                        "${MAKE_ARGS[@]}" modules_install
     set +x
   done
-
 fi
 
 if [ -n "${EXTRA_CMDS}" ]; then

@@ -1,6 +1,8 @@
 ###############################################################################
 # Necessary Check
 
+DRIVER_ROOT := $(KERNEL_SRC)/../vendor/mediatek/kernel_modules/connectivity/wlan/adaptor
+
 ifneq ($(KERNEL_OUT),)
     ccflags-y += -imacros $(KERNEL_OUT)/include/generated/autoconf.h
 endif
@@ -28,7 +30,7 @@ endif
 ifneq ($(CONFIG_MTK_CONNSYS_DEDICATED_LOG_PATH),)
 ccflags-y += -DCONFIG_MTK_CONNSYS_DEDICATED_LOG_PATH
 ccflags-y += -I$(TOP)/vendor/mediatek/kernel_modules/connectivity/common/debug_utility
-ccflags-y += -I$(src)/include
+ccflags-y += -I$(DRIVER_ROOT)/include
 endif
 
 ifeq ($(CONFIG_MTK_CONN_LTE_IDC_SUPPORT),y)
@@ -56,20 +58,32 @@ ccflags-y += -D MTK_WCN_WMT_STP_EXP_SYMBOL_ABSTRACT
 ccflags-y += -D CREATE_NODE_DYNAMIC=1
 
 ifeq ($(CONFIG_WLAN_DRV_BUILD_IN),y)
-$(warning $(MODULE_NAME) build-in boot.img)
-obj-y += $(MODULE_NAME).o
+$(warning $(WLAN_ADAPTOR_MODULE_NAME) build-in boot.img)
+obj-y += $(WLAN_ADAPTOR_MODULE_NAME).o
 else
-$(warning $(MODULE_NAME) is kernel module)
-obj-m += $(MODULE_NAME).o
+$(warning $(WLAN_ADAPTOR_MODULE_NAME) is kernel module)
+obj-m += $(WLAN_ADAPTOR_MODULE_NAME).o
 endif
 
 # Wi-Fi character device driver
-$(MODULE_NAME)-objs += wmt_cdev_wifi.o
+$(WLAN_ADAPTOR_MODULE_NAME)-objs += wmt_cdev_wifi.o
+
 ifneq ($(CONFIG_MTK_CONNSYS_DEDICATED_LOG_PATH),)
-$(MODULE_NAME)-objs += fw_log_wifi.o
-$(MODULE_NAME)-objs += fw_log_ics.o
-$(MODULE_NAME)-objs += wlan_ring.o
+$(WLAN_ADAPTOR_MODULE_NAME)-objs += fw_log_wifi.o
+$(WLAN_ADAPTOR_MODULE_NAME)-objs += fw_log_ics.o
+$(WLAN_ADAPTOR_MODULE_NAME)-objs += wlan_ring.o
 endif
 ifeq ($(CONNAC_VER), 2_0)
-$(MODULE_NAME)-objs += wifi_pwr_on.o
+$(WLAN_ADAPTOR_MODULE_NAME)-objs += wifi_pwr_on.o
 endif
+
+extra_symbols := $(abspath $(O)/../vendor/mediatek/kernel_modules)/connectivity/common/Module.symvers
+
+all:
+	$(MAKE) -C $(KERNEL_SRC) M=$(M) modules $(KBUILD_OPTIONS) KBUILD_EXTRA_SYMBOLS=$(extra_symbols)
+
+modules_install:
+	$(MAKE) M=$(M) -C $(KERNEL_SRC) modules_install
+
+clean:
+	$(MAKE) -C $(KERNEL_SRC) M=$(M) clean
