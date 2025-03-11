@@ -18,14 +18,8 @@ endif
 ifneq ($(wildcard $(srctree)/$(src)/mtk-scpsys-mt6893.c),)
 obj-$(CONFIG_MTK_SCPSYS) += mtk-scpsys-mt6893.o
 endif
-ifneq ($(wildcard $(srctree)/$(src)/mtk-scpsys-mt6895.c),)
-obj-$(CONFIG_MTK_SCPSYS) += mtk-scpsys-mt6895.o mtk-scpsys-bringup.o
-endif
 ifneq ($(wildcard $(srctree)/$(src)/mtk-scpsys-mt6879.c),)
 obj-$(CONFIG_MTK_SCPSYS) += mtk-scpsys-mt6879.o mtk-scpsys-bringup.o
-endif
-ifneq ($(wildcard $(srctree)/$(src)/mtk-scpsys-mt6983.c),)
-obj-$(CONFIG_MTK_SCPSYS) += mtk-scpsys-mt6983.o mtk-scpsys-bringup.o
 endif
 obj-$(CONFIG_MTK_MMSYS) += mtk-mmsys.o
 obj-$(CONFIG_MTK_DEVAPC) += devapc/
