@@ -808,24 +808,18 @@ KBUILD_LDFLAGS  += --lto-O2
 endif
 
 ifdef CONFIG_LLVM_POLLY
-KBUILD_CFLAGS	+= -mllvm -polly \
-		   -mllvm -polly-run-inliner \
-		   -mllvm -polly-ast-use-context \
-		   -mllvm -polly-detect-keep-going \
-		   -mllvm -polly-invariant-load-hoisting \
-		   -mllvm -polly-vectorizer=stripmine
+KBUILD_CFLAGS += -mllvm -polly \
+		-mllvm -polly-run-inliner \
+		-mllvm -polly-ast-use-context \
+		-mllvm -polly-vectorizer=stripmine
 
 ifeq ($(shell test $(CONFIG_CLANG_VERSION) -gt 130000; echo $$?),0)
-KBUILD_CFLAGS	+= -mllvm -polly-loopfusion-greedy=1 \
-		   -mllvm -polly-reschedule=1 \
-		   -mllvm -polly-postopts=1 \
-		   -mllvm -polly-num-threads=0 \
-		   -mllvm -polly-omp-backend=LLVM \
-		   -mllvm -polly-scheduling=dynamic \
-		   -mllvm -polly-scheduling-chunksize=1
-else
-KBUILD_CFLAGS	+= -mllvm -polly-opt-fusion=max
+KBUILD_CFLAGS += -mllvm -polly-reschedule=1 \
+		-mllvm -polly-scheduling-chunksize=1
 endif
+
+KBUILD_CFLAGS += -mllvm -polly-enable-mse \
+		-mllvm -polly-tiling
 
 # Polly may optimise loops with dead paths beyound what the linker
 # can understand. This may negate the effect of the linker's DCE
