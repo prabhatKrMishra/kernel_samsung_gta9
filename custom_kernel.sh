@@ -1,22 +1,3 @@
-# Apply network parameters for high data performance
-echo "bbr2" > /proc/sys/net/ipv4/tcp_congestion_control
-
-# Adjust TCP buffer sizes
-echo 1310720 > /proc/sys/net/core/rmem_default
-echo 8388608 > /proc/sys/net/core/rmem_max
-echo 327680 > /proc/sys/net/core/wmem_default
-echo 8388608 > /proc/sys/net/core/wmem_max
-echo 20480 > /proc/sys/net/core/optmem_max
-echo 10000 > /proc/sys/net/core/netdev_max_backlog
-
-# Adjust TCP receive and send memory
-echo "2097152 4194304 8388608" > /proc/sys/net/ipv4/tcp_rmem
-echo "262144 524288 8388608" > /proc/sys/net/ipv4/tcp_wmem
-
-# Adjust UDP memory limits
-echo "44259 59012 88518" > /proc/sys/net/ipv4/tcp_mem
-echo "88518 118025 177036" > /proc/sys/net/ipv4/udp_mem
-
 # TCP keepalive time (how often to check if the connection is still active)
 echo 1800 > /proc/sys/net/ipv4/tcp_keepalive_time
 # TCP keepalive interval (how often to check)
@@ -26,9 +7,6 @@ echo 5 > /proc/sys/net/ipv4/tcp_keepalive_probes
 
 # Enable TCP Fast Open
 echo 3 > /proc/sys/net/ipv4/tcp_fastopen
-
-# Increase the Maximum Number of Open Sockets
-echo 1048576 > /proc/sys/net/core/somaxconn
 
 # Disable TCP Slow Start
 echo 1 > /proc/sys/net/ipv4/tcp_slow_start_after_idle
