@@ -59,7 +59,9 @@ static int zram_major;
 static const char *default_compressor = CONFIG_ZRAM_DEF_COMP;
 
 static bool is_lzorle;
+#ifdef CONFIG_ZRAM_LRU_WRITEBACK
 static unsigned char lzo_marker[4] = {0x11, 0x00, 0x00};
+#endif
 
 /* Module params (documentation at end) */
 static unsigned int num_devices = 1;
@@ -2310,8 +2312,10 @@ out_huge:
 		hdp.pages = src_page;
 		hdp.nr_pages = zw->nr_pages;
 		hdp.idx = page_idx;
+#ifdef CONFIG_ZRAM_LRU_WRITEBACK
 		handle_decomp_fail(zram->compressor, ret, offset + header_sz,
 				   src_decomp, size, &hdp);
+#endif
 	}
 	kunmap_atomic(dst);
 	if (!spanned)
@@ -2963,11 +2967,12 @@ static int __zram_bvec_read(struct zram *zram, struct page *page, u32 index,
 		zcomp_stream_put(zram->comp);
 	}
 
+#ifdef CONFIG_ZRAM_LRU_WRITEBACK
 	/* Should NEVER happen. BUG() if it does. */
 	if (unlikely(ret))
 		handle_decomp_fail(zram->compressor, ret, index, src, size,
 				   NULL);
-
+#endif
 	zs_unmap_object(zram->mem_pool, handle);
 #ifdef CONFIG_ZRAM_LRU_WRITEBACK
 	if (zram_test_flag(zram, index, ZRAM_UNDER_PPR))
