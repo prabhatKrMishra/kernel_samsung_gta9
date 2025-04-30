@@ -36,7 +36,6 @@ echo 1 > /proc/sys/net/ipv4/tcp_slow_start_after_idle
 # Use the "best-effort" scheduler for the network
 echo 1 > /proc/sys/net/core/netdev_budget
 
-
 # Set RPS (Receive Packet Steering) for each rmnet interface
 echo fe > /sys/class/net/rmnet0/queues/rx-0/rps_cpus
 echo fe > /sys/class/net/rmnet1/queues/rx-0/rps_cpus
@@ -66,3 +65,11 @@ echo 200 > /proc/sys/vm/dirty_expire_centisecs
 echo 2000000 > /proc/sys/kernel/sched_latency_ns
 echo 200000 > /proc/sys/kernel/sched_min_granularity_ns
 echo 0 > /proc/sys/kernel/sched_util_clamp_min_rt_default
+
+# Runtime fs tuning
+echo 128 > /sys/block/sda/queue/nr_requests
+echo 1 > /sys/block/sda/queue/iostats
+
+# Enable console_suspend to save power
+echo "Y" > /sys/module/printk/parameters/console_suspend
+
