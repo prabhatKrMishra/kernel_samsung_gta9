@@ -2299,7 +2299,7 @@ static bool inactive_is_low(struct lruvec *lruvec, enum lru_list inactive_lru)
 		goto out;
 
 	if (gb)
-		inactive_ratio = int_sqrt(10 * gb);
+		inactive_ratio = min(2UL, int_sqrt(10 * gb));
 	else
 		inactive_ratio = 1;
 
