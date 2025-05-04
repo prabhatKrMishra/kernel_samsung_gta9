@@ -781,6 +781,32 @@ else ifdef CONFIG_CC_OPTIMIZE_FOR_SIZE
 KBUILD_CFLAGS += -Os
 endif
 
+# Enable Cortex-A55 optimizations
+ifeq ($(CONFIG_CC_IS_CLANG), y)
+KBUILD_CFLAGS   += -pipe -fvisibility=hidden
+KBUILD_CFLAGS   += -fvectorize -fomit-frame-pointer -funroll-loops
+KBUILD_CFLAGS   += -finline-functions -mfloat-abi=hard -foptimize-sibling-calls
+KBUILD_CFLAGS   += -fmerge-all-constants -falign-functions=32
+KBUILD_CFLAGS   += -mfloat-abi=hard -mfpu=neon-fp-armv8
+KBUILD_CFLAGS   += -mllvm -enable-loop-distribute
+KBUILD_CFLAGS   += -mllvm -enable-load-pre
+KBUILD_CFLAGS   += -mllvm -regalloc=greedy
+
+KBUILD_CFLAGS   += -march=armv8.2-a+crypto+fp16+dotprod
+KBUILD_CFLAGS   += -mcpu=cortex-a55 -mtune=cortex-a55
+
+KBUILD_AFLAGS   += -march=armv8.2-a+crypto+fp16+dotprod
+KBUILD_AFLAGS   += -mcpu=cortex-a55 -mtune=cortex-a55
+
+KBUILD_CFLAGS += -Wno-address-of-packed-member
+KBUILD_CFLAGS += -Wno-frame-address
+endif
+
+# Enable aggressive LTO optimizations
+ifeq ($(CONFIG_LD_IS_LLD), y) && ($(CONFIG_LTO_CLANG_FULL), y)
+KBUILD_LDFLAGS  += --lto-O2
+endif
+
 # Tell gcc to never replace conditional load with a non-conditional one
 KBUILD_CFLAGS	+= $(call cc-option,--param=allow-store-data-races=0)
 KBUILD_CFLAGS	+= $(call cc-option,-fno-allow-store-data-races)
