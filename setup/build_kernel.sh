@@ -5,8 +5,8 @@ BUILD_DIRECTORY=$ROOT_PATH/kernel
 SOURCE_DIRECTORY=$ROOT_PATH/kernel-5.10
 OUTPUT_DIRECTORY=../out
 MODULES_DIRECTORY=$OUTPUT_DIRECTORY/modules
-MODULES_LIST=$SOURCE_DIRECTORY/setup/stock/system/"module.list"
-MODULES_LIST_VENDOR=$SOURCE_DIRECTORY/setup/stock/vendor/"modules.list"
+VENDOR_BOOT_MODULES_LIST=$SOURCE_DIRECTORY/setup/moduleslist/vendor_boot/"modules.list"
+VENDOR_DLKM_MODULES_LIST=$SOURCE_DIRECTORY/setup/moduleslist/vendor_dlkm/"modules.list"
 
 handle_arguments() {
     case "$1" in
@@ -59,17 +59,30 @@ cd $BUILD_DIRECTORY
 ./build/build.sh -j$(nproc) HOSTCC='clang' HOSTCXX='clang++' HOSTLD='ld.lld' CC='clang' CXX='clang++' LD='ld.lld' LLVM='clang' AR='llvm-ar' NM='llvm-nm' OBJCOPY='llvm-objcopy' OBJDUMP='llvm-objdump' OBJSIZE='llvm-size' READELF='llvm-readelf' STRIP='llvm-strip' LLVM=1 LLVM_IAS=1
 
 copy_modules() {
+    echo "========================================================"
+    echo " Proceeding with copying modules."
     rm -rf "$MODULES_DIRECTORY"
     mkdir "$MODULES_DIRECTORY"
     mv $OUTPUT_DIRECTORY/*.ko "$MODULES_DIRECTORY"
 }
 
-select_modules() {
+rename_modules() {
+    echo " Renaming vendor modules."
+    mv "$MODULES_DIRECTORY/mtk_fpsgo.ko" "$MODULES_DIRECTORY/fpsgo.ko"
+    echo " mtk_fpsgo.ko ==> fpsgo.ko"
+    mv "$MODULES_DIRECTORY/mali_mgm_mt6789.ko" "$MODULES_DIRECTORY/mali_mgm.ko"
+    echo " mali_mgm_mt6789.ko ==> mali_mgm.ko"
+    mv "$MODULES_DIRECTORY/mali_prot_alloc_mt6789.ko" "$MODULES_DIRECTORY/mali_prot_alloc.ko"
+    echo " mali_prot_alloc_mt6789.ko ==> mali_prot_alloc.ko"
+}
+
+select_modules_vendor_boot() {
+	echo " Selecting vendor_boot modules"
 	if [ -z "$(ls -A "$MODULES_DIRECTORY")" ]; then
 	  echo "Modules does not exist in $COMPILED_MODULES_DIR"
 	else
 	  COMPILED_MODULES_DIR=$MODULES_DIRECTORY
-	  DEST_DIR=$OUTPUT_DIRECTORY/selected_modules
+	  DEST_DIR=$OUTPUT_DIRECTORY/vendor_boot_modules
 	  
 	  rm -rf "$DEST_DIR"
 	  mkdir -p "$DEST_DIR"
@@ -78,20 +91,19 @@ select_modules() {
 	    if [ -f "$COMPILED_MODULES_DIR/$module" ]; then
 	        cp "$COMPILED_MODULES_DIR/$module" "$DEST_DIR"
 	    else
-	        echo "Module $module does not exist in $COMPILED_MODULES_DIR"
+	        echo " vendor_boot_modules: Module $module does not exist in $COMPILED_MODULES_DIR"
 	    fi
-	  done < "$MODULES_LIST"
-	  cp $OUTPUT_DIRECTORY/staging/lib/modules/5.10*/modules.alias $DEST_DIR
-	  cp $OUTPUT_DIRECTORY/staging/lib/modules/5.10*/modules.softdep $DEST_DIR
+	  done < "$VENDOR_BOOT_MODULES_LIST"
 	fi
 }
 
-select_modules_vendor() {
+select_modules_vendor_dlkm() {
+	echo " Selecting vendor_dlkm modules"
 	if [ -z "$(ls -A "$MODULES_DIRECTORY")" ]; then
 	  echo "Modules does not exist in $COMPILED_MODULES_DIR"
 	else
 	  COMPILED_MODULES_DIR=$MODULES_DIRECTORY
-	  DEST_DIR=$OUTPUT_DIRECTORY/selected_modules_vendor
+	  DEST_DIR=$OUTPUT_DIRECTORY/vendor_dlkm_modules
 	  
 	  rm -rf "$DEST_DIR"
 	  mkdir -p "$DEST_DIR"
@@ -100,12 +112,11 @@ select_modules_vendor() {
 	    if [ -f "$COMPILED_MODULES_DIR/$module" ]; then
 	        cp "$COMPILED_MODULES_DIR/$module" "$DEST_DIR"
 	    else
-	        echo "Module $module does not exist in $COMPILED_MODULES_DIR"
+	        echo " vendor_dlkm_modules: Module $module does not exist in $COMPILED_MODULES_DIR"
 	    fi
-	  done < "$MODULES_LIST_VENDOR"
-	  cp $OUTPUT_DIRECTORY/staging/lib/modules/5.10*/modules.alias $DEST_DIR
-	  cp $OUTPUT_DIRECTORY/staging/lib/modules/5.10*/modules.softdep $DEST_DIR
+	  done < "$VENDOR_DLKM_MODULES_LIST"
 	fi
+	echo "========================================================"
 }
 
 create_dtb_img() {
@@ -138,14 +149,19 @@ create_dtb_img() {
 if [ -f $OUTPUT_DIRECTORY/kernel-5.10/arch/arm64/boot/Image.gz ]; then
     echo ''
     echo " Kernel build successful! "
-    echo " Proceeding with copying modules."
+    echo ''
     copy_modules
-    select_modules
-    select_modules_vendor
+    echo ''
+    rename_modules
+    echo ''
+    select_modules_vendor_boot
+    echo ''
+    select_modules_vendor_dlkm
     #echo " Proceeding with generating dtb"
     #create_dtb
     echo ''
-    echo ' Done!'
+    echo " KERNEL binary is ready in $OUTPUT_DIRECTORY/kernel-5.10/arch/arm64/boot/Image"
+    echo " MDULES are ready in $OUTPUT_DIRECTORY/vendor_boot_modules & $OUTPUT_DIRECTORY/vendor_dlkm_modules"
     echo ''
 else
     echo ''
