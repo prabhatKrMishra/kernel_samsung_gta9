@@ -1,0 +1,88 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+menu "OnePlus async reclaim optimization"
+
+config OPLUS_MEM_OPT_SUITE
+	bool "Enable OnePlus Memory Optimization Suite"
+	default n
+	help
+	  This option enables the entire suite of OnePlus memory management
+	  optimizations, including the asynchronous LRU reclaim daemon,
+	  asynchronous slab reclaim daemon, and the Per-CPU pages drain
+	  bypass optimization.
+
+	  If unsure, say N.
+
+config OPLUS_SHRINK_LRUVECD_OPT
+	bool "Oplus Asynchronous LRU Reclaim Daemon"
+	depends on MMU && PROC_FS && TRACEPOINTS
+	depends on OPLUS_MEM_OPT_SUITE
+	default n
+	help
+	  This option enables the Oplus asynchronous LRU reclaim daemon
+	  (kshrink_lruvecd).
+
+	  This feature creates a dedicated kernel thread that handles
+	  reclaiming pages that were skipped during synchronous vmscan
+	  passes due to lock contention (e.g., page locks, mapping locks).
+
+	  If unsure, say N.
+
+config OPLUS_SHRINK_SLABD_OPT
+	bool "Oplus Asynchronous Slab Reclaim Daemon"
+	depends on MMU && TRACEPOINTS
+	depends on OPLUS_MEM_OPT_SUITE
+	help
+	  This option enables the Oplus asynchronous slab reclaim daemon
+	  (kshrink_slabd).
+
+	  This feature creates a dedicated kernel thread to perform slab
+	  reclaim asynchronously when triggered by allocation paths.
+
+	  If unsure, say N.
+
+config OPLUS_PCPAGES_OPT
+	bool "Oplus Per-CPU Pages Drain Bypass Optimization"
+	depends on MMU && TRACEPOINTS
+	depends on OPLUS_MEM_OPT_SUITE
+	help
+	  This option enables an Oplus optimization that bypasses the
+	  "drain all pages" operation in certain memory allocation paths.
+
+	  The "drain all pages" operation typically moves pages from
+	  per-CPU page caches (PCPs) to global free lists. Bypassing this
+	  can reduce overhead in specific scenarios, aiming for faster
+	  allocation attempts.
+
+	  If unsure, say N.
+
+config OPLUS_MAPPED_PROTECT_OPT
+	bool "Oplus Mapped Page Protection Optimization"
+	depends on MMU && PROC_FS && TRACEPOINTS
+	default n
+	help
+	  This option enables the Oplus optimization for protecting heavily
+	  mapped (shared) pages from being aggressively reclaimed under
+	  memory pressure.
+
+	  It tracks the number of pages mapped by 20 or more page tables
+	  and uses thresholds based on system RAM and these counts to
+	  conditionally prevent these pages from being selected for reclaim.
+
+	  If unsure, say N.
+
+config OPLUS_KSWAPD_ALLOC_ADJUST_OPT
+	bool "Oplus kswapd high-order alloc adjust optimization"
+	depends on MMU && JUMP_LABEL && TRACEPOINTS
+	default n
+	help
+	  This option enables an Oplus optimization that modifies the
+	  GFP flags for high-order memory allocations (above PAGE_ALLOC_COSTLY_ORDER).
+
+	  When enabled, it removes the __GFP_RECLAIM flag for these allocations,
+	  preventing them from directly triggering kswapd or waiting for reclaim.
+	  This aims to reduce overhead for large allocations.
+
+	  If unsure, say N.
+
+endmenu
