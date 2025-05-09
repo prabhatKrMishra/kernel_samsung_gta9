@@ -783,7 +783,7 @@ endif
 
 # Enable Cortex-A55 optimizations
 ifeq ($(CONFIG_CC_IS_CLANG), y)
-KBUILD_CFLAGS   += -pipe -fvisibility=hidden
+KBUILD_CFLAGS   += -pipe
 KBUILD_CFLAGS   += -fvectorize -fomit-frame-pointer -funroll-loops
 KBUILD_CFLAGS   += -finline-functions -mfloat-abi=hard -foptimize-sibling-calls
 KBUILD_CFLAGS   += -fmerge-all-constants -falign-functions=32
@@ -791,15 +791,21 @@ KBUILD_CFLAGS   += -mfloat-abi=hard -mfpu=neon-fp-armv8
 KBUILD_CFLAGS   += -mllvm -enable-loop-distribute
 KBUILD_CFLAGS   += -mllvm -enable-load-pre
 KBUILD_CFLAGS   += -mllvm -regalloc=greedy
+KBUILD_CFLAGS   += -mllvm -vectorize-loops
+KBUILD_CFLAGS   += -mllvm -vectorize-slp
 
 KBUILD_CFLAGS   += -march=armv8.2-a+crypto+fp16+dotprod
-KBUILD_CFLAGS   += -mcpu=cortex-a55 -mtune=cortex-a55
+KBUILD_CFLAGS   += -mcpu=cortex-a55
 
 KBUILD_AFLAGS   += -march=armv8.2-a+crypto+fp16+dotprod
-KBUILD_AFLAGS   += -mcpu=cortex-a55 -mtune=cortex-a55
+KBUILD_AFLAGS   += -mcpu=cortex-a55
 
 KBUILD_CFLAGS += -Wno-address-of-packed-member
 KBUILD_CFLAGS += -Wno-frame-address
+
+ifeq ($(CONFIG_LD_IS_LLD), y)
+KBUILD_LDFLAGS  += -mllvm -mcpu=cortex-a55
+endif
 endif
 
 # Enable aggressive LTO optimizations
