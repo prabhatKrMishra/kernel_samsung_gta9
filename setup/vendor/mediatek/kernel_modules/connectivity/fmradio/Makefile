@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: GPL-2.0
 # Copyright (c) 2021 Mediatek Inc.
 
+DRIVER_ROOT := $(KERNEL_SRC)/../vendor/mediatek/kernel_modules/connectivity/fmradio
+
 $(info [fm_drv:Makefile] M = $(M))
 $(info [fm_drv:Makefile] FM_CHIP_ID = $(FM_CHIP_ID))
 $(info [fm_drv:Makefile] FM_CHIP = $(FM_CHIP))
@@ -26,15 +28,8 @@ define clean_kernel_modules
    $(MAKE) -C $(KERNEL_SRC) M=$(M)/Build/$(1) clean
 endef
 
-extra_symbols := $(abspath $(O)/../vendor/mediatek/kernel_modules/connectivity/common/Module.symvers)
-extra_symbols += $(abspath $(O)/../vendor/mediatek/kernel_modules/connectivity/conninfra/Module.symvers)
-
-ifneq ($(wildcard $(abspath $(O)/../vendor/mediatek/kernel_modules/connectivity/common/Module.symvers)) ,)
-    $(info [fm_drv:Makefile] wmt ready)
-endif
-ifneq ($(wildcard $(abspath $(O)/../vendor/mediatek/kernel_modules/connectivity/conninfra/Module.symvers)) ,)
-    $(info [fm_drv:Makefile] conninfra ready)
-endif
+extra_symbols := $(abspath $(O)/../vendor/mediatek/kernel_modules)/connectivity/common/Module.symvers
+extra_symbols += $(abspath $(O)/../vendor/mediatek/kernel_modules)/connectivity/conninfra/Module.symvers
 
 all:
 ifdef CFG_FM_CHIP_ID
@@ -43,7 +38,7 @@ ifdef CFG_FM_CHIP_ID
 	#$(MAKE) -C $(KERNEL_SRC) M=$(M) modules $(KBUILD_OPTIONS)
 else
 	$(info [fm_drv:Makefile] make LD = 2.0)
-ifneq ($(wildcard $(abspath $(O)/../vendor/mediatek/kernel_modules/connectivity/conninfra/Module.symvers)) ,)
+ifneq ($(wildcard $(abspath $(O)/../vendor/mediatek/kernel_modules)/connectivity/conninfra/Module.symvers) ,)
 	$(call build_kernel_modules,connac2x,true,,mt6635,$(extra_symbols))
 endif
 	$(call build_kernel_modules,mt6631_6635,false,,,$(extra_symbols))
@@ -63,7 +58,7 @@ ifdef CFG_FM_CHIP_ID
 	#$(MAKE) M=$(M) -C $(KERNEL_SRC) modules_install
 else
 	$(info [fm_drv:Makefile] install LD = 2.0)
-ifneq ($(wildcard $(abspath $(O)/../vendor/mediatek/kernel_modules/connectivity/conninfra/Module.symvers)) ,)
+ifneq ($(wildcard $(abspath $(O)/../vendor/mediatek/kernel_modules)/connectivity/conninfra/Module.symvers) ,)
 	$(call install_kernel_modules,connac2x,true,,mt6635,$(extra_symbols))
 endif
 	$(call install_kernel_modules,mt6631_6635,false,,,$(extra_symbols))
@@ -83,7 +78,7 @@ ifdef CFG_FM_CHIP_ID
 	#$(MAKE) -C $(KERNEL_SRC) M=$(M) clean
 else
 	$(info [fm_drv:Makefile] clean LD = 2.0)
-ifneq ($(wildcard $(abspath $(O)/../vendor/mediatek/kernel_modules/connectivity/conninfra/Module.symvers)) ,)
+ifneq ($(wildcard $(abspath $(O)/../vendor/mediatek/kernel_modules)/connectivity/conninfra/Module.symvers) ,)
 	$(call clean_kernel_modules,connac2x,true,,mt6635,$(extra_symbols))
 endif
 	$(call clean_kernel_modules,mt6631_6635,false,,,$(extra_symbols))

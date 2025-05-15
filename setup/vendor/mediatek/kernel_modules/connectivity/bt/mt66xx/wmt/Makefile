@@ -1,6 +1,8 @@
 ###############################################################################
 # Bluetooth character device driver
 
+MODULE_ROOT := $(KERNEL_SRC)/../vendor/mediatek/kernel_modules/connectivity/bt/mt66xx/wmt
+
 ###############################################################################
 # Necessary Check
 
@@ -52,13 +54,13 @@ endif
 ###############################################################################
 # To include BT driver dependent header file
 
-WMT_SRC_FOLDER := $(TOP)/vendor/mediatek/kernel_modules/connectivity/common
+WMT_SRC_FOLDER := $(KERNEL_SRC)/../vendor/mediatek/kernel_modules/connectivity/common
 ccflags-y += -I$(WMT_SRC_FOLDER)/common_main/include
 ccflags-y += -I$(WMT_SRC_FOLDER)/common_main/linux/include
 ifneq ($(CONFIG_MTK_CONNSYS_DEDICATED_LOG_PATH),)
 ccflags-y += -I$(WMT_SRC_FOLDER)/debug_utility
 endif
-ccflags-y += -I$(src)/../include/btif
+ccflags-y += -I$(MODULE_ROOT)/../include/btif
 
 ###############################################################################
 
@@ -72,3 +74,14 @@ $(MODULE_NAME)-objs += btmtk_dbg.o btmtk_dbg_tp_evt_if.o
 ifneq ($(CONFIG_MTK_CONNSYS_DEDICATED_LOG_PATH),)
 $(MODULE_NAME)-objs += fw_log_bt.o
 endif
+
+extra_symbols := $(abspath $(O)/../vendor/mediatek/kernel_modules)/connectivity/common/Module.symvers
+
+all:
+	$(MAKE) -C $(KERNEL_SRC) M=$(M) modules $(KBUILD_OPTIONS) KBUILD_EXTRA_SYMBOLS=$(extra_symbols)
+
+modules_install:
+	$(MAKE) M=$(M) -C $(KERNEL_SRC) modules_install
+
+clean:
+	$(MAKE) -C $(KERNEL_SRC) M=$(M) clean
