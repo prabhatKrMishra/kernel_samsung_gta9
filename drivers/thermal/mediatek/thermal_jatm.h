@@ -50,6 +50,4 @@ enum jatm_not_start_reason {
 	NO_BUDGET
 };
 
-extern void (*jatm_notify_fp)(int enable);
-
 #endif
