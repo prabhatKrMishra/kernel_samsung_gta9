@@ -970,4 +970,5 @@ source "mm/damon/Kconfig"
 endmenu
 
 source "mm/sec_mm/Kconfig"
+source "mm/oplus_opt/Kconfig"
 
