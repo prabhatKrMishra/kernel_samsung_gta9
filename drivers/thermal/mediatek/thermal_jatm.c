@@ -330,18 +330,6 @@ static void jatm_stop_work_fn(struct work_struct *work)
 	disable_jatm(BUDGET_RUNNING_OUT);
 }
 
-void jatm_notify_fp_cb(int enable)
-{
-
-	if (j_info.turn_on != true)
-		return;
-
-	if (enable == 1)
-		try_enable_jatm();
-	else
-		disable_jatm(FRAME_COMPLETE);
-}
-
 static ssize_t jatm_info_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
 {
@@ -605,8 +593,6 @@ static int therm_jatm_probe(struct platform_device *pdev)
 	j_info.delay_start = false;
 
 	j_info.mode = STOP_DEADLINE;
-
-	jatm_notify_fp = jatm_notify_fp_cb;
 
 	return 0;
 }
