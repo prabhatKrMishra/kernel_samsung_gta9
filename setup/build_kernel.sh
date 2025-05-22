@@ -12,15 +12,21 @@ handle_arguments() {
     case "$1" in
         --new)
             SKIP_MRPROPER=0
+            SKIP_DEFCONFIG=0
             rm -rf $OUTPUT_DIRECTORY
             mkdir -p $OUTPUT_DIRECTORY
             ;;
         --rebuild)
             SKIP_MRPROPER=1
+            SKIP_DEFCONFIG=0
+            ;;
+        --modules)
+            SKIP_MRPROPER=1
+            SKIP_DEFCONFIG=1
             ;;
         *)
             echo "Invalid option: $1"
-            echo "Usage: $0 --new | --rebuild"
+            echo "Usage: $0 --new | --rebuild | --modules"
             exit 1
             ;;
     esac
@@ -43,6 +49,10 @@ export KERNEL_BUILD_MODE="user"
 
 if [ "$SKIP_MRPROPER" -eq 1 ]; then
     export SKIP_MRPROPER=1
+fi
+
+if [ "$SKIP_DEFCONFIG" -eq 1 ]; then
+    export SKIP_DEFCONFIG=1
 fi
 
 cd $BUILD_DIRECTORY
@@ -79,7 +89,7 @@ select_modules_vendor_boot() {
 	  
 	  while IFS= read -r module; do
 	    if [ -f "$COMPILED_MODULES_DIR/$module" ]; then
-	        mv "$COMPILED_MODULES_DIR/$module" "$DEST_DIR"
+	        cp "$COMPILED_MODULES_DIR/$module" "$DEST_DIR"
 	    else
 	        echo " vendor_boot_modules: Module $module does not exist in $COMPILED_MODULES_DIR"
 	    fi
@@ -100,7 +110,7 @@ select_modules_vendor_dlkm() {
 	  
 	  while IFS= read -r module; do
 	    if [ -f "$COMPILED_MODULES_DIR/$module" ]; then
-	        mv "$COMPILED_MODULES_DIR/$module" "$DEST_DIR"
+	        cp "$COMPILED_MODULES_DIR/$module" "$DEST_DIR"
 	    else
 	        echo " vendor_dlkm_modules: Module $module does not exist in $COMPILED_MODULES_DIR"
 	    fi
@@ -135,8 +145,8 @@ create_dtb_img() {
     rm -rf $DIST_DIR
 }
 
-# Check if 'arch/arm64/boot/Image' exists
-if [ -f $OUTPUT_DIRECTORY/kernel-5.10/arch/arm64/boot/Image ]; then
+# Check if 'arch/arm64/boot/Image.gz' exists
+if [ -f $OUTPUT_DIRECTORY/kernel-5.10/arch/arm64/boot/Image.gz ]; then
     echo ''
     echo " Kernel build successful! "
     echo ''
