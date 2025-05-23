@@ -45,7 +45,7 @@ export CROSS_COMPILE_COMPAT=arm-linux-gnueabi-
 export OUT_DIR=$OUTPUT_DIRECTORY
 export DIST_DIR=$OUTPUT_DIRECTORY
 export BUILD_CONFIG=$OUTPUT_DIRECTORY/build.config
-export KERNEL_BUILD_MODE="user"
+export KERNEL_BUILD_MODE='user'
 
 if [ "$SKIP_MRPROPER" -eq 1 ]; then
     export SKIP_MRPROPER=1
@@ -56,7 +56,7 @@ if [ "$SKIP_DEFCONFIG" -eq 1 ]; then
 fi
 
 cd $BUILD_DIRECTORY
-./build/build.sh
+./build/build.sh -j$(nproc) HOSTCC='clang' HOSTCXX='clang++' HOSTLD='ld.lld' CC='clang' CXX='clang++' LD='ld.lld' LLVM='clang' AR='llvm-ar' NM='llvm-nm' OBJCOPY='llvm-objcopy' OBJDUMP='llvm-objdump' OBJSIZE='llvm-size' READELF='llvm-readelf' STRIP='llvm-strip' LLVM=1 LLVM_IAS=1
 
 copy_modules() {
     echo "========================================================"
