@@ -206,7 +206,8 @@ bool task_is_booster(struct task_struct *tsk) {
     const char *booster_tasks[] = {
         "init", "NodeLooperThrea", "power@1.2-servi", "power@1.3-servi",
         "perf@1.0-servic", "perf@2.0-servic", "perf@2.1-servic",
-        "perf@2.2-servic", "power@2.0-servi", "iop@", "init.qcom.post_"
+        "perf@2.2-servic", "power@2.0-servi", "iop@", "init.qcom.post_",
+        "PERFD-SERVER", "mtkPowerMsgHdl", "mtkPowerService"
     };
     char comm[sizeof(tsk->comm)];
     size_t i;
