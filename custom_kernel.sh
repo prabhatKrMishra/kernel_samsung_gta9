@@ -55,6 +55,16 @@ echo "schedutil" > /sys/devices/system/cpu/cpufreq/policy6/scaling_governor
 echo 500 > /sys/devices/system/cpu/cpufreq/policy6/schedutil/up_rate_limit_us
 echo 5000 > /sys/devices/system/cpu/cpufreq/policy6/schedutil/down_rate_limit_us
 
+# Fix mali GPU
+echo 'simple_ondemand' > /sys/devices/platform/soc/13000000.mali/devfreq/13000000.mali/governor
+echo 990000000 > /sys/devices/platform/soc/13000000.mali/devfreq/13000000.mali/max_freq
+echo 415000000 > /sys/devices/platform/soc/13000000.mali/devfreq/13000000.mali/min_freq
+echo 50 > /sys/devices/platform/soc/13000000.mali/devfreq/13000000.mali/polling_interval
+
+# Use simple_ondemand as DVFSRC default governor
+echo 'simple_ondemand' > /sys/devices/platform/soc/10012000.dvfsrc/mtk-dvfsrc-devfreq/devfreq/mtk-dvfsrc-devfreq/governor
+echo 50 > /sys/devices/platform/soc/10012000.dvfsrc/mtk-dvfsrc-devfreq/devfreq/mtk-dvfsrc-devfreq/polling_interval
+
 # Memory optimization
 echo 0 > /proc/sys/vm/dirty_ratio
 echo 0 > /proc/sys/vm/dirty_background_ratio
