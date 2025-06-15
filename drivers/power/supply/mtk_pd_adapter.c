@@ -336,7 +336,7 @@ static int pd_tcp_notifier_call(struct notifier_block *pnb,
 		}
 		#endif //CONFIG_CUSTOM_PROJECT_OT11
 		/*Tab A9 code for SR-AX6739A-01-514 | AX6739A-723 by qiaodan at 20230606 end*/
-		/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 start */
+		/* Tab A9_V code for AL6739VDEV-13|AL6739VDEV-18 by zhangziyi at 20241021 start */
 		if ((sink_mv && !sink_ma) || (!sink_mv && sink_ma) || noti->vbus_state.type >= TCP_VBUS_CTRL_PD_STANDBY) {
 			pd_adapter_enable_power_path(true);
 			pr_err("%s will enter hiz(0mA)\n", __func__);
@@ -345,7 +345,7 @@ static int pd_tcp_notifier_call(struct notifier_block *pnb,
 			pr_err("%s will exit hiz(mA)\n", __func__);
 		}
 		break;
-		/* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 end */
+		/* Tab A9_V code for AL6739VDEV-13|AL6739VDEV-18 by zhangziyi at 20241021 end */
 	}
 	return ret;
 }

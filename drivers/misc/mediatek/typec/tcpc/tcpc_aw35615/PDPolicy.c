@@ -556,7 +556,13 @@ void PolicySourceStartup(Port_t *port)
             (TimerExpired(&port->SwapSourceStartTimer) ||
              TimerDisabled(&port->SwapSourceStartTimer))) {
             /* Delay once VBus is present for potential switch delay. */
+            /*Tab A9_na code for AX6739NU-133 by yexuedong at 20250106 start*/
+            #if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+            TimerStart(&port->PolicyStateTimer, 150);
+            #else
             TimerStart(&port->PolicyStateTimer, tVBusSwitchDelay);
+            #endif
+            /*Tab A9_na code for AX6739NU-133 by yexuedong at 20250106 end*/
 
             port->PolicySubIndex++;
         } else {
@@ -569,7 +575,11 @@ void PolicySourceStartup(Port_t *port)
             TimerDisable(&port->PolicyStateTimer);
             TimerDisable(&port->SwapSourceStartTimer);
             /* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 start */
+            /*Tab A9_na code for AX6739NU-133 by yexuedong at 20250106 start*/
+            #ifndef CONFIG_CUSTOM_PROJECT_OT11_NA
             msleep(150);
+            #endif
+            /*Tab A9_na code for AX6739NU-133 by yexuedong at 20250106 end*/
             /* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 end */
             SetPEState(port, peSourceSendCaps);
 #ifdef AW_HAVE_VDM
@@ -2385,6 +2395,12 @@ void PolicySinkEvaluateCaps(Port_t *port)
         SetPEState(port, peSinkWaitCaps);
         TimerStart(&port->PolicyStateTimer, tTypeCSinkWaitCap);
     }
+
+    /*Tab A9_na code for AX6739NU-133 by yexuedong at 20250106 start*/
+    #if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+    port->PEIdle = AW_FALSE;
+    #endif
+    /*Tab A9_na code for AX6739NU-133 by yexuedong at 20250106 end*/
 }
 /*Tab A9 code for AX6739A-224 by wenyaqi at 20230603 end*/
 
@@ -3384,7 +3400,14 @@ void PolicySinkEvaluatePRSwap(Port_t *port)
         break;
     case 2:
         /* Wait for VBUS to rise */
-		if (isVBUSOverVoltage(port, 4750)) {
+        /*Tab A9_na code for AX6739NU-133 by yexuedong at 20250102 start*/
+        #if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+        if (isVBUSOverVoltage(port, 5040))
+        #else
+		if (isVBUSOverVoltage(port, 4750))
+        #endif 
+        /*Tab A9_na code for AX6739NU-133 by yexuedong at 20250102 end*/
+        {
             /* Delay once VBus is present for potential switch delay. */
             TimerStart(&port->PolicyStateTimer, tVBusSwitchDelay);
 

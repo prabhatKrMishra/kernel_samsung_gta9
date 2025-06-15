@@ -1026,7 +1026,6 @@ int himax_input_register(struct himax_ts_data *ts)
     set_bit(KEY_POWER, ts->input_dev->keybit);
 #endif
     set_bit(BTN_TOUCH, ts->input_dev->keybit);
-    set_bit(KEY_APPSELECT, ts->input_dev->keybit);
     set_bit(INPUT_PROP_DIRECT, ts->input_dev->propbit);
 #if defined(HX_PROTOCOL_A)
     /*ts->input_dev->mtsize = ts->nFinger_support;*/
@@ -3343,22 +3342,24 @@ static int himax_get_tp_module(void)
     panel_name = tp_choose_panel();
     /*Tab A9 code for AX6739A-241 by suyurui at 20230526 end*/
 
-    /*Tab A9 code for SR-AX6739A-01-768 by liudi at 20230715 start*/
+    /*Tab A9 code for AX6739NU-17 by liuzheng at 20241125 start*/
     if (NULL != strstr(panel_name, "hx83102e_gx_hsd")) {
         fw_num = MODEL_GX_HSD;
-    } else if (NULL != strstr(panel_name, "hx83102e_xx_inx")) {
+    } else if (NULL != strstr(panel_name, "hx83102e_xx_inx_video")) {
         fw_num = MODEL_XX_INX;
     } else if (NULL != strstr(panel_name, "hx83102e_lc_hkc")) {
         fw_num = MODEL_LC_HKC;
-    } else if (NULL != strstr(panel_name, "hx83102e_cd_inx")) {
+    } else if (NULL != strstr(panel_name, "hx83102e_cd_inx_video")) {
         fw_num = MODEL_CD_INX;
-    } else
+    } else if (NULL != strstr(panel_name, "hx83102e_cd_inx_new_video")) {
+        fw_num = MODEL_CD_INX_NEW;
+    }else
         fw_num = MODEL_DEFAULT;
-    /*Tab A9 code for SR-AX6739A-01-768 by liudi at 20230715 end*/
+    /*Tab A9 code for AX6739NU-17 by liuzheng at 20241125 end*/
     return fw_num;
 }
 
-/*Tab A9 code for SR-AX6739A-01-768 by liudi at 20230715 start*/
+/*Tab A9 code for AX6739NU-17 by liuzheng at 20241125 start*/
 static void himax_update_module_info(void)
 {
     int module = 0;
@@ -3391,12 +3392,18 @@ static void himax_update_module_info(void)
             strcpy(ts->himax_mpfw_rq_name, "hx83102e_cd_inx_mpfw.bin");
             strcpy(ts->himax_csv_name, "hx83102e_cd_inx_criteria.csv");
             break;
+    case MODEL_CD_INX_NEW:
+            strcpy(ts->module_name,"hx83102e_cd_inx_new");
+            strcpy(ts->himax_nomalfw_rq_name, "hx83102e_cd_inx_new_firmware.bin");
+            strcpy(ts->himax_mpfw_rq_name, "hx83102e_cd_inx_new_mpfw.bin");
+            strcpy(ts->himax_csv_name, "hx83102e_cd_inx_new_criteria.csv");
+            break;
     default:
             strcpy(ts->module_name,"unknown");
             break;
     }
 }
-/*Tab A9 code for SR-AX6739A-01-768 by liudi at 20230715 end*/
+/*Tab A9 code for AX6739NU-17 by liuzheng at 20241125 end*/
 
 static void tp_feature_interface(void)
 {

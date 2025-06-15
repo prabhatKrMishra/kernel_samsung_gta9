@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-2.0
+
 config = {
     "header": {
         "uuid": "283df57d-cc04-4f9f-ae5a-9c8140dd1e53",
@@ -12,7 +14,7 @@ config = {
         "file": "security_proca.py",
         "location": [
             {
-                "src": "*.c *.h *.asn1 Makefile Kconfig",
+                "src": "*.c *.h *.asn1 *.S *.der Makefile Kconfig",
                 "dst": "security/samsung/proca/",
             },
             {
@@ -75,8 +77,7 @@ config = {
                         "CONFIG_DM_VERITY=y",
                         "CONFIG_CRYPTO_SHA256=y",
                         "CONFIG_DEBUG_KERNEL=y",
-                        "CONFIG_DEBUG_INFO=y",
-                        "CONFIG_GCOV=y"
+                        "CONFIG_DEBUG_INFO=y"
                     ],
                     "False": [],
                 },
@@ -89,7 +90,6 @@ config = {
 
 def load():
     return config
-
 
 if __name__ == "__main__":
     print(load())

@@ -46,6 +46,15 @@
 /*Tab A9 code for AX6739A-2076 by hualei at 20230707 start*/
 #define UPM6910_IGNOREBC_EN        BIT(6)
 /*Tab A9 code for AX6739A-2076 by hualei at 20230707 end*/
+/*Tab A9_na code for AX6739NU-1 by zhangziyi at 20241104 start*/
+#define UPM6922_REG_AB             0xAB
+#define REGAB_MIN_TOFF_MASK        BIT(6)
+#define REGAB_MIN_TOFF_SHIFT       6
+#define REGAB_MIN_TOFF_SET         1
+#define REGAB_SCAN_CUR_MASK        GENMASK(3, 2)
+#define REGAB_SCAN_CUR_SHIFT       2
+#define REGAB_SCAN_CUR_SET         2
+/*Tab A9_na code for AX6739NU-1 by zhangziyi at 20241104 end*/
 #define UPM6910_CHRG_EN        BIT(4)
 #define UPM6910_HIZ_EN            BIT(7)
 #define UPM6910_TERM_EN        BIT(7)
@@ -146,7 +155,20 @@
 /*Tab A9 code for AX6739A-1460 by hualei at 20230625 start*/
 #define UPM6910_ICHRG_I_LIMIT            500000
 /*Tab A9 code for AX6739A-1460 by hualei at 20230625 end*/
+/*Tab A9_na code for AX6739NU-1 by zhangziyi at 20241104 start*/
+#define UPM6922_REG_04                      0x04
+#define REG04_VREG_MASK                     0xF8
+#define REG04_VREG_SHIFT                    3
+#define REG04_VREG_BASE                     3848
+#define REG04_VREG_LSB                      32
+#define REG04_VREG_MIN                      3848
+#define REG04_VREG_MAX                      4808
 
+#define UPM6922_REG_0D                      0x0D
+#define REG0D_VREG_FT_MASK                  0xC0
+#define REG0D_VREG_FT_SHIFT                 6
+#define REG0D_VREG_FT_LSB                   8
+/*Tab A9_na code for AX6739NU-1 by zhangziyi at 20241104 end*/
 /* charge voltage  */
 #define UPM6910_VREG_V_MASK        GENMASK(7, 3)
 #define UPM6910_VREG_V_SHIFT        3
@@ -308,6 +330,11 @@ struct upm6910x_device {
 
     struct delayed_work charge_detect_delayed_work;
     struct delayed_work charge_detect_recheck_delay_work;
+    /*Tab A9_na code for AX6739NU-133 by yexuedong at 20250102 start*/
+    #if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+    struct delayed_work set_input_volt_lim_work;
+    #endif
+    /*Tab A9_na code for AX6739NU-133 by yexuedong at 20250102 end*/
     /*Tab A9 code for AX6739A-409 by wenyaqi at 20230530 start*/
     struct delayed_work hvdcp_done_work;
     bool hvdcp_done;
@@ -335,6 +362,12 @@ struct upm6910x_device {
     /*Tab A9 code for AX6739A-2344 by hualei at 20230717 start*/
     bool force_dpdm;
     /*Tab A9 code for AX6739A-2344 by hualei at 20230717 end*/
+    /*Tab A9_na code for AX6739NU-133 by yexuedong at 20250116 start*/
+    #if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+    bool is_first_plugin;
+    u32 bootmode;
+    #endif
+    /*Tab A9_na code for AX6739NU-133 by yexuedong at 20250116 end*/
 };
 
 #endif /* _UPM6910_CHARGER_H */

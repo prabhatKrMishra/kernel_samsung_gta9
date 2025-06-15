@@ -316,15 +316,16 @@ enum HX_TS_PATH {
     HX_REPORT_SMWP_EVENT,
     HX_REPORT_COORD_RAWDATA,
 };
-/*Tab A9 code for SR-AX6739A-01-768 by liudi at 20230715 start*/
+/*Tab A9 code for AX6739NU-17 by liuzheng at 20241125 start*/
 enum HX_TS_MODEL{
     MODEL_DEFAULT = 0,
     MODEL_GX_HSD,
     MODEL_XX_INX,
     MODEL_LC_HKC,
     MODEL_CD_INX,
+    MODEL_CD_INX_NEW,
 };
-/*Tab A9 code for SR-AX6739A-01-768 by liudi at 20230715 end*/
+/*Tab A9 code for AX6739NU-17 by liuzheng at 20241125 end*/
 enum HX_TS_STATUS {
     HX_TS_GET_DATA_FAIL = -4,
     HX_EXCP_EVENT,

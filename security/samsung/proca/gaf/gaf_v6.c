@@ -1,6 +1,18 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- *  gaf_v6.c
+ * PROCA GAF v6
  *
+ * Copyright (C) 2019 Samsung Electronics, Inc.
+ * Ivan Vorobiov <i.vorobiov@samsung.com>
+ *
+ * This software is licensed under the terms of the GNU General Public
+ * License version 2, as published by the Free Software Foundation, and
+ * may be copied, distributed, and modified under those terms.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  */
 #include "proca_gaf.h"
 
@@ -94,7 +106,7 @@ static struct GAForensicINFO {
 	.task_struct_struct_pid = offsetof(struct task_struct, pid),
 	.task_struct_struct_mm = offsetof(struct task_struct, mm),
 	.mm_struct_struct_pgd = offsetof(struct mm_struct, pgd),
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))	
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
 /*The reason of that branching is a changing avl to maple tree
   in mm_struct(since Linux v6). There is a temporary workaround,
   but the following values will be revised appropriate to maple
@@ -135,7 +147,11 @@ static struct GAForensicINFO {
 	.list_head_struct_prev = offsetof(struct list_head, prev),
 #if defined(CONFIG_KDP_NS) || defined(CONFIG_RKP_NS_PROT) || defined(CONFIG_RUSTUH_KDP_NS)
 	.is_kdp_ns_on = true,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
 	.struct_vfsmount_bp_mount = offsetof(struct kdp_vfsmount, bp_mount),
+#else
+	.struct_vfsmount_bp_mount = offsetof(struct vfsmount, bp_mount),
+#endif
 #else
 	.is_kdp_ns_on = false,
 #endif

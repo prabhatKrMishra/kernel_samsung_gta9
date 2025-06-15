@@ -19,10 +19,10 @@
 #include <linux/usb/role.h>
 #include <linux/workqueue.h>
 #include <linux/proc_fs.h>
-#if IS_ENABLED(CONFIG_USB_NOTIFY_LAYER)
-#include <linux/usb_notify.h>
-#endif
+
 #include "extcon-mtk-usb.h"
+
+#include <linux/usb_notify.h>
 
 /*Tab A9 code for AX6739A-1679 by wenghailong at 20230704 start*/
 int g_tp_detect_typec_flag = 0;
@@ -175,6 +175,11 @@ static int mtk_usb_extcon_set_role(struct mtk_extcon_info *extcon,
 		/* host -> none */
 		} else if (cur_dr == USB_ROLE_HOST &&
 				role == USB_ROLE_NONE) {
+			send_otg_notify(o_notify, NOTIFY_EVENT_HOST, 0);
+		/* none -> none usb restriction*/
+		} else if (cur_dr == USB_ROLE_NONE &&
+				role == USB_ROLE_NONE) {
+			send_otg_notify(o_notify, NOTIFY_EVENT_VBUS, 0);
 			send_otg_notify(o_notify, NOTIFY_EVENT_HOST, 0);
 		/* device -> host */
 		} else if (cur_dr == USB_ROLE_DEVICE &&
@@ -388,6 +393,11 @@ static int mtk_extcon_tcpc_notifier(struct notifier_block *nb,
 			container_of(nb, struct mtk_extcon_info, tcpc_nb);
 	struct device *dev = extcon->dev;
 	bool vbus_on;
+	/*Tab A9_na code for AX6739NU-165 by xiongxiaoliang at 20250210 start*/
+	#if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+	bool is_delayswap = true;
+	#endif
+	/*Tab A9_na code for AX6739NU-165 by xiongxiaoliang at 20250210 end*/
 
 	switch (event) {
 	case TCP_NOTIFY_SOURCE_VBUS:
@@ -426,6 +436,10 @@ static int mtk_extcon_tcpc_notifier(struct notifier_block *nb,
 		/*Tab A9 code for AX6739A-1314 by qiaodan at 20230620 start*/
 		dev_info(dev, "%s dr_swap v2, new role=%d\n",
 				__func__, noti->swap_state.new_role);
+		/*Tab A9_na code for AX6739NU-133 by yexuedong at 20250107 start*/
+		#if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+		DelayforSwap:
+		#endif
 		if (noti->swap_state.new_role == PD_ROLE_UFP &&
 				extcon->c_role != USB_ROLE_DEVICE) {
 			dev_info(dev, "switch role to device\n");
@@ -437,6 +451,20 @@ static int mtk_extcon_tcpc_notifier(struct notifier_block *nb,
 			mtk_usb_extcon_set_role(extcon, USB_ROLE_NONE);
 			mtk_usb_extcon_set_role(extcon, USB_ROLE_HOST);
 		}
+		#if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+		else {
+			/*Tab A9_na code for AX6739NU-165 by xiongxiaoliang at 20250210 start*/
+			dev_info(dev, "%s Delay for swap...new role=%d, c_role=%d\n",
+				__func__, noti->swap_state.new_role, extcon->c_role);
+			msleep(500);
+			if (true == is_delayswap) {
+				is_delayswap = false;
+				goto DelayforSwap;
+			}
+			/*Tab A9_na code for AX6739NU-165 by xiongxiaoliang at 20250210 end*/
+		}
+		#endif
+		/*Tab A9_na code for AX6739NU-133 by yexuedong at 20250107 end*/
 		break;
 		/*Tab A9 code for AX6739A-1314 by qiaodan at 20230620 end*/
 	}
@@ -761,9 +789,7 @@ static int mtk_usb_extcon_probe(struct platform_device *pdev)
 		dev_err(dev, "failed to init tcpc\n");
 #endif
 	/*Tab A9 code for SR-AX6739A-01-478 by lina at 20230603 start*/
-	#if defined(CONFIG_CUSTOM_PROJECT_OT11)
 	g_extcon = extcon;
-	#endif //CONFIG_CUSTOM_PROJECT_OT11
 	/*Tab A9 code for SR-AX6739A-01-478 by lina at 20230603 start*/
 	platform_set_drvdata(pdev, extcon);
 

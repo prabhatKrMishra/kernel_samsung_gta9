@@ -14,7 +14,9 @@
 
 #define JADARD_common_NAME "jadard_tp"
 #define JADARD_BUS_RETRY_TIMES 10
-
+/*Tab A9_na code for AX6739NU-2 by wenghailong at 20241106 start*/
+extern int g_board_id_status;
+/*Tab A9_na code for AX6739NU-2 by wenghailong at 20241106 end*/
 #if defined(CONFIG_TOUCHSCREEN_JADARD_DEBUG)
 extern bool jd_g_dbg_enable;
 extern bool jd_g_esd_check_enable;

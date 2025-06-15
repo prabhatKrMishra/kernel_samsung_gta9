@@ -656,6 +656,12 @@ musb_read_setup(struct musb *musb, struct usb_ctrlrequest *req)
 		musb->ep0_state = MUSB_EP0_STAGE_RX;
 }
 
+/*Tab A9_na code for AX6739NU-133 by xiongxiaoliang at 20250115 start*/
+#if IS_ENABLED(CONFIG_CUSTOM_PROJECT_OT11_NA)
+extern u8 usb_state_cv3;
+extern struct work_struct usb20_notify_work;
+#endif
+/*Tab A9_na code for AX6739NU-133 by xiongxiaoliang at 20250115 end*/
 static int
 forward_to_driver(struct musb *musb, const struct usb_ctrlrequest *ctrlrequest)
 __releases(musb->lock)
@@ -675,11 +681,27 @@ __acquires(musb->lock)
 		if (ctrlrequest->bRequest == USB_REQ_SET_CONFIGURATION) {
 			if (ctrlrequest->wValue & 0xff) {
 				usb_state = USB_CONFIGURED;
+				/*Tab A9_na code for AX6739NU-133 by xiongxiaoliang at 20250115 start*/
+				#if IS_ENABLED(CONFIG_CUSTOM_PROJECT_OT11_NA)
+				usb_state_cv3 = usb_state;
+				DBG(0, "setconfig #%d, usb_state = USB_CONFIGURED\n",
+					ctrlrequest->wValue & 0xff);
+				schedule_work(&usb20_notify_work);
+				#endif
+				/*Tab A9_na code for AX6739NU-133 by xiongxiaoliang at 20250115 end*/
 				#ifndef CONFIG_ODM_CUSTOM_FACTORY_BUILD
 				g_usb_connected_unconfigured = 0;
 				#endif //!CONFIG_ODM_CUSTOM_FACTORY_BUILD
 			} else {
 				usb_state = USB_UNCONFIGURED;
+				/*Tab A9_na code for AX6739NU-133 by xiongxiaoliang at 20250115 start*/
+				#if IS_ENABLED(CONFIG_CUSTOM_PROJECT_OT11_NA)
+				usb_state_cv3 = usb_state;
+				DBG(0, "setconfig #%d, usb_state = USB_UNCONFIGURED\n",
+					ctrlrequest->wValue & 0xff);
+				schedule_work(&usb20_notify_work);
+				#endif
+				/*Tab A9_na code for AX6739NU-133 by xiongxiaoliang at 20250115 end*/
 				#ifndef CONFIG_ODM_CUSTOM_FACTORY_BUILD
 				g_usb_connected_unconfigured = 1;
 				#endif //!CONFIG_ODM_CUSTOM_FACTORY_BUILD

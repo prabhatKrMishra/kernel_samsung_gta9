@@ -40,12 +40,18 @@ const int g_fs15xx_off_mode = 0;
 const int g_fs15xx_open_mode = 5;
 
 const int g_aw87xx_off_mode = 0;
+/* Tab A9_na code for AX6739NU-120|AX6739NU-122 by hujincan at 20241213 start */
 const int g_aw87xx_open_mode = 10;
+/* Tab A9_na code for AX6739NU-120|AX6739NU-122 by hujincan at 20241213 end */
 const int g_aw87xx_pulse_delay_us = 2;
 
 int g_ctrl_mod_l_up = 0;
 int g_ctrl_mod_r_down = 0;
 int g_audio_switch = 0;
+
+/*Tab A9_na code for AX6739N-15 by huangzhixian at 20241111 start*/
+extern int g_board_id_status;
+/*Tab A9_na code for AX6739N-15 by huangzhixian at 20241111 end*/
 
 static DEFINE_SPINLOCK(s_fs15xx_lock);
 /*Tab A9 code for AX6739A-8|SR-AX6739A-01-186|AX6739A-27 by hujincan at 20230428 end*/
@@ -1492,7 +1498,17 @@ static int mt6789_mt6366_dev_probe(struct platform_device *pdev)
 	card->dev = &pdev->dev;
 
 	/*Tab A9 code for AX6739A-8 by hujincan at 20230425 start*/
-	g_ctrl_mod_l_up = of_get_named_gpio(pdev->dev.of_node, "ctrl-mod-l-up", 0);
+	/*Tab A9_na code for AX6739N-15 by huangzhixian at 20241111 start*/
+	if (!g_board_id_status){
+		#if defined(CONFIG_CUSTOM_PROJECT_OT11_WIFI_ALL)
+		g_ctrl_mod_l_up = of_get_named_gpio(pdev->dev.of_node, "ctrl-mod-l-up", 0);
+		#else
+		g_ctrl_mod_l_up = of_get_named_gpio(pdev->dev.of_node, "ctrl-mod-l-up-na", 0);
+		#endif
+	}else{
+		g_ctrl_mod_l_up = of_get_named_gpio(pdev->dev.of_node, "ctrl-mod-l-up", 0);
+	}
+	/*Tab A9_na code for AX6739N-15 by huangzhixian at 20241111 end*/
 	if (g_ctrl_mod_l_up < 0) {
 		pr_err("%s(), get ctrl-mod-l-up fail!\n", __func__);
 	}

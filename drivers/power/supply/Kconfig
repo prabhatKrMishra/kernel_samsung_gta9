@@ -173,6 +173,12 @@ config BATTERY_ID_ADC
  	help
  	  BATTERY_ID_ADC
 # Tab A9 code for SR-AX6739A-01-515 by lina at 20230505 end
+# Tab A9_na code for AX6739N-20 by zhangziyi at 20241112 start
+config GXY_IBUS_ADC
+ 	tristate "GXY_IBUS_ADC"
+ 	help
+ 	  GXY_IBUS_ADC
+# Tab A9_na code for AX6739N-20 by zhangziyi at 20241112 end
 config BATTERY_MT6358
 	tristate "MT6358 fuel gauge support"
 	depends on MFD_MT6397

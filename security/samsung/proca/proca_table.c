@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * PROCA task descriptors table
  *
@@ -14,24 +15,24 @@
  * GNU General Public License for more details.
  */
 
-#include "proca_table.h"
-
 #include <linux/hashtable.h>
 #include <linux/string.h>
 
-void proca_table_init(struct proca_table *table)
+#include "proca_table.h"
+#include "proca_log.h"
+
+int proca_table_init(struct proca_table *table)
 {
-	BUG_ON(!table);
+	PROCA_BUG_ON(!table);
 
 	memset(table, 0, sizeof(*table));
 
-	spin_lock_init(&table->pid_map_lock);
+	spin_lock_init(&table->maps_lock);
 	hash_init(table->pid_map);
-
-	spin_lock_init(&table->app_name_map_lock);
 	hash_init(table->app_name_map);
 
 	table->hash_tables_shift = PROCA_TASKS_TABLE_SHIFT;
+	return 0;
 }
 
 /*
@@ -86,28 +87,33 @@ static unsigned long calculate_pid_hash(struct proca_table *table, pid_t pid)
 	return proca_hash_32(pid) >> (32 - table->hash_tables_shift);
 }
 
-void proca_table_add_task_descr(struct proca_table *table,
+int proca_table_add_task_descr(struct proca_table *table,
 				struct proca_task_descr *descr)
 {
-	unsigned long hash_key;
+	unsigned long pid_hash_key;
+	unsigned long app_hash_key;
 	unsigned long irqsave_flags;
+	struct proca_identity *identity;
 
-	hash_key = calculate_pid_hash(table, descr->task->pid);
-	spin_lock_irqsave(&table->pid_map_lock, irqsave_flags);
-	hlist_add_head(&descr->pid_map_node,
-		       &table->pid_map[hash_key]);
-	spin_unlock_irqrestore(&table->pid_map_lock, irqsave_flags);
+	PROCA_BUG_ON(!table || !descr);
 
-	if (descr->proca_identity.certificate) {
-		hash_key = calculate_app_name_hash(table,
-			descr->proca_identity.parsed_cert.app_name,
-			descr->proca_identity.parsed_cert.app_name_size);
-		spin_lock_irqsave(&table->app_name_map_lock, irqsave_flags);
+	identity = &descr->proca_identity;
+
+	pid_hash_key = calculate_pid_hash(table, descr->task->pid);
+	if (identity->certificate)
+		app_hash_key = calculate_app_name_hash(table,
+			identity->parsed_cert.app_name,
+			identity->parsed_cert.app_name_size);
+
+	spin_lock_irqsave(&table->maps_lock, irqsave_flags);
+	hlist_add_head(&descr->pid_map_node, &table->pid_map[pid_hash_key]);
+
+	if (identity->certificate)
 		hlist_add_head(&descr->app_name_map_node,
-			&table->app_name_map[hash_key]);
-		spin_unlock_irqrestore(
-			&table->app_name_map_lock, irqsave_flags);
-	}
+			&table->app_name_map[app_hash_key]);
+
+	spin_unlock_irqrestore(&table->maps_lock, irqsave_flags);
+	return 0;
 }
 
 void proca_table_remove_task_descr(struct proca_table *table,
@@ -118,13 +124,10 @@ void proca_table_remove_task_descr(struct proca_table *table,
 	if (!descr)
 		return;
 
-	spin_lock_irqsave(&table->pid_map_lock, irqsave_flags);
+	spin_lock_irqsave(&table->maps_lock, irqsave_flags);
 	hash_del(&descr->pid_map_node);
-	spin_unlock_irqrestore(&table->pid_map_lock, irqsave_flags);
-
-	spin_lock_irqsave(&table->app_name_map_lock, irqsave_flags);
 	hash_del(&descr->app_name_map_node);
-	spin_unlock_irqrestore(&table->app_name_map_lock, irqsave_flags);
+	spin_unlock_irqrestore(&table->maps_lock, irqsave_flags);
 }
 
 struct proca_task_descr *proca_table_get_by_task(
@@ -138,14 +141,14 @@ struct proca_task_descr *proca_table_get_by_task(
 
 	hash_key = calculate_pid_hash(table, task->pid);
 
-	spin_lock_irqsave(&table->pid_map_lock, irqsave_flags);
+	spin_lock_irqsave(&table->maps_lock, irqsave_flags);
 	hlist_for_each_entry(descr, &table->pid_map[hash_key], pid_map_node) {
 		if (task == descr->task) {
 			target_task_descr = descr;
 			break;
 		}
 	}
-	spin_unlock_irqrestore(&table->pid_map_lock, irqsave_flags);
+	spin_unlock_irqrestore(&table->maps_lock, irqsave_flags);
 
 	return target_task_descr;
 }
@@ -161,3 +164,11 @@ struct proca_task_descr *proca_table_remove_by_task(
 
 	return target_task_descr;
 }
+
+#if defined(CONFIG_SEC_KUNIT)
+EXPORT_SYMBOL_GPL(proca_table_remove_by_task);
+EXPORT_SYMBOL_GPL(proca_table_init);
+EXPORT_SYMBOL_GPL(proca_table_get_by_task);
+EXPORT_SYMBOL_GPL(proca_table_add_task_descr);
+EXPORT_SYMBOL_GPL(compare_with_five_signature);
+#endif

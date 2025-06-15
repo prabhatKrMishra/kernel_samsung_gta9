@@ -213,6 +213,9 @@
 
 #define CFG_CTS_OF_INT_GPIO_NAME            "chipone,irq-gpio"
 #define CFG_CTS_OF_RST_GPIO_NAME            "chipone,rst-gpio"
+/*Tab A9_na code for AX6739NU-2 by wenghailong at 20241106 start*/
+#define CFG_CTS_OF_RST_NA_GPIO_NAME         "chipone,rst-gpio-na"
+/*Tab A9_na code for AX6739NU-2 by wenghailong at 20241106 end*/
 
 #ifdef CFG_CTS_MANUAL_CS
 #define CFG_CTS_OF_CS_GPIO_NAME             "chipone,cs-gpio"

@@ -42,105 +42,6 @@ static struct grdm_driver_data grdm_data = {
 
 /* Tab A9 code for SR-AX6739A-01-393 by gaochao at 20230607 start */
 #if defined(SECURITY_IC_POWER_SUPPLY_VIA_GPIO) // gpio control power supply
-struct PCBA_ID_HW_INFO {
-    uint32_t id_hw;
-    uint32_t id_code;
-};
-
-#define LOW     0
-#define HIGH    1
-
-enum hw_version {
-    PRE = 1,
-    EVB1 = 2,
-    EVB2,
-    EVT1,
-    EVT2,
-    DVT1,
-    DVT1_2,
-    PVT,
-    MP,
-};
-
-static struct PCBA_ID_HW_INFO hw_ver_gpio_tab[] = {
-    {(LOW << 4)  | (LOW << 2)  | LOW  , EVB1},
-    {(LOW << 4)  | (LOW << 2)  | HIGH , EVB2},
-    {(LOW << 4)  | (HIGH << 2) | LOW  , EVT1},
-    {(LOW << 4)  | (HIGH << 2) | HIGH , EVT2},
-    {(HIGH << 4) | (LOW << 2)  | LOW  , DVT1},
-    {(HIGH << 4) | (LOW << 2)  | HIGH , DVT1_2},
-    {(HIGH << 4) | (HIGH << 2) | LOW  , PVT},
-    {(HIGH << 4) | (HIGH << 2) | HIGH , MP},
-};
-
-#define HW_VER_GPIO_TAB_LEN     (sizeof(hw_ver_gpio_tab) / sizeof(struct PCBA_ID_HW_INFO))
-#define BOARD_ID_STAGE_GPIO_N   3
-
-static uint32_t hw_ver_id_code = 0xffff;
-static int stage_Gpio[3] = {0};
-
-static int grdm_stage_gpio_dt(struct device *dev)
-{
-    struct device_node *np = dev->of_node;
-    if (!dev || !dev->of_node) {
-        pr_err("[%s]l=%d: dev or dev->of_node is NULL\n", __FUNCTION__, __LINE__);
-        return -1;
-    }
-
-    stage_Gpio[0] = of_get_named_gpio(np, "stage_gpio_BOARD_ID5", 0);
-    if (!gpio_is_valid(stage_Gpio[0])) {
-        pr_err("[%s]l=%d: Invalid GPIO, stage_Gpio[0]=%d\n",
-            __FUNCTION__, __LINE__, stage_Gpio[0]);
-        return -1;
-    }
-
-    stage_Gpio[1] = of_get_named_gpio(np, "stage_gpio_BOARD_ID4", 0);
-    if (!gpio_is_valid(stage_Gpio[1])) {
-        pr_err("[%s]l=%d: Invalid GPIO, stage_Gpio[1]=%d\n",
-            __FUNCTION__, __LINE__, stage_Gpio[1]);
-        return -1;
-    }
-
-    stage_Gpio[2] = of_get_named_gpio(np, "stage_gpio_BOARD_ID3", 0);
-    if (!gpio_is_valid(stage_Gpio[2])) {
-        pr_err("[%s]l=%d: Invalid GPIO, stage_Gpio[2]=%d\n",
-            __FUNCTION__, __LINE__, stage_Gpio[2]);
-        return -1;
-    }
-
-    return 0;
-}
-
-static void grdm_find_hw_version(uint32_t stage_board_id)
-{
-    uint32_t i = 0;
-    uint32_t hw_ver = stage_board_id;
-
-    for (i = 0; i < HW_VER_GPIO_TAB_LEN; i++) {
-        if (hw_ver == hw_ver_gpio_tab[i].id_hw) {
-            hw_ver_id_code = hw_ver_gpio_tab[i].id_code;
-            break;
-        }
-    }
-    pr_info("[%s]l=%d: hw_ver_id_code=0x%x\n",
-        __FUNCTION__, __LINE__, hw_ver_id_code);
-}
-
-static void grdm_config_hw_version(void)
-{
-    uint32_t gpio_state = 0;
-    uint32_t stage_board_id = 0;
-    uint32_t i = 0;
-
-    for (i = 0; i < BOARD_ID_STAGE_GPIO_N; i++) {
-        gpio_state = gpio_get_value(stage_Gpio[i]);
-        stage_board_id |=  gpio_state << (2 * i);
-        pr_info("[%s]l=%d: [%u]gpio_state=%u, stage_board_id=0x%x\n",
-            __FUNCTION__, __LINE__, stage_Gpio[i], gpio_state, stage_board_id);
-    }
-    grdm_find_hw_version(stage_board_id);
-}
-
 static int secrityic_en_gpio = -1;
 
 static int grdm_parse_dt(struct device *dev)
@@ -202,21 +103,11 @@ static ssize_t store_grdm_node(struct device *dev,
             pr_err("grdm failed to get grdm_clk, ret is %d\n", ret);
             return -1;
         }
-        if (hw_ver_id_code >= EVT2) {
-            clk_prepare_enable(grdm_data.grdm_clk);
-        } else {
-            pr_info("[%s]l=%d: always on, enable spi clk for TEE once\n", __FUNCTION__, __LINE__);
-        }
+        clk_prepare_enable(grdm_data.grdm_clk);
 #endif  // SECURITY_IC_ENABLE_SPI_VIA_SPI_CLK
 /* Tab A9 code for SR-AX6739A-01-393 by gaochao at 20230613 end */
         /* Tab A9 code for SR-AX6739A-01-393 by gaochao at 20230607 start */
-        if (hw_ver_id_code >= EVT2) {
-            gpio_direction_output(secrityic_en_gpio, GPIO_CTRL_POWER_OPEN);
-            pr_info("[%s]l=%d: gpio control power supply, hw_ver_id_code=0x%x\n",
-                __FUNCTION__, __LINE__, hw_ver_id_code);
-        } else {
-            pr_info("[%s]l=%d: always on\n", __FUNCTION__, __LINE__);
-        }
+        gpio_direction_output(secrityic_en_gpio, GPIO_CTRL_POWER_OPEN);
         /* Tab A9 code for SR-AX6739A-01-393 by gaochao at 20230607 end */
 #else // pmic ldo_vio18 power supply
 #if defined(SECURITY_IC_POWER_SUPPLY_VIA_LDO_CTL) // ldo control, otherwise always on
@@ -242,22 +133,11 @@ static ssize_t store_grdm_node(struct device *dev,
             pr_err("grdm failed to get grdm_clk, ret is %d\n", ret);
             return -1;
         }
-        if (hw_ver_id_code >= EVT2) {
-            clk_disable_unprepare(grdm_data.grdm_clk);
-        } else {
-            pr_info("[%s]l=%d: always on, enable spi clk for TEE once\n", __FUNCTION__, __LINE__);
-        }
+        clk_disable_unprepare(grdm_data.grdm_clk);
 #endif  // SECURITY_IC_ENABLE_SPI_VIA_SPI_CLK
 /* Tab A9 code for SR-AX6739A-01-393 by gaochao at 20230613 end */
         /* Tab A9 code for SR-AX6739A-01-393 by gaochao at 20230607 start */
-        if (hw_ver_id_code >= EVT2) {
-            gpio_direction_output(secrityic_en_gpio, GPIO_CTRL_POWER_CLOSE);
-            pr_info("[%s]l=%d: gpio control power supply, hw_ver_id_code=0x%x\n",
-                __FUNCTION__, __LINE__, hw_ver_id_code);
-        } else {
-            pr_info("[%s]l=%d: always on\n",
-                __FUNCTION__, __LINE__);
-        }
+        gpio_direction_output(secrityic_en_gpio, GPIO_CTRL_POWER_CLOSE);
         /* Tab A9 code for SR-AX6739A-01-393 by gaochao at 20230607 end */
 #else // pmic ldo_vio18 power supply
 #if defined(SECURITY_IC_POWER_SUPPLY_VIA_LDO_CTL) // ldo control, otherwise always on
@@ -311,21 +191,11 @@ static int grdm_open(struct inode *inode, struct file *filp)
         pr_err("grdm failed to get grdm_clk, ret is %d\n", ret);
         return ret;
     }
-    if (hw_ver_id_code >= EVT2) {
-        clk_prepare_enable(grdm_data.grdm_clk);
-    } else {
-        pr_info("[%s]l=%d: always on, enable spi clk for TEE once\n", __FUNCTION__, __LINE__);
-    }
+    clk_prepare_enable(grdm_data.grdm_clk);
 #endif  // SECURITY_IC_ENABLE_SPI_VIA_SPI_CLK
 /* Tab A9 code for SR-AX6739A-01-393 by gaochao at 20230613 end */
     /* Tab A9 code for SR-AX6739A-01-393 by gaochao at 20230607 start */
-    if (hw_ver_id_code >= EVT2) {
-        gpio_direction_output(secrityic_en_gpio, GPIO_CTRL_POWER_OPEN);
-        pr_info("[%s]l=%d: gpio control power supply, hw_ver_id_code=0x%x\n",
-            __FUNCTION__, __LINE__, hw_ver_id_code);
-    } else {
-        pr_info("[%s]l=%d: always on\n", __FUNCTION__, __LINE__);
-    }
+    gpio_direction_output(secrityic_en_gpio, GPIO_CTRL_POWER_OPEN);
     /* Tab A9 code for SR-AX6739A-01-393 by gaochao at 20230607 end */
 #else // pmic ldo_vio18 power supply
 #if defined(SECURITY_IC_POWER_SUPPLY_VIA_LDO_CTL) // ldo control, otherwise always on
@@ -364,21 +234,11 @@ static int grdm_release(struct inode *inode, struct file *filp)
         pr_err("grdm failed to get grdm_clk, ret is %d\n", ret);
         return ret;
     }
-    if (hw_ver_id_code >= EVT2) {
-        clk_disable_unprepare(grdm_data.grdm_clk);
-    } else {
-        pr_info("[%s]l=%d: always on, enable spi clk for TEE once\n", __FUNCTION__, __LINE__);
-    }
+    clk_disable_unprepare(grdm_data.grdm_clk);
 #endif  // SECURITY_IC_ENABLE_SPI_VIA_SPI_CLK
 /* Tab A9 code for SR-AX6739A-01-393 by gaochao at 20230613 end */
     /* Tab A9 code for SR-AX6739A-01-393 by gaochao at 20230607 start */
-    if (hw_ver_id_code >= EVT2) {
-        gpio_direction_output(secrityic_en_gpio, GPIO_CTRL_POWER_CLOSE);
-        pr_info("[%s]l=%d: gpio control power supply, hw_ver_id_code=0x%x\n",
-            __FUNCTION__, __LINE__, hw_ver_id_code);
-    } else {
-        pr_info("[%s]l=%d: always on\n", __FUNCTION__, __LINE__);
-    }
+    gpio_direction_output(secrityic_en_gpio, GPIO_CTRL_POWER_CLOSE);
     /* Tab A9 code for SR-AX6739A-01-393 by gaochao at 20230607 end */
 #else // pmic ldo_vio18 power supply
 #if defined(SECURITY_IC_POWER_SUPPLY_VIA_LDO_CTL) // ldo control, otherwise always on
@@ -427,13 +287,7 @@ static ssize_t grdm_write(struct file *file, const char __user *buf,
         }
 #if defined(SECURITY_IC_POWER_SUPPLY_VIA_GPIO) // gpio control power supply
         /* Tab A9 code for SR-AX6739A-01-393 by gaochao at 20230607 start */
-        if (hw_ver_id_code >= EVT2) {
-            gpio_direction_output(secrityic_en_gpio, GPIO_CTRL_POWER_CLOSE);
-            pr_info("[%s]l=%d: gpio control power supply, hw_ver_id_code=0x%x\n",
-                __FUNCTION__, __LINE__, hw_ver_id_code);
-        } else {
-            pr_info("[%s]l=%d: always on\n", __FUNCTION__, __LINE__);
-        }
+        gpio_direction_output(secrityic_en_gpio, GPIO_CTRL_POWER_CLOSE);
         /* Tab A9 code for SR-AX6739A-01-393 by gaochao at 20230607 end */
 #else // pmic ldo_vio18 power supply
 #if defined(SECURITY_IC_POWER_SUPPLY_VIA_LDO_CTL) // ldo control, otherwise always on
@@ -452,13 +306,7 @@ static ssize_t grdm_write(struct file *file, const char __user *buf,
         }
 #if defined(SECURITY_IC_POWER_SUPPLY_VIA_GPIO) // gpio control power supply
         /* Tab A9 code for SR-AX6739A-01-393 by gaochao at 20230607 start */
-        if (hw_ver_id_code >= EVT2) {
-            gpio_direction_output(secrityic_en_gpio, GPIO_CTRL_POWER_OPEN);
-            pr_info("[%s]l=%d: gpio control power supply, hw_ver_id_code=0x%x\n",
-                __FUNCTION__, __LINE__, hw_ver_id_code);
-        } else {
-            pr_info("[%s]l=%d: always on\n", __FUNCTION__, __LINE__);
-        }
+        gpio_direction_output(secrityic_en_gpio, GPIO_CTRL_POWER_OPEN);
         /* Tab A9 code for SR-AX6739A-01-393 by gaochao at 20230607 end */
 #else // pmic ldo_vio18 power supply
 #if defined(SECURITY_IC_POWER_SUPPLY_VIA_LDO_CTL) // ldo control, otherwise always on
@@ -558,14 +406,6 @@ static int grdm_probe(struct platform_device *pdev)
         pr_err("failed to request grdm gpio!\n");
     }
 
-    /* Tab A9 code for SR-AX6739A-01-393 by gaochao at 20230607 start */
-    ret = grdm_stage_gpio_dt(&pdev->dev);
-    if (ret < 0) {
-        pr_err("[%s]l=%d: grdm_stage_gpio_dt failed\n", __FUNCTION__, __LINE__);
-        return -1;
-    }
-    grdm_config_hw_version();
-    /* Tab A9 code for SR-AX6739A-01-393 by gaochao at 20230607 end */
 /* Tab A9 code for SR-AX6739A-01-393 by gaochao at 20230613 start */
 #if defined(SECURITY_IC_ENABLE_SPI_VIA_SPI_CLK) // CLK_IFRAO_SPI3 for TEE
     grdm_data.grdm_clk = devm_clk_get(&pdev->dev, "grdm-clk");
@@ -573,13 +413,6 @@ static int grdm_probe(struct platform_device *pdev)
         ret = PTR_ERR(grdm_data.grdm_clk);
         pr_err("failed to get grdm_clk, ret is %d\n", ret);
         return ret;
-    }
-    if (hw_ver_id_code >= EVT2) {
-        pr_info("[%s]l=%d: gpio control power supply, hw_ver_id_code=0x%x\n",
-            __FUNCTION__, __LINE__, hw_ver_id_code);
-    } else {
-        clk_prepare_enable(grdm_data.grdm_clk);
-        pr_info("[%s]l=%d: always on, enable spi clk for TEE once\n", __FUNCTION__, __LINE__);
     }
 #endif  // SECURITY_IC_ENABLE_SPI_VIA_SPI_CLK
 /* Tab A9 code for SR-AX6739A-01-393 by gaochao at 20230613 end */
@@ -626,13 +459,7 @@ static int grdm_remove(struct platform_device *pdev)
     unregister_chrdev(major, "grdm_node");
 #if defined(SECURITY_IC_POWER_SUPPLY_VIA_GPIO) // gpio control power supply
     /* Tab A9 code for SR-AX6739A-01-393 by gaochao at 20230607 start */
-    if (hw_ver_id_code >= EVT2) {
-        gpio_direction_output(secrityic_en_gpio, GPIO_CTRL_POWER_CLOSE);
-        pr_info("[%s]l=%d: gpio control power supply, hw_ver_id_code=0x%x\n",
-            __FUNCTION__, __LINE__, hw_ver_id_code);
-    } else {
-        pr_info("[%s]l=%d: always on\n", __FUNCTION__, __LINE__);
-    }
+    gpio_direction_output(secrityic_en_gpio, GPIO_CTRL_POWER_CLOSE);
     /* Tab A9 code for SR-AX6739A-01-393 by gaochao at 20230607 end */
 #else // pmic ldo_vio18 power supply
 #if defined(SECURITY_IC_POWER_SUPPLY_VIA_LDO_CTL) // ldo control, otherwise always on

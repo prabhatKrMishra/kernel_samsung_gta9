@@ -280,6 +280,20 @@ int charger_dev_get_constant_voltage(struct charger_device *chg_dev, u32 *uV)
 }
 EXPORT_SYMBOL(charger_dev_get_constant_voltage);
 
+/*Tab A9_na code for AX6739N-20 by zhangziyi at 20241112 start*/
+#if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+int charger_dev_get_chr_type(struct charger_device *chg_dev, int *chr_type)
+{
+	if (chg_dev != NULL && chg_dev->ops != NULL &&
+	    chg_dev->ops->get_chr_type)
+		return chg_dev->ops->get_chr_type(chg_dev, chr_type);
+
+	return -ENOTSUPP;
+}
+EXPORT_SYMBOL(charger_dev_get_chr_type);
+#endif
+/*Tab A9_na code for AX6739N-20 by zhangziyi at 20241112 end*/
+
 int charger_dev_dump_registers(struct charger_device *chg_dev)
 {
 	if (chg_dev != NULL && chg_dev->ops != NULL &&

@@ -125,6 +125,15 @@ static int gxy_calc_ttf_to_full_capacity(struct gxy_battery_ttf *battery, unsign
     int soc = FULL_CAPACITY;
     int charge_current = ttf_curr;
     int design_cap = battery->ttf_d->ttf_capacity;
+    /*Tab A9_V code for P241221-02215 by xiongxiaoliang at 20250109 start*/
+    struct mtk_charger *info = NULL;
+
+    info = battery->chg_info;
+    if (info->gxy_discharge_batt_full_capacity == GXY_MAX_PROTECTION_FLAG) {
+        soc = info->gxy_batt_max_protect_soc;
+    }
+    GXY_PSY_ERR("%s: time to %d percent\n", __func__, soc);
+    /*Tab A9_V code for P241221-02215 by xiongxiaoliang at 20250109 end*/
 
     if (!cv_data || (ttf_curr <= 0)) {
         GXY_PSY_ERR("%s: no cv_data or val: %d\n", __func__, ttf_curr);
@@ -199,13 +208,13 @@ static void gxy_bat_calc_time_to_full(struct gxy_battery_ttf *battery)
             info->pd_type == MTK_PD_CONNECT_PE_READY_SNK_APDO)) { /* high voltage charging */
                 charge = battery->ttf_d->ttf_hv_charge_current;
         } else if (battery->usb_type == POWER_SUPPLY_USB_TYPE_DCP){ /* other AC charging */
+            /*Tab A9_v code for AX6739AU-139 by zhangziyi at 20240920 start*/
             if (battery->usb_vol_now >= USB_HV_VLOTAGE_MIN) {
                 charge = battery->ttf_d->ttf_hv_charge_current;
-            } else if (battery->batt_curr_now >= USB_TYPE_CDP_DEFAULT_CURR) {
-                charge = battery->ttf_d->ttf_dcp_charge_current;
             } else {
-                charge = battery->batt_curr_now;
+                charge = battery->ttf_d->ttf_dcp_charge_current;
             }
+            /*Tab A9_v code for AX6739AU-139 by zhangziyi at 20240920 end*/
         } else if (battery->usb_type == POWER_SUPPLY_USB_TYPE_CDP) {
             charge = USB_TYPE_CDP_DEFAULT_CURR;
         } else if (battery->usb_type == POWER_SUPPLY_USB_TYPE_SDP) {
@@ -214,14 +223,15 @@ static void gxy_bat_calc_time_to_full(struct gxy_battery_ttf *battery)
             if (battery->usb_vol_now == USB_HV_VLOTAGE_MIN) {
                 charge = battery->ttf_d->ttf_hv_charge_current;
             } else {
-                charge = battery->batt_curr_now;
+                /*Tab A9_v code for AX6739AU-139 by zhangziyi at 20240920 start*/
+                charge = USB_TYPE_SDP_DEFAULT_CURR;
+                /*Tab A9_v code for AX6739AU-139 by zhangziyi at 20240920 end*/
             }
         }
 
         // STEP2: battery protect judge
         #if !defined(CONFIG_ODM_CUSTOM_FACTORY_BUILD)
         if (info->gxy_discharge_batt_full_capacity > 0 && info->gxy_discharge_batt_full_capacity != 100) {
-            GXY_PSY_ERR("%s: time to 80 percent\n", __func__);
             battery->timetofull_temp =
                 gxy_calc_ttf(battery, charge) - gxy_calc_ttf_to_full_capacity(battery, charge);
         } else {

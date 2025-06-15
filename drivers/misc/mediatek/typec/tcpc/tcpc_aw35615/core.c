@@ -136,6 +136,14 @@ void core_set_source(Port_t *port)
 #endif /* AW_HAVE_SRC */
 }
 
+/*Tab A9_NA code for P250124-03110 by xiongxiaoliang at 20250209 start*/
+void core_set_open(Port_t *port)
+{
+    port->PortConfig.PortType = USBTypeC_open;
+    SetStateUnattached(port);
+}
+/*Tab A9_NA code for P250124-03110 by xiongxiaoliang at 20250209 end*/
+
 void core_set_sink(Port_t *port)
 {
 #ifdef AW_HAVE_SNK

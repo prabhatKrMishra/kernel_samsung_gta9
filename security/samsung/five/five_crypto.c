@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * This code is based on IMA's code
  *
@@ -264,7 +265,7 @@ static int five_calc_file_hash_atfm(struct file *file,
 		return -ENOMEM;
 
 	init_completion(&res.completion);
-	ahash_request_set_callback(req, CRYPTO_TFM_REQ_MAY_BACKLOG |
+	do_ahash_request_set_callback(req, CRYPTO_TFM_REQ_MAY_BACKLOG |
 				   CRYPTO_TFM_REQ_MAY_SLEEP,
 				   ahash_complete, &res);
 
@@ -543,3 +544,8 @@ int five_calc_data_hash(const uint8_t *data, size_t data_len,
 {
 	return five_calc_data_shash(data, data_len, hash_algo, hash, hash_len);
 }
+
+#if defined(CONFIG_SEC_KUNIT)
+EXPORT_SYMBOL_GPL(five_calc_file_hash);
+EXPORT_SYMBOL_GPL(five_calc_data_hash);
+#endif

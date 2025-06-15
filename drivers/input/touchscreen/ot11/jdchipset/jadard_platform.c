@@ -86,11 +86,26 @@ int jadard_parse_dt(struct jadard_ts_data *ts,
     if (!gpio_is_valid(pdata->gpio_irq)) {
         JD_I("DT:gpio_irq value is not valid\n");
     }
-
-    pdata->gpio_reset = of_get_named_gpio(dt, "jadard,rst-gpio", 0);
-    if (!gpio_is_valid(pdata->gpio_reset)) {
-        JD_I("DT:gpio_rst value is not valid\n");
+    /*Tab A9_na code for AX6739NU-2 by wenghailong at 20241106 start*/
+    if (!g_board_id_status) {
+        #if defined(CONFIG_CUSTOM_PROJECT_OT11_WIFI_ALL)
+        pdata->gpio_reset = of_get_named_gpio(dt, "jadard,rst-gpio", 0);
+        if (!gpio_is_valid(pdata->gpio_reset)) {
+            JD_I("DT:gpio_rst value is not valid\n");
+        }
+        #else
+        pdata->gpio_reset = of_get_named_gpio(dt, "jadard,rst-gpio-na", 0);
+        if (!gpio_is_valid(pdata->gpio_reset)) {
+            JD_I("DT:gpio_rst value is not valid\n");
+        }
+        #endif
+    } else {
+        pdata->gpio_reset = of_get_named_gpio(dt, "jadard,rst-gpio", 0);
+        if (!gpio_is_valid(pdata->gpio_reset)) {
+            JD_I("DT:gpio_rst value is not valid\n");
+        }
     }
+    /*Tab A9_na code for AX6739NU-2 by wenghailong at 20241106 end*/
 
     JD_I("DT:gpio_irq = %d, gpio_rst = %d\n", pdata->gpio_irq, pdata->gpio_reset);
 

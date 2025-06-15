@@ -93,6 +93,11 @@ struct charger_ops {
 	/* set cv */
 	int (*set_constant_voltage)(struct charger_device *dev, u32 uV);
 	int (*get_constant_voltage)(struct charger_device *dev, u32 *uV);
+	/*Tab A9_na code for AX6739N-20 by zhangziyi at 20241112 start*/
+	#if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+	int (*get_chr_type)(struct charger_device *chg_dev, int *chr_type);
+	#endif
+	/*Tab A9_na code for AX6739N-20 by zhangziyi at 20241112 end*/
 
 	/* set input_current */
 	int (*get_input_current)(struct charger_device *dev, u32 *uA);
@@ -269,6 +274,12 @@ extern int charger_dev_set_constant_voltage(
 	struct charger_device *charger_dev, u32 uV);
 extern int charger_dev_get_constant_voltage(
 	struct charger_device *charger_dev, u32 *uV);
+/*Tab A9_na code for AX6739N-20 by zhangziyi at 20241112 start*/
+#if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+extern int charger_dev_get_chr_type(
+	struct charger_device *chg_dev, int *chr_type);
+#endif
+/*Tab A9_na code for AX6739N-20 by zhangziyi at 20241112 end*/
 extern int charger_dev_dump_registers(
 	struct charger_device *charger_dev);
 extern int charger_dev_enable_vbus_ovp(

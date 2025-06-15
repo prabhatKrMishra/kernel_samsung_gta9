@@ -253,7 +253,13 @@ void StateMachineUnattached(Port_t *port)
             /* Shouldn't get here, but just in case reset everything... */
             port->Registers.Control.TOGGLE = 0;
             DeviceWrite(port, regControl2, 1, &port->Registers.Control.byte[2]);
+            /*Tab A9_na code for AX6739NU-133 by yexuedong at 20241220 start*/
+            #if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+            platform_delay_10us(100);
+            #else
             platform_delay_10us(1);
+            #endif
+            /*Tab A9_na code for AX6739NU-133 by yexuedong at 20241220 end*/
             /* Re-enable the toggle state machine... (allows us to get */
             /* another I_TOGDONE interrupt) */
             port->Registers.Control.TOGGLE = 1;
@@ -316,8 +322,13 @@ void StateMachineUnattached(Port_t *port)
 void StateMachineAttachWaitSink(Port_t *port)
 {
     /* AW_LOG("enter\n"); */
-
+    /*Tab A9_na code for AX6739NU-133 by yexuedong at 20241220 start*/
+    #if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+    port->TCIdle = AW_FALSE;
+    #else
     port->TCIdle = AW_TRUE;
+    #endif
+    /*Tab A9_na code for AX6739NU-133 by yexuedong at 20241220 end*/
 
     debounceCC(port);
 
@@ -335,10 +346,20 @@ void StateMachineAttachWaitSink(Port_t *port)
             /* Other pin is open as well - detach. */
 #ifdef AW_HAVE_DRP
             if (port->PortConfig.PortType == USBTypeC_DRP) {
+                /*Tab A9_na code for AX6739NU-133 by yexuedong at 20241220 start*/
+                #if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+                port->Registers.Switches.byte[0] = 0xC0;
+                DeviceWrite(port, regSwitches0, 1, &port->Registers.Switches.byte[0]);
+                #endif
                 SetStateUnattachedSource(port);
+                AW_LOG("enter UnattachedSource\n");
+                /*Tab A9_na code for AX6739NU-133 by yexuedong at 20241220 end*/
             } else
 #endif
             {
+                /*Tab A9_na code for AX6739NU-133 by yexuedong at 20241220 start*/
+                AW_LOG("enter SetStateUnattached");
+                /*Tab A9_na code for AX6739NU-133 by yexuedong at 20241220 end*/
                 SetStateUnattached(port);
             }
             /*Tab A9 code for AX6739A-224 by wenyaqi at 20230603 start*/
@@ -373,8 +394,16 @@ void StateMachineAttachWaitSink(Port_t *port)
             }
         } else {
             AW_LOG("wait vbus || bc_level, port->try_wait_vbus = %d\n", port->try_wait_vbus);
+            /*Tab A9_na code for AX6739NU-133 by yexuedong at 20241220 start*/
+            #ifndef CONFIG_CUSTOM_PROJECT_OT11_NA
             TimerStart(&port->VBusPollTimer, tVBusPollShort);
+            #endif
+            #if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+             if (port->try_wait_vbus++ > 200)
+            #else
             if (port->try_wait_vbus++ > 20)
+            #endif
+            /*Tab A9_na code for AX6739NU-133 by yexuedong at 20241220 end*/
                 SetStateUnattached(port);
         }
     }
@@ -389,6 +418,11 @@ void StateMachineAttachWaitSource(Port_t *port)
     /* AW_LOG("enter\n"); */
     AW_BOOL ccPinIsRa = AW_FALSE;
 
+    /*Tab A9_na code for AX6739NU-133 by yexuedong at 20241220 start*/
+    #if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+    port->TCIdle = AW_FALSE;
+    #endif
+    /*Tab A9_na code for AX6739NU-133 by yexuedong at 20241220 end*/
     port->TCIdle = AW_TRUE;
 
     /* Update source current - can only toggle with Default and may be using */
@@ -466,7 +500,14 @@ void StateMachineAttachWaitSource(Port_t *port)
                 ((port->VCONNTerm == CCTypeOpen) ||
                 (port->VCONNTerm == CCTypeRa))) {
             /* One pin Rd */
+            /* if (VbusVSafe0V(port)) { */
+            /*Tab A9_na code for AX6739NU-133 by yexuedong at 20241220 start*/
+            #if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+            if (!isVBUSOverVoltage(port, 900)) {
+            #else
             if (VbusVSafe0V(port)) {
+            #endif
+            /*Tab A9_na code for AX6739NU-133 by yexuedong at 20241220 end*/
 #ifdef AW_HAVE_DRP
                 if (port->PortConfig.SnkPreferred)
                     SetStateTrySink(port);
@@ -476,6 +517,11 @@ void StateMachineAttachWaitSource(Port_t *port)
                     SetStateAttachedSource(port);
                 }
             } else {
+                /*Tab A9_na code for AX6739NU-133 by yexuedong at 20241220 start*/
+                #if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+                port->TCIdle = AW_TRUE;
+                #endif
+                /*Tab A9_na code for AX6739NU-133 by yexuedong at 20241220 end*/
                 TimerStart(&port->VBusPollTimer, tVBusPollShort);
             }
         } else {
@@ -549,13 +595,21 @@ void StateMachineAttachedVbusOnly(Port_t *port)
             TimerStart(&port->LoopCountTimer, VbusTimeout);
         }
     }
+    /*Tab A9_na code for AX6739NU-133 by yexuedong at 20241220 start*/
+    #if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+    else {
+        AW_LOG("port->PEIdle=%d\n", port->PEIdle);
+        port->PEIdle = AW_TRUE;
+    }
+    #endif
+    /*Tab A9_na code for AX6739NU-133 by yexuedong at 20241220 end*/
 }
 #endif /* AW_HAVE_VBUS_ONLY */
 
 #ifdef AW_HAVE_SRC
 void StateMachineAttachedSource(Port_t *port)
 {
-    /* AW_LOG("enter TypeCSubState = %d\n", port->TypeCSubState); */
+    //AW_LOG("enter TypeCSubState = %d\n", port->TypeCSubState);
 
     port->TCIdle = AW_TRUE;
 
@@ -831,6 +885,11 @@ void StateMachineUnsupportedAccessory(Port_t *port)
 #if (defined(AW_HAVE_DRP) || (defined(AW_HAVE_SNK) && defined(AW_HAVE_ACCMODE)))
 void StateMachineTrySink(Port_t *port)
 {
+    /*Tab A9_na code for AX6739NU-133 by yexuedong at 20241220 start*/
+    #if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+    AW_U8 i = 0;
+    #endif
+    /*Tab A9_na code for AX6739NU-133 by yexuedong at 20241220 end*/
     port->TCIdle = AW_TRUE;
 
     switch (port->TypeCSubState) {
@@ -839,6 +898,11 @@ void StateMachineTrySink(Port_t *port)
             TimerStart(&port->StateTimer, tDRPTryWait);
             port->TypeCSubState++;
         }
+        /*Tab A9_na code for AX6739NU-133 by yexuedong at 20241220 start*/
+        #if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+        port->TCIdle = AW_FALSE;
+        #endif
+        /*Tab A9_na code for AX6739NU-133 by yexuedong at 20241220 end*/
         break;
     case 1:
         debounceCC(port);
@@ -860,16 +924,45 @@ void StateMachineTrySink(Port_t *port)
 #endif /* AW_HAVE_ACCMODE */
 
 #ifdef AW_HAVE_DRP
-        else if ((port->PortConfig.PortType == USBTypeC_DRP) && (port->CCTermPDDebounce == CCTypeOpen))
+        else if ((port->PortConfig.PortType == USBTypeC_DRP) && (port->CCTermPDDebounce == CCTypeOpen)){
+        /*Tab A9_na code for AX6739NU-133 by yexuedong at 20241220 start*/
+        #if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+            do {
+                if (DecodeCCTerminationSink(port) == CCTypeOpen) {
+                    udelay(2000);
+                    port->Registers.Switches.byte[0] = 0xC0;
+                    DeviceWrite(port, regSwitches0, 1, &port->Registers.Switches.byte[0]);
+                    SetStateTryWaitSource(port);
+                    break;
+                } else {
+                    platform_delay_10us(100);
+                    AW_LOG("wait cc open\n");
+                }
+            } while (i++ < 12);
+        #endif
+        /*Tab A9_na code for AX6739NU-133 by yexuedong at 20241220 end*/
             SetStateTryWaitSource(port);
+        }
 
 #endif /* AW_HAVE_DRP */
+        /*Tab A9_na code for AX6739NU-133 by yexuedong at 20241220 start*/
+        #if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+        else {
+			port->TCIdle = AW_FALSE;
+            AW_LOG("wait vbus || bc_level\n");
+			//TimerStart(&port->VBusPollTimer, tVBusPollShort);
+			if (port->try_wait_vbus++ > 120)
+                SetStateUnattached(port);
+        }
+        #else
+        /*Tab A9_na code for AX6739NU-133 by yexuedong at 20241220 end*/
         else {
             AW_LOG("wait vbus || bc_level\n");
             TimerStart(&port->VBusPollTimer, tVBusPollShort);
             if (port->try_wait_vbus++ > 20)
                 SetStateUnattached(port);
         }
+        #endif
         break;
     default:
         break;
@@ -988,6 +1081,11 @@ void SetStateErrorRecovery(Port_t *port)
 void SetStateUnattached(Port_t *port)
 {
     AW_U8 i = 0;
+    /*Tab A9_na code for AX6739NU-133 by yexuedong at 20241220 start*/
+    #if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+    AW_U8 data_buf = 0;
+    #endif
+    /*Tab A9_na code for AX6739NU-133 by yexuedong at 20241220 end*/
 
     for (i = 0; i < AW_NUM_TIMERS; ++i)
         TimerDisable(port->Timers[i]);
@@ -1019,6 +1117,12 @@ void SetStateUnattached(Port_t *port)
     port->Registers.Control4.TOG_EXIT_AUD = 1; /* enable Ra Toggle only in cts test*/
     port->Registers.Control5.EN_PD3_MSG = 1;
     DeviceWrite(port, regControl5, 1, &port->Registers.Control5.byte);
+    /*Tab A9_na code for AX6739NU-133 by yexuedong at 20241220 start*/
+    #if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+    data_buf = 0x7c;
+    DeviceWrite(port, 0x12, 1, &data_buf);
+    #endif
+    /*Tab A9_na code for AX6739NU-133 by yexuedong at 20241220 end*/
     port->Registers.Switches.SPECREV = 1; /* enable good-crc specrev 2.0*/
     port->Registers.Switches.AUTO_CRC = 1;
     DeviceWrite(port, regSwitches1, 1, &port->Registers.Switches.byte[1]);
@@ -1076,6 +1180,12 @@ void SetStateUnattached(Port_t *port)
     /* Delay before re-enabling toggle */
     platform_delay_10us(500);
     port->Registers.Control.TOGGLE = 1;
+    /*Tab A9_NA code for P250124-03110 by xiongxiaoliang at 20250209 start*/
+    if (port->PortConfig.PortType == USBTypeC_open) {
+        port->Registers.Control.MODE = 0x0;
+        port->Registers.Control.TOGGLE = 0;
+    }
+    /*Tab A9_NA code for P250124-03110 by xiongxiaoliang at 20250209 end*/
     DeviceWrite(port, regControl0, 3, &port->Registers.Control.byte[0]);
 
     port->Registers.Control5.VBUS_DIS_SEL = 0;
@@ -1170,10 +1280,14 @@ void SetStateAttachWaitSource(Port_t *port)
     /* To help prevent detection of a non-compliant cable, briefly set the */
     /* advertised current to 3A here.  It will be reset after tAttachWaitAdv */
 
+    /*Tab A9_na code for AX6739NU-133 by yexuedong at 20241220 start*/
+    #ifndef CONFIG_CUSTOM_PROJECT_OT11_NA
     if (port->Registers.Control.HOST_CUR != 0x3) {
         port->Registers.Control.HOST_CUR = 0x3;
         DeviceWrite(port, regControl0, 1, &port->Registers.Control.byte[0]);
     }
+    #endif
+    /*Tab A9_na code for AX6739NU-133 by yexuedong at 20241220 end*/
     updateSourceMDACHigh(port);
 
     /* Disable toggle */
@@ -1190,6 +1304,11 @@ void SetStateAttachWaitSource(Port_t *port)
 
     /* After a delay, switch to the appropriate advertisement pullup */
     TimerStart(&port->StateTimer, tAttachWaitAdv);
+    /*Tab A9_na code for AX6739NU-133 by yexuedong at 20241220 start*/
+    #if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+    port->TCIdle = AW_FALSE;
+    #endif
+    /*Tab A9_na code for AX6739NU-133 by yexuedong at 20241220 end*/
 }
 #endif /* AW_HAVE_SRC */
 
@@ -1376,7 +1495,13 @@ void SetStateTrySink(Port_t *port)
     port->Registers.Mask.M_ACTIVITY = 0;
     DeviceWrite(port, regMask, 1, &port->Registers.Mask.byte);
 
+    /*Tab A9_na code for AX6739NU-133 by yexuedong at 20241231 start*/
+    #if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+    TimerStart(&port->StateTimer, 80);
+    #else
     TimerStart(&port->StateTimer, tTryTimeout);
+    #endif
+    /*Tab A9_na code for AX6739NU-133 by yexuedong at 20241231 end*/
 }
 #endif /* AW_HAVE_DRP || (AW_HAVE_SNK && AW_HAVE_ACCMODE) */
 
@@ -1731,7 +1856,13 @@ CCTermType DecodeCCTerminationSink(Port_t *port)
     CCTermType Termination;
 
     /* Delay to allow measurement to settle */
+     /*Tab A9_na code for AX6739NU-133 by yexuedong at 20241220 start*/
+    #ifndef CONFIG_CUSTOM_PROJECT_OT11_NA
+    platform_delay_10us(100);
+    #else
     platform_delay_10us(25);
+    #endif
+    /*Tab A9_na code for AX6739NU-133 by yexuedong at 20241220 end*/
     DeviceRead(port, regStatus0, 1, &port->Registers.Status.byte[4]);
 
     /* Determine which level */
@@ -1827,7 +1958,13 @@ AW_BOOL isVBUSOverVoltage(Port_t *port, AW_U16 vbus_mv)
         DeviceWrite(port, regMeasure, 1, &measure.byte);
         mdacUpdated = AW_TRUE;
         /* Delay to allow measurement to settle */
+        /*Tab A9_na code for AX6739NU-133 by yexuedong at 20241220 start*/
+        #if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+        platform_delay_10us(200);
+        #else
         platform_delay_10us(300);
+        #endif
+         /*Tab A9_na code for AX6739NU-133 by yexuedong at 20241220 end*/
     }
 
     DeviceRead(port, regStatus0, 1, &val);
@@ -2113,10 +2250,12 @@ void clearState(Port_t *port)
     port->Registers.Control.TOGGLE = 0; /* Disable toggling */
     port->Registers.Control.HOST_CUR = 0x0;     /* Clear PU advertisement */
     DeviceWrite(port, regControl0, 3, &port->Registers.Control.byte[0]);
-
-    port->Registers.Switches.byte[0] = 0x00;/* Disable PU, PD, etc. */
-    DeviceWrite(port, regSwitches0, 1, &port->Registers.Switches.byte[0]);
-
+    /* Tab A9_V code for P241112-05620 by xiongxiaoliang at 20241225 start */
+    if (port->First_check_Rd) {
+        port->Registers.Switches.byte[0] = 0x00;/* Disable PU, PD, etc. */
+        DeviceWrite(port, regSwitches0, 1, &port->Registers.Switches.byte[0]);
+    }
+    /* Tab A9_V code for P241112-05620 by xiongxiaoliang at 20241225 end */
     SetConfiguredCurrent(port);
     resetDebounceVariables(port);
     port->CCPin = CCNone;

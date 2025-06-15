@@ -90,6 +90,9 @@ obj-$(CONFIG_CHARGER_BQ24735)	+= bq24735-charger.o
 obj-$(CONFIG_CHARGER_BQ2515X)	+= bq2515x_charger.o
 obj-$(CONFIG_CHARGER_BQ25890)	+= bq25890_charger.o
 obj-$(CONFIG_CHARGER_BQ25980)	+= bq25980_charger.o
+# Tab A9_na code for AX6739N-20 by zhangziyi at 20241112 start
+obj-$(CONFIG_GXY_IBUS_ADC)	+= gxy_ibus_adc.o
+# Tab A9_na code for AX6739N-20 by zhangziyi at 20241112 end
 # Tab A9 code for SR-AX6739A-01-494 by qiaodan at 20230502 start
 obj-$(CONFIG_CHARGER_UPM6910X)	+= upm6910x_charger.o
 # Tab A9 code for SR-AX6739A-01-494 by qiaodan at 20230502 end

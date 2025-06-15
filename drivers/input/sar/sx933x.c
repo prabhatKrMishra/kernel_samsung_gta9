@@ -66,6 +66,14 @@ enum area_info {
 
 extern int g_board_id_status;
 static int g_sarpcbinfo = 0;
+
+/*Tab A9_na code for AX6739NU-118 by zhawei at 20241209 start*/
+#if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+#define DYNAMIC_AVG_FLT 1
+#define SMTC_SX933X
+#endif    // CONFIG_CUSTOM_PROJECT_OT11_NA
+/*Tab A9_na code for AX6739NU-118 by zhawei at 20241209 end*/
+
 /*Tab A9 code for SR-AX6739A-01-309 by xiongxiaoliang at 20230504 end*/
 #define I2C_M_WR_SMTC   0 /* for i2c Write */
 #define I2C_M_RD_SMTC   1 /* for i2c Read */
@@ -139,6 +147,19 @@ struct dumpinfo {
 };
 /*Tab A9 code for SR-AX6739A-01-751 by xiongxiaoliang at 20230612 end*/
 
+/*Tab A9_na code for AX6739NU-118 by zhawei at 20241209 start*/
+#if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+typedef struct variables_s
+{
+    u16 reading_reg;
+    u8 avg_pos_flt[NUM_PHASES];
+    u8 avg_neg_flt[NUM_PHASES];
+    u32 irq_mask;
+    u32 enabled_phases;
+}variables_t, *variables_p;
+#endif    // CONFIG_CUSTOM_PROJECT_OT11_NA
+/*Tab A9_na code for AX6739NU-118 by zhawei at 20241209 end*/
+
 typedef struct self_s
 {
     struct i2c_client *client;
@@ -160,6 +181,11 @@ typedef struct self_s
     int ref_phase_a;
     int ref_phase_b;
     int ref_phase_c;
+/*Tab A9_na code for AX6739NU-118 by zhawei at 20241209 start*/
+#if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+    variables_t variables;
+#endif    // CONFIG_CUSTOM_PROJECT_OT11_NA
+/*Tab A9_na code for AX6739NU-118 by zhawei at 20241209 end*/
 
     spinlock_t lock; /* Spin Lock used for nirq worker function */
     struct delayed_work worker; /* work struct for worker function */
@@ -450,6 +476,37 @@ static int smtc_send_command(Self self, COMMANDS cmd)
     return 0;
 }
 
+/*Tab A9_na code for AX6739NU-118 by zhawei at 20241209 start*/
+#if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+#if DYNAMIC_AVG_FLT
+static void smtc_update_avg_flt(Self self, u16 reg_addr, u32 reg_val);
+#endif    // DYNAMIC_AVG_FLT
+
+#ifdef SMTC_SX933X
+#define SMTC_GET_AVG_POS(reg_val) (reg_val>>8  & 0x7)
+#define SMTC_GET_AVG_NEG(reg_val) (reg_val>>11 & 0x7)
+static inline u32 smtc_combine_avg_flt(u32 reg_val, u8 pos, u8 neg){
+    return (reg_val & ~0x3F00) | neg<<11 | pos<<8;
+}
+static inline u32 smtc_mask_avg_flt(u32 reg_val){
+    return (reg_val & ~0x3F00);
+}
+
+#else    // SMTC_SX933X
+#define GET_AVG_POS(reg_val) (reg_val>>8  & 0xF)
+#define GET_AVG_NEG(reg_val) (reg_val>>12 & 0x7)
+
+static inline u32 smtc_combine_avg_flt(u32 reg_val, u8 pos, u8 neg){
+    return (reg_val & ~0x7F00) | neg<<12 | pos<<8;
+}
+
+static inline u32 smtc_mask_avg_flt(u32 reg_val){
+    return (reg_val & ~0x7F00);
+}
+#endif    // SMTC_SX933X
+#endif    // CONFIG_CUSTOM_PROJECT_OT11_NA
+/*Tab A9_na code for AX6739NU-118 by zhawei at 20241209 end*/
+
 //#################################################################################################
 static int smtc_read_and_clear_irq(Self self, u32 *irq_src)
 {
@@ -541,6 +598,15 @@ static ssize_t smtc_reg_write_store(struct device *dev,
 
     smtc_i2c_write(self, reg_addr, reg_val);
     SMTC_LOG_INF("0x%X= 0x%X", reg_addr, reg_val);
+
+/*Tab A9_na code for AX6739NU-118 by zhawei at 20241209 start*/
+#if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+#if DYNAMIC_AVG_FLT
+    smtc_update_avg_flt(self, reg_addr, reg_val);
+#endif    // DYNAMIC_AVG_FLT
+#endif    // CONFIG_CUSTOM_PROJECT_OT11_NA
+/*Tab A9_na code for AX6739NU-118 by zhawei at 20241209 end*/
+
     return count;
 }
 //-------------------------------------------------------------------------------------------------
@@ -1184,28 +1250,87 @@ static void smtc_get_ph_prox_state(u32 prox_reg_val, PROX_STATUS ph_state[NUM_PH
     int ph;
     phase_p phase;
 
-    for (ph=0; ph<NUM_PHASES; ph++)
-    {
+    for (ph=0; ph<NUM_PHASES; ph++) {
         phase = &smtc_phase_table[ph];
         //The prox4_mask of sx933x is always 0
-        if (prox_reg_val & phase->prox4_mask){
+        if (prox_reg_val & phase->prox4_mask) {
             ph_state[ph] = PROX4;
-        }
-        else if (prox_reg_val & phase->prox3_mask){
+        } else if (prox_reg_val & phase->prox3_mask) {
             ph_state[ph] = PROX3;
-        }
-        else if (prox_reg_val & phase->prox2_mask){
+        } else if (prox_reg_val & phase->prox2_mask) {
             ph_state[ph] = PROX2;
-        }
-        else if (prox_reg_val & phase->prox1_mask){
+        } else if (prox_reg_val & phase->prox1_mask) {
             ph_state[ph] = PROX2;
-        }
-        else{
+        } else {
             ph_state[ph] = IDLE;
         }
     }
 }
 
+/*Tab A9_na code for AX6739NU-118 by zhawei at 20241209 start*/
+#if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+//#################################################################################################
+#if DYNAMIC_AVG_FLT
+static void smtc_enable_avg_flt(Self self, int ph, bool enable)
+{
+    u32 reg_val, new_reg_val;
+    u16 reg_addr;
+    u8 pos_flt, neg_flt;
+
+    reg_addr = REG_AVG_FLT_PH0 + ph*AVG_FLT_PH_OFF;
+    smtc_i2c_read(self, reg_addr, &reg_val);
+
+    if (enable) {
+        pos_flt = self->variables.avg_pos_flt[ph];
+        neg_flt = self->variables.avg_neg_flt[ph];
+
+        new_reg_val = smtc_combine_avg_flt(reg_val, pos_flt, neg_flt);
+        SMTC_LOG_INF("Enable average filter pos=0x%X neg=0x%X ph=%d reg_addr=0x%X reg_val=0x%X==>0x%X",
+            pos_flt, neg_flt, ph, reg_addr, reg_val, new_reg_val);
+    } else {
+        new_reg_val = smtc_mask_avg_flt(reg_val);
+        SMTC_LOG_INF("Disable average filter ph=%d reg_addr=0x%X reg_val=0x%X==>0x%X",
+            ph, reg_addr, reg_val, new_reg_val);
+    }
+    smtc_i2c_write(self, reg_addr, new_reg_val);
+}
+
+static void smtc_update_avg_flt(Self self, u16 reg_addr, u32 reg_val)
+{
+    int ph=0;
+    variables_p var = &self->variables;
+    for(ph=0; ph<NUM_PHASES; ph++)
+    {
+        if (reg_addr == REG_AVG_FLT_PH0 + ph*AVG_FLT_PH_OFF)
+            break;
+    }
+    if (ph < NUM_PHASES)
+    {
+        var->avg_pos_flt[ph] = SMTC_GET_AVG_POS(reg_val);
+        var->avg_neg_flt[ph] = SMTC_GET_AVG_NEG(reg_val);
+        SMTC_LOG_INF("Update average filter ph= %d reg_addr= 0x%X reg_val= 0x%X pos= 0x%X neg= 0x%X",
+            ph, reg_addr, reg_val, var->avg_pos_flt[ph], var->avg_neg_flt[ph]);
+    }
+}
+
+static void smtc_record_avg_flt(Self self)
+{
+    int ph;
+    u32 reg_val;
+    variables_p var = &self->variables;
+
+    for (ph=0; ph<NUM_PHASES; ph++) {
+        smtc_i2c_read(self, REG_AVG_FLT_PH0+ph*AVG_FLT_PH_OFF, &reg_val);
+        var->avg_pos_flt[ph] = SMTC_GET_AVG_POS(reg_val);
+        var->avg_neg_flt[ph] = SMTC_GET_AVG_NEG(reg_val);
+    }
+}
+#else    // DYNAMIC_AVG_FLT
+#define smtc_enable_avg_flt(...) ((void)0)
+#define smtc_record_avg_flt(...) ((void)0)
+#endif    // DYNAMIC_AVG_FLT
+#endif    // CONFIG_CUSTOM_PROJECT_OT11_NA
+/*Tab A9_na code for AX6739NU-118 by zhawei at 20241209 end*/
 
 //#################################################################################################
 static int smtc_parse_dts(Self self)
@@ -1450,6 +1575,14 @@ static int smtc_reset_and_init_chip(Self self, bool ctrl_irq)
     if (temp < 0) {
         ret = temp;
     }
+
+/*Tab A9_na code for AX6739NU-118 by zhawei at 20241209 start*/
+#if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+#ifdef DYNAMIC_AVG_FLT
+    smtc_record_avg_flt(self);
+#endif    // DYNAMIC_AVG_FLT
+#endif    // CONFIG_CUSTOM_PROJECT_OT11_NA
+/*Tab A9_na code for AX6739NU-118 by zhawei at 20241209 end*/
 
 SUB_OUT:
     //After everything is done, smtc_irq_handler will handle the proximity status processing.
@@ -1719,8 +1852,15 @@ static void smtc_process_touch_status_normal(Self self)
                 }
             }
         }
-
         if (need_sync) {
+/*Tab A9_na code for AX6739NU-118 by zhawei at 20241209 start*/
+#if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+#ifdef DYNAMIC_AVG_FLT
+            smtc_enable_avg_flt(self, ph, phase->state == IDLE);
+#endif    // DYNAMIC_AVG_FLT
+#endif    // CONFIG_CUSTOM_PROJECT_OT11_NA
+/*Tab A9_na code for AX6739NU-118 by zhawei at 20241209 end*/
+
             input_sync(input);
         }
     }

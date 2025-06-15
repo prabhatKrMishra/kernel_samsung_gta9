@@ -16,7 +16,13 @@
 #define tAMETimeout     (900 * TICK_SCALE_TO_MS) /* Alternate Mode Entry Time */
 /* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 start */
 #define tCCDebounce     (103 * TICK_SCALE_TO_MS)
+/*Tab A9_na code for AX6739NU-133 by yexuedong at 20241231 start*/
+#if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+#define tPDDebounce     (10  * TICK_SCALE_TO_MS)
+#else
 #define tPDDebounce     (15  * TICK_SCALE_TO_MS)
+#endif
+/*Tab A9_na code for AX6739NU-133 by yexuedong at 20241231 end*/
 /* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 end */
 #define tTryTimeout     (100 * TICK_SCALE_TO_MS)
 #define tDRPTryWait     (100 * TICK_SCALE_TO_MS)

@@ -303,5 +303,12 @@
 #define KEY_SAR3_FAR            0x27e
 #endif
 
+/*Tab A9_na code for AX6739NU-118 by zhawei at 20241209 start*/
+#if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+#define REG_AVG_FLT_PH0     SX933X_AVGBFILTPH0_REG
+#define AVG_FLT_PH_OFF      0x20
+#endif    // CONFIG_CUSTOM_PROJECT_OT11_NA
+/*Tab A9_na code for AX6739NU-118 by zhawei at 20241209 end*/
+
 #endif
 

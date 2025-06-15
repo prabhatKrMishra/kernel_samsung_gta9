@@ -138,6 +138,9 @@ void core_set_try_snk(Port_t *port);
 void core_set_try_src(Port_t *port);
 void core_set_source(Port_t *port);
 void core_set_sink(Port_t *port);
+/*Tab A9_NA code for P250124-03110 by xiongxiaoliang at 20250209 start*/
+void core_set_open(Port_t *port);
+/*Tab A9_NA code for P250124-03110 by xiongxiaoliang at 20250209 end*/
 
 #endif /* _AW_CORE_H */
 

@@ -1,0 +1,16 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+/*
+ * Copyright (C) 2020 MediaTek Inc.
+ */
+
+/* Audio start */
+/*Tab A9_na code for AX6739N-15 by huangzhixian at 20241101 start*/
+&sound {
+    ctrl-mod-l-up-na = <&pio 159 0x0>;
+    ctrl-mod-l-up = <&pio 154 0x0>;
+    ctrl-mod-r-down = <&pio 158 0x0>;
+    audio-switch = <&pio 50 0x0>;
+};
+
+/*Tab A9_na code for AX6739N-15 by huangzhixian at 20241101 end*/
+/* Audio end */

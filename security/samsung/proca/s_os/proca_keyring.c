@@ -1,3 +1,20 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * PROCA keyring
+ *
+ * Copyright (C) 2023 Samsung Electronics, Inc.
+ * Oleksandr Stanislavskyi, <o.stanislavs@samsung.com>
+ *
+ * This software is licensed under the terms of the GNU General Public
+ * License version 2, as published by the Free Software Foundation, and
+ * may be copied, distributed, and modified under those terms.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
 #include <linux/key-type.h>
 #include <crypto/public_key.h>
 #include <crypto/hash_info.h>
@@ -7,6 +24,7 @@
 
 #include "proca_certificate_db.h"
 #include "proca_log.h"
+#include "proca_porting.h"
 
 static struct key *proca_keyring;
 static const char *proca_keyring_name = "_proca";
@@ -14,14 +32,13 @@ static const char *proca_keyring_name = "_proca";
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0)
 static inline int proca_verify_signature(struct key *key,
 			  struct public_key_signature *pks,
-			  struct signed_db *proca_signed_db)
+			  const char *signature, int sig_len)
 {
 	int ret = -ENOMEM;
 
 	pks->hash_algo = hash_algo_name[HASH_ALGO_SHA256];
 	pks->nr_mpi = 1;
-	pks->rsa.s = mpi_read_raw_data(proca_signed_db->signature,
-			proca_signed_db->signature_size);
+	pks->rsa.s = mpi_read_raw_data(signature, sig_len);
 
 	if (pks->rsa.s)
 		ret = verify_signature(key, pks);
@@ -33,14 +50,14 @@ static inline int proca_verify_signature(struct key *key,
 #elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 20, 0)
 static inline int proca_verify_signature(struct key *key,
 			  struct public_key_signature *pks,
-			  struct signed_db *proca_signed_db)
+			  const char *signature, int sig_len)
 {
 	int ret = -ENOMEM;
 
 	pks->pkey_algo = "rsa";
 	pks->hash_algo = hash_algo_name[HASH_ALGO_SHA256];
-	pks->s = proca_signed_db->signature;
-	pks->s_size = proca_signed_db->signature_size;
+	pks->s = (u8 *)signature;
+	pks->s_size = sig_len;
 	ret = verify_signature(key, pks);
 
 	return ret;
@@ -78,11 +95,15 @@ static struct key *proca_request_asymmetric_key(uint32_t keyid)
 
 		kref = keyring_search(make_key_ref(proca_keyring, 1),
 			&key_type_asymmetric, name, true);
-		if (IS_ERR(kref))
+		if (IS_ERR(kref)) {
+
 			key = ERR_CAST(kref);
+			PROCA_ERROR_LOG("keyring search error, %lx", PTR_ERR(key));
+		}
 		else
 			key = key_ref_to_ptr(kref);
 	} else {
+		PROCA_ERROR_LOG("error: no keyring\n");
 		return ERR_PTR(-ENOKEY);
 	}
 
@@ -104,13 +125,18 @@ static struct key *proca_request_asymmetric_key(uint32_t keyid)
 }
 
 static int proca_asymmetric_verify(const char *signature, int sig_len,
-							const char *hash, int hash_len, uint32_t key_id)
+				   const char *hash, int hash_len, uint32_t key_id)
 {
 	struct public_key_signature pks;
 	struct key *key;
 	int ret = -ENOMEM;
 
 	key = proca_request_asymmetric_key(__be32_to_cpu(key_id));
+	if (IS_ERR(key)) {
+		ret = PTR_ERR(key);
+		PROCA_ERROR_LOG("Failed to retrieve key: %d\n", ret);
+		return ret;
+	}
 
 	memset(&pks, 0, sizeof(pks));
 

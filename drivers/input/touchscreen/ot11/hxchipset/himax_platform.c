@@ -161,16 +161,27 @@ int himax_parse_dt(struct himax_ts_data *ts, struct himax_platform_data *pdata)
             pdata->screenWidth,
             pdata->screenHeight);
 
-    /*Tab A9 code for SR-AX6739A-01-282 by wenghailong at 20230502 start*/
+    /*Tab A9_na code for AX6739NU-2 by wenghailong at 20241106 start*/
     if (!g_board_id_status) {
-        pr_err("%s+ it is pre, g_board_id_status = %d\n", __func__, g_board_id_status);
-        pdata->gpio_irq = of_get_named_gpio(dt, "himax,irq-gpio", 0);
+        #if defined(CONFIG_CUSTOM_PROJECT_OT11_WIFI_ALL)
+        pr_err("%s+ it is wifi, g_board_id_status = %d\n", __func__, g_board_id_status);
+        pdata->gpio_irq = of_get_named_gpio(dt, "himax,irq_offical-gpio", 0);
+        if (!gpio_is_valid(pdata->gpio_irq))
+            I(" DT:gpio_irq value is not valid\n");
+
+        pdata->gpio_reset = of_get_named_gpio(dt, "himax,rst_offical-gpio", 0);
+        if (!gpio_is_valid(pdata->gpio_reset))
+            I(" DT:gpio_rst value is not valid\n");
+        #else
+        pr_err("%s+ it is na, g_board_id_status = %d\n", __func__, g_board_id_status);
+        pdata->gpio_irq = of_get_named_gpio(dt, "himax,irq_offical-gpio", 0);
         if (!gpio_is_valid(pdata->gpio_irq))
             I(" DT:gpio_irq value is not valid\n");
 
         pdata->gpio_reset = of_get_named_gpio(dt, "himax,rst-gpio", 0);
         if (!gpio_is_valid(pdata->gpio_reset))
             I(" DT:gpio_rst value is not valid\n");
+        #endif
     } else {
         pr_err("%s+ it is official, g_board_id_status = %d\n", __func__, g_board_id_status);
         pdata->gpio_irq = of_get_named_gpio(dt, "himax,irq_offical-gpio", 0);
@@ -181,7 +192,7 @@ int himax_parse_dt(struct himax_ts_data *ts, struct himax_platform_data *pdata)
         if (!gpio_is_valid(pdata->gpio_reset))
             I(" DT:gpio_rst value is not valid\n");
     }
-    /*Tab A9 code for SR-AX6739A-01-282 by wenghailong at 20230502 end*/
+    /*Tab A9_na code for AX6739NU-2 by wenghailong at 20241106 end*/
 
     pdata->gpio_3v3_en = of_get_named_gpio(dt, "himax,3v3-gpio", 0);
     if (!gpio_is_valid(pdata->gpio_3v3_en))

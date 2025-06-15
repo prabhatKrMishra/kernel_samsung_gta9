@@ -551,12 +551,32 @@ static int cts_plat_parse_dt(struct cts_platform_data *pdata,
     cts_info("  %-12s: %d", "irq num", pdata->irq);
 
 #ifdef CFG_CTS_HAS_RESET_PIN
-    pdata->rst_gpio = of_get_named_gpio(dev_node, CFG_CTS_OF_RST_GPIO_NAME, 0);
-    if (!gpio_is_valid(pdata->rst_gpio)) {
-        cts_err("Parse RST GPIO from dt failed %d", pdata->rst_gpio);
-        pdata->rst_gpio = -1;
+    /*Tab A9_na code for AX6739NU-2 by wenghailong at 20241106 start*/
+    if (!g_board_id_status) {
+        #if defined(CONFIG_CUSTOM_PROJECT_OT11_WIFI_ALL)
+        pdata->rst_gpio = of_get_named_gpio(dev_node, CFG_CTS_OF_RST_GPIO_NAME, 0);
+        if (!gpio_is_valid(pdata->rst_gpio)) {
+            cts_err("Parse RST GPIO from dt failed %d", pdata->rst_gpio);
+            pdata->rst_gpio = -1;
+        }
+        cts_info("  %-12s: %d", "na rst gpio", pdata->rst_gpio);
+        #else
+        pdata->rst_gpio = of_get_named_gpio(dev_node, CFG_CTS_OF_RST_NA_GPIO_NAME, 0);
+        if (!gpio_is_valid(pdata->rst_gpio)) {
+            cts_err("Parse RST GPIO from dt failed %d", pdata->rst_gpio);
+            pdata->rst_gpio = -1;
+        }
+        cts_info("  %-12s: %d", "rst gpio", pdata->rst_gpio);
+        #endif
+    } else {
+        pdata->rst_gpio = of_get_named_gpio(dev_node, CFG_CTS_OF_RST_GPIO_NAME, 0);
+        if (!gpio_is_valid(pdata->rst_gpio)) {
+            cts_err("Parse RST GPIO from dt failed %d", pdata->rst_gpio);
+            pdata->rst_gpio = -1;
+        }
+        cts_info("  %-12s: %d", "rst gpio", pdata->rst_gpio);
     }
-    cts_info("  %-12s: %d", "rst gpio", pdata->rst_gpio);
+    /*Tab A9_na code for AX6739NU-2 by wenghailong at 20241106 end*/
 #endif /* CFG_CTS_HAS_RESET_PIN */
 
 #ifdef CFG_CTS_MANUAL_CS

@@ -68,6 +68,9 @@ struct Port {
     AW_U32                 SOURCE_num;
     AW_U8                  SOURCE_Flag;
     AW_U8                  SOURCE_Flag_end;
+    /* Tab A9_V code for P241112-05620 by xiongxiaoliang at 20241225 start */
+    AW_BOOL                First_check_Rd;
+    /* Tab A9_V code for P241112-05620 by xiongxiaoliang at 20241225 end */
     AW_U8                  get_sink_cap_flag;
     AW_U8                  sink_bist_reg;
     AW_U16                 snk_pdo_size;
@@ -91,6 +94,9 @@ struct Port {
     CCTermType              VCONNTerm;
     AW_BOOL                 pd_state;
     AW_BOOL                 no_clear_message;
+    /*Tab A9_NA code for P250124-03110 by xiongxiaoliang at 20250209 start*/
+    AW_BOOL                 is_a_to_c_cable;
+    /*Tab A9_NA code for P250124-03110 by xiongxiaoliang at 20250209 end*/
 
     SourceOrSink            sourceOrSink;           /* TypeC Src or Snk */
     USBTypeCCurrent         SinkCurrent;            /* PP Current */

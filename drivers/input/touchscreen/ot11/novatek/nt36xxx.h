@@ -86,7 +86,9 @@ extern const uint16_t touch_key_array[TOUCH_KEY_NUM];
 
 /* Enable only when module have tp reset pin and connected to host */
 #define NVT_TOUCH_SUPPORT_HW_RST 0
-
+/*Tab A9_na code for AX6739NU-2 by wenghailong at 20241106 start*/
+extern int g_board_id_status;
+/*Tab A9_na code for AX6739NU-2 by wenghailong at 20241106 end*/
 // If sec relative function is not present, turn SEC_2_NVT_DEBUG on
 // Or turn it off
 #define SEC_2_NVT_DEBUG 1

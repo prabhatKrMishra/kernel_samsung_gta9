@@ -21,7 +21,11 @@
 #include <linux/kthread.h>
 #include <linux/sched.h>
 #endif
-
+/*Tab A9_na code for AX6739NU-133 by xiongxiaoliang at 20250115 start*/
+#if IS_ENABLED(CONFIG_CUSTOM_PROJECT_OT11_NA)
+#include <linux/notifier.h>
+#endif
+/*Tab A9_na code for AX6739NU-133 by xiongxiaoliang at 20250115 end*/
 #include <linux/usb/composite.h>
 
 #include <musb_core.h>
@@ -38,7 +42,38 @@
 #include "musb_trace.h"
 
 #include "u_fs.h"
+/*Tab A9_na code for AX6739NU-133 by xiongxiaoliang at 20250115 start*/
+#if IS_ENABLED(CONFIG_CUSTOM_PROJECT_OT11_NA)
+u8 usb_state_cv3 = USB_SUSPEND;
+EXPORT_SYMBOL_GPL(usb_state_cv3);
+static BLOCKING_NOTIFIER_HEAD(musb_notifier_list);
+struct work_struct usb20_notify_work;
 
+int musb_register_notify(struct notifier_block *nb)
+{
+    return blocking_notifier_chain_register(&musb_notifier_list, nb);
+}
+EXPORT_SYMBOL_GPL(musb_register_notify);
+
+void musb_unregister_notify(struct notifier_block *nb)
+{
+    blocking_notifier_chain_unregister(&musb_notifier_list, nb);
+}
+EXPORT_SYMBOL_GPL(musb_unregister_notify);
+
+void musb_notify_usb_state(enum usb_state_enum state, void *v)
+{
+    blocking_notifier_call_chain(&musb_notifier_list, (unsigned long)state, v);
+}
+EXPORT_SYMBOL_GPL(musb_notify_usb_state);
+
+static void usb20_notify_usb_state_work(struct work_struct *data)
+{
+    DBG(0, "notify usb_state_cv3:%d\n", usb_state_cv3);
+    musb_notify_usb_state(usb_state_cv3, NULL);
+}
+#endif
+/*Tab A9_na code for AX6739NU-133 by xiongxiaoliang at 20250115 end*/
 /* workaround for f_fs use after free issue */
 struct ffs_ep {
 	struct usb_ep *ep;
@@ -2532,7 +2567,11 @@ int musb_gadget_setup(struct musb *musb)
 	 * musb peripherals at the same time, only the bus lock
 	 * is probably held.
 	 */
-
+	/*Tab A9_na code for AX6739NU-133 by xiongxiaoliang at 20250115 start*/
+	#if IS_ENABLED(CONFIG_CUSTOM_PROJECT_OT11_NA)
+	INIT_WORK(&usb20_notify_work, usb20_notify_usb_state_work);
+	#endif
+	/*Tab A9_na code for AX6739NU-133 by xiongxiaoliang at 20250115 end*/
 	musb->g.ops = &musb_gadget_operations;
 	musb->g.max_speed = USB_SPEED_HIGH;
 	musb->g.speed = USB_SPEED_UNKNOWN;
@@ -2778,7 +2817,12 @@ void musb_g_suspend(struct musb *musb)
 
 	devctl = musb_readb(musb->mregs, MUSB_DEVCTL);
 	DBG(0, "devctl %02x\n", devctl);
-
+	/*Tab A9_na code for AX6739NU-133 by xiongxiaoliang at 20250115 start*/
+	#if IS_ENABLED(CONFIG_CUSTOM_PROJECT_OT11_NA)
+	usb_state_cv3 = USB_SUSPEND;
+	schedule_work(&usb20_notify_work);
+	#endif
+	/*Tab A9_na code for AX6739NU-133 by xiongxiaoliang at 20250115 end*/
 	switch (musb->xceiv->otg->state) {
 	case OTG_STATE_B_IDLE:
 		if ((devctl & MUSB_DEVCTL_VBUS) == MUSB_DEVCTL_VBUS)
@@ -2866,7 +2910,12 @@ void musb_g_reset(struct musb *musb)
 	DBG(2, "<== %s driver '%s'\n", (devctl & MUSB_DEVCTL_BDEVICE)
 	    ? "B-Device" : "A-Device",
 	    musb->gadget_driver ? musb->gadget_driver->driver.name : NULL);
-
+	/*Tab A9_na code for AX6739NU-133 by xiongxiaoliang at 20250115 start*/
+	#if IS_ENABLED(CONFIG_CUSTOM_PROJECT_OT11_NA)
+	usb_state_cv3 = USB_UNCONFIGURED;
+	schedule_work(&usb20_notify_work);
+	#endif
+	/*Tab A9_na code for AX6739NU-133 by xiongxiaoliang at 20250115 end*/
 	if (musb->test_mode == 0)
 		musb_sync_with_bat(musb, USB_UNCONFIGURED);
 

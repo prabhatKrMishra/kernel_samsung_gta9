@@ -64,6 +64,9 @@ struct aw35615_chip {
     struct workqueue_struct *highpri_wq;
     struct delayed_work init_delay_work;
     struct work_struct bist_work;
+    /* Tab A9_V code for P241112-05620 by xiongxiaoliang at 20241225 start */
+    struct delayed_work notify_work;
+    /* Tab A9_V code for P241112-05620 by xiongxiaoliang at 20241225 end */
     AW_BOOL queued;
 
     /* Timers */

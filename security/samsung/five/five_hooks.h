@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Five Event interface
  *
@@ -27,7 +28,9 @@ void five_hook_file_processed(struct task_struct *task,
 				size_t xattr_size, int result);
 
 void five_hook_task_forked(struct task_struct *parent,
-				struct task_struct *child);
+				struct task_struct *child,
+				enum task_integrity_value parent_tint_value,
+				enum task_integrity_value child_tint_value);
 
 void five_hook_file_skipped(struct task_struct *task,
 				struct file *file);
@@ -105,7 +108,5 @@ static inline void five_add_hooks(struct five_hook_list *hooks,
 	for (i = 0; i < count; i++)
 		list_add_tail_rcu(&hooks[i].list, hooks[i].head);
 }
-
-int five_hook_wq_init(void);
 
 #endif /* _FIVE_HOOKS_H */

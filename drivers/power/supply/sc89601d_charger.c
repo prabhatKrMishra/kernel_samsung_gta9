@@ -45,6 +45,13 @@
  *********************************************************/
 extern void gxy_bat_set_chginfo(enum gxy_bat_chg_info cinfo_data);
 /*Tab A9 code for SR-AX6739A-01-489 by wenyaqi at 202305044 end*/
+/*Tab A9_na code for AX6739N-20 by zhangziyi at 20241112 start*/
+#if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+extern int battery_get_ibus_value(void);
+static bool dump_reg_flag = true;
+static int last_chr_type = POWER_SUPPLY_CHARGE_TYPE_UNKNOWN;
+#endif
+/*Tab A9_na code for AX6739N-20 by zhangziyi at 20241112 end*/
 
 #define SC8960X_DRV_VERSION         "1.0.0_G"
 
@@ -886,6 +893,12 @@ static int sc8960x_plug_in(struct charger_device *chg_dev)
     if (ret) {
         dev_err(sc->dev, "Failed to enable charging:%d\n", ret);
     }
+    /*Tab A9_na code for AX6739N-20 by zhangziyi at 20241112 start*/
+    #if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+    dump_reg_flag = true;
+    last_chr_type = POWER_SUPPLY_CHARGE_TYPE_UNKNOWN;
+    #endif
+    /*Tab A9_na code for AX6739N-20 by zhangziyi at 20241112 end*/
 
     return ret;
 }
@@ -901,6 +914,12 @@ static int sc8960x_plug_out(struct charger_device *chg_dev)
     if (ret) {
         dev_err(sc->dev, "Failed to disable charging:%d\n", ret);
     }
+    /*Tab A9_na code for AX6739N-20 by zhangziyi at 20241112 start*/
+    #if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+    dump_reg_flag = true;
+    last_chr_type = POWER_SUPPLY_CHARGE_TYPE_UNKNOWN;
+    #endif
+    /*Tab A9_na code for AX6739N-20 by zhangziyi at 20241112 end*/
 
     return ret;
 }
@@ -1064,6 +1083,24 @@ static int sc8960x_get_min_ichg(struct charger_device *chg_dev, u32 *curr)
     return 0;
 }
 
+/*Tab A9_na code for AX6739N-20 by zhangziyi at 20241112 start*/
+#if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+static int sc8960x_get_chr_type(struct charger_device *chg_dev, int *chr_type);
+static int sc8960x_dump_registers(struct charger_device *chg_dev)
+{
+    int chr_type = 0;
+    struct sc8960x_chip *sc = dev_get_drvdata(&chg_dev->dev);
+
+    dev_info(sc->dev, "%s\n", __func__);
+
+    if (dump_reg_flag) {
+        sc8960x_get_chr_type(chg_dev, &chr_type);
+        dump_reg_flag = false;
+    }
+
+    return sc8960x_dump_register(sc);
+}
+#else
 static int sc8960x_dump_registers(struct charger_device *chg_dev)
 {
     struct sc8960x_chip *sc = dev_get_drvdata(&chg_dev->dev);
@@ -1072,6 +1109,8 @@ static int sc8960x_dump_registers(struct charger_device *chg_dev)
 
     return sc8960x_dump_register(sc);
 }
+#endif
+/*Tab A9_na code for AX6739N-20 by zhangziyi at 20241112 end*/
 
 static int sc8960x_send_ta_current_pattern(struct charger_device *chg_dev,
         bool is_increase)
@@ -1382,6 +1421,114 @@ static int sc8960x_get_hvdcp_status(struct charger_device *chg_dev)
 }
 /*Tab A9 code for AX6739A-409 by wenyaqi at 20230530 end*/
 
+/*Tab A9_na code for AX6739N-20 by zhangziyi at 20241112 start*/
+#if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+static int sc8960x_get_chr_type(struct charger_device *chg_dev, int *chr_type)
+{
+    int i = 0;
+    int ret = 0;
+    int vbus = 0;
+    int ibus = 0;
+    int vbat = 0;
+    int chg_stat = 0;
+    int vbus_stat = 0;
+    union power_supply_propval vbus_prop;
+    union power_supply_propval vbat_prop;
+    static struct power_supply *chg_psy = NULL;
+    static struct power_supply *batt_psy = NULL;
+    struct sc8960x_chip *sc = charger_get_data(chg_dev);
+
+    *chr_type = POWER_SUPPLY_CHARGE_TYPE_UNKNOWN;
+    msleep(500);
+
+    //bus_stat
+    ret = sc8960x_field_read(sc, VBUS_STAT, &vbus_stat);
+    pr_err("%s: vbus_stat:%d\n", __func__, vbus_stat);
+    if (vbus_stat == 6) {
+        *chr_type = POWER_SUPPLY_CHARGE_TYPE_SLOW;
+        last_chr_type = POWER_SUPPLY_CHARGE_TYPE_SLOW;
+        pr_err("%s: non-standard charger\n", __func__);
+        return 0;
+    }
+
+    if (dump_reg_flag) {
+        //chg_stat
+        ret = sc8960x_field_read(sc, CHG_STAT, &chg_stat);
+        pr_err("%s: chg_stat:%d\n", __func__, chg_stat);
+        switch (chg_stat) {
+            case 0:
+            case 1:
+                *chr_type = POWER_SUPPLY_CHARGE_TYPE_TRICKLE;
+                last_chr_type = POWER_SUPPLY_CHARGE_TYPE_TRICKLE;
+                break;
+            case 2:
+                *chr_type = POWER_SUPPLY_CHARGE_TYPE_FAST;
+                last_chr_type = POWER_SUPPLY_CHARGE_TYPE_FAST;
+
+                if (chg_psy == NULL) {
+                    chg_psy = power_supply_get_by_name("mtk_charger_type");
+                }
+                if (chg_psy == NULL || IS_ERR(chg_psy)) {
+                    pr_err("%s Couldn't get chg_psy\n", __func__);
+                    return -EPERM;
+                } else {
+                    power_supply_get_property(chg_psy,
+                            POWER_SUPPLY_PROP_VOLTAGE_NOW, &vbus_prop);
+                    vbus = vbus_prop.intval;
+                    pr_err("%s: vbus:%d\n", __func__, vbus);
+                }
+
+                //vbat
+                if (batt_psy == NULL) {
+                    batt_psy = power_supply_get_by_name("battery");
+                }
+                if (batt_psy == NULL || IS_ERR(batt_psy)) {
+                    pr_err("%s Couldn't get batt_psy\n", __func__);
+                    return -EPERM;
+                } else {
+                    power_supply_get_property(batt_psy,
+                            POWER_SUPPLY_PROP_VOLTAGE_NOW, &vbat_prop);
+                    vbat = vbat_prop.intval;
+
+                    pr_err("%s: vbat:%d\n", __func__, vbat);
+
+                    if (vbat > 4350000) {
+                        *chr_type = POWER_SUPPLY_CHARGE_TYPE_TAPER;
+                        last_chr_type = POWER_SUPPLY_CHARGE_TYPE_TAPER;
+                        pr_err("%s: vbat: > 4.35v\n", __func__);
+                        return 0;
+                    }
+                }
+
+                //ibus
+                for (i = 0; i < 2; i++)  {
+                    ibus = battery_get_ibus_value() * 2;
+                    pr_err("[%s] ibus = %d\n", __func__, ibus);
+                    msleep(200);
+                }
+
+                if (*chr_type != POWER_SUPPLY_CHARGE_TYPE_NONE && vbus <= 4600 && ibus < 1000) {
+                    *chr_type = POWER_SUPPLY_CHARGE_TYPE_SLOW;
+                    last_chr_type = POWER_SUPPLY_CHARGE_TYPE_SLOW;
+                    pr_err("%s: slow charger\n", __func__);
+                }
+                break;
+            default:
+                *chr_type = POWER_SUPPLY_CHARGE_TYPE_NONE;
+                last_chr_type = POWER_SUPPLY_CHARGE_TYPE_NONE;
+                break;
+        }
+    } else {
+        *chr_type = last_chr_type;
+    }
+
+    pr_err("[%s] dump_reg_flag = %d, last_chr_type:%d\n", __func__, dump_reg_flag, last_chr_type);
+
+    return 0;
+}
+#endif
+/*Tab A9_na code for AX6739N-20 by zhangziyi at 20241112 end*/
+
 static struct regulator_ops sc8960x_vbus_ops = {
     .enable = sc8960x_enable_vbus,
     .disable = sc8960x_disable_vbus,
@@ -1475,6 +1622,11 @@ static struct charger_ops sc8960x_chg_ops = {
     /*Tab A9 code for AX6739A-409 by wenyaqi at 20230530 start*/
     .get_hvdcp_status = sc8960x_get_hvdcp_status,
     /*Tab A9 code for AX6739A-409 by wenyaqi at 20230530 end*/
+    /*Tab A9_na code for AX6739N-20 by zhangziyi at 20241112 start*/
+    #if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+    .get_chr_type = sc8960x_get_chr_type,
+    #endif
+    /*Tab A9_na code for AX6739N-20 by zhangziyi at 20241112 end*/
 };
 
 static const struct charger_properties sc8960x_chg_props = {

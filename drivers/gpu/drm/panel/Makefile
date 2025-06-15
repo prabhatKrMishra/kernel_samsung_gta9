@@ -109,6 +109,7 @@ obj-$(CONFIG_DRM_LCD_NT36523D_LC_HSD_VIDEO) += ot11/lcd_nt36523d_lc_hsd_video.o
 obj-$(CONFIG_DRM_LCD_HX83102E_CD_INX_VIDEO) += ot11/lcd_hx83102e_cd_inx_video.o
 # Tab A9 code for SR-AX6739A-01-768 by liudi at 20230715 end
 obj-$(CONFIG_DRM_LCD_HX83102E_GX_HSD_INCELL_VIDEO) += ot11/lcd_hx83102e_gx_hsd_incell_video.o
+obj-$(CONFIG_DRM_LCD_HX83102E_CD_INX_NEW_VIDEO) += ot11/lcd_hx83102e_cd_inx_new_video.o
 obj-$(CONFIG_DRM_LCD_DEFAULT_MIPI_FHD_VIDEO) += ot11/lcd_default_mipi_fhd_video.o
 # Tab A9 code for SR-AX6739A-01-282 by wenghailong at 20230502 end
 

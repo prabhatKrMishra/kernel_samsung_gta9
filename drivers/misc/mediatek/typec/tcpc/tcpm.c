@@ -160,6 +160,16 @@ static int aw_request_pdo(struct tcpc_device *tcpc, AW_U16 pdo_vol, AW_U16 pdo_c
 	chip->port.PDTransmitObjects[0].FVRDO.MinMaxCurrent =
 			chip->port.SrcCapsReceived[pdo_num - 1].FPDOSupply.MaxCurrent;
 
+	/*Tab A9_na code for AX6739NU-133 by yexuedong at 20250109 start*/
+	#if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+	if (chip->port.PDTransmitObjects[0].object == chip->port.SinkRequest.object) {
+		chip->port.USBPDTxFlag = AW_FALSE;
+		AW_LOG("Same Fixed RDO, Exit.\n");
+		return 0;
+	}
+	#endif
+	/*Tab A9_na code for AX6739NU-133 by yexuedong at 20250109 end*/
+
 	/*Tab A9 code for AX6739A-235 by wenyaqi at 20230525 start*/
 	if ((!chip->queued) && (chip->port.PolicyState == peSinkReady)) {
 		chip->queued = AW_TRUE;

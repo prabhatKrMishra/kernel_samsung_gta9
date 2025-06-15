@@ -25,6 +25,15 @@ static struct gxy_usb_hwinfo s_hwinfo_usb_data;
 static struct gxy_battery_data data_t;
 #endif // !CONFIG_ODM_CUSTOM_FACTORY_BUILD
 /*Tab A9 code for SR-AX6739A-01-521 by shanxinkai at 20230601 end*/
+/*Tab A9_na code for AX6739N-20 by zhangziyi at 20241112 start*/
+#if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+extern int battery_get_ibus_value(void);
+#endif
+/*Tab A9_na code for AX6739N-20 by zhangziyi at 20241112 end*/
+/*Tab A9_v code for P240727-00576 by lina at 20240919 start*/
+int g_hv_disable = 0;
+EXPORT_SYMBOL(g_hv_disable);
+/*Tab A9_v code for P240727-00576 by lina at 20240919 end*/
 
 /* For chg_info requirement*/
 /*Tab A9 code for SR-AX6739A-01-491 by qiaodan at 20230508 start*/
@@ -36,8 +45,20 @@ static const char * const GXY_BAT_CHG_INFO_TEXT[] = {
     /* Tab A9 code for AX6739A-1334 by gaozhengwei at 20230620 start */
     [GXY_BAT_CHG_INFO_SGM41515D]  =  "4:charger-SGM41515D",
     /* Tab A9 code for AX6739A-1334 by gaozhengwei at 20230620 end */
+    /*Tab A9_na code for AX6739NU-189 by xiongxiaoliang at 20250123 start*/
+    [GXY_BAT_CHG_INFO_UPM6922]  =  "3:charger-UPM6922",
+    /*Tab A9_na code for AX6739NU-189 by xiongxiaoliang at 20250123 end*/
 };
 /*Tab A9 code for SR-AX6739A-01-491 by qiaodan at 20230508 end*/
+
+/*Tab A9  U code for P241205-09345 by yexuedong at 20241211 start*/
+enum {
+	SLATE_DISABLE = 0,
+	SLATE_ENABLE,
+	SMART_SWITCH_SLATE,
+	SMART_SRC,
+};
+/*Tab A9  U code for P241205-09345 by yexuedong at 20241211 end*/
 
 void gxy_bat_set_chginfo(enum gxy_bat_chg_info cinfo_data)
 {
@@ -129,7 +150,13 @@ static void gxy_batt_set_slate_mode(int slate_mode)
     }
 
     GXY_PSY_INFO("%s: set slate_mode = (%d)\n", __func__, slate_mode);
-    s_info->gxy_discharge_input_suspend = slate_mode;
+    /*Tab A9  U code for P241205-09345 by yexuedong at 20241211 start*/
+    if(slate_mode == SLATE_ENABLE || slate_mode == SMART_SWITCH_SLATE) {
+        s_info->gxy_discharge_input_suspend = true;
+    }else if(slate_mode == SLATE_DISABLE) {
+        s_info->gxy_discharge_input_suspend = false;
+    }
+    /*Tab A9  U code for P241205-09345 by yexuedong at 20241211 end*/
     s_info->gxy_tcpc_info = s_hwinfo_data.tinfo;
     s_info->gxy_cint.set_slate_mode(s_info, slate_mode);
 }
@@ -149,6 +176,11 @@ static const char * const GXY_CHARGE_TYPE_TEXT[] = {
     [POWER_SUPPLY_CHARGE_TYPE_NONE]        = "N/A",
     [POWER_SUPPLY_CHARGE_TYPE_TRICKLE]     = "Trickle",
     [POWER_SUPPLY_CHARGE_TYPE_FAST]        = "Fast",
+    /*Tab A9_na code for AX6739N-20 by zhangziyi at 20241112 start*/
+    #if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+    [POWER_SUPPLY_CHARGE_TYPE_SLOW]        = "Slow",
+    #endif
+    /*Tab A9_na code for AX6739N-20 by zhangziyi at 20241112 end*/
     [POWER_SUPPLY_CHARGE_TYPE_TAPER]       = "Taper",
 };
 #endif //!CONFIG_ODM_CUSTOM_FACTORY_BUILD
@@ -440,9 +472,16 @@ static int gxy_get_bat_cycle_debug(void)
 /*Tab A9 U code for AX6739AU-112 by wenyaqi at 20240125 end*/
 
 /*Tab A9 code for SR-AX6739A-01-454 by lina at 20230607 start*/
+/*Tab A9_na code for AX6739N-20 by zhangziyi at 20241112 start*/
 #if !defined(CONFIG_ODM_CUSTOM_FACTORY_BUILD)
 static int gxy_get_chr_type(void)
 {
+    #if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+    static struct power_supply *chg_usb = NULL;
+    static struct power_supply *chg_psy = NULL;
+    union power_supply_propval usb_prop = {0};
+    union power_supply_propval chr_prop = {0};
+    #endif
     static struct power_supply *psy = NULL;
     union power_supply_propval prop = {0};
     int ret = 0;
@@ -455,18 +494,57 @@ static int gxy_get_chr_type(void)
             return chr_type;
         }
     }
+    #if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+    if (chg_usb == NULL) {
+        chg_usb = power_supply_get_by_name("charger");
+        if (chg_usb == NULL) {
+            GXY_PSY_ERR("%s: get chg failed\n", __func__);
+            return chr_type;
+        }
+    }
+
+    if (chg_psy == NULL) {
+        chg_psy = power_supply_get_by_name("mtk_charger_type");
+        if (chg_psy == NULL) {
+            GXY_PSY_ERR("%s: get mtk_charger_type chg_psy failed\n", __func__);
+            return chr_type;
+        }
+    }
+    #endif
     ret = power_supply_get_property(psy, POWER_SUPPLY_PROP_STATUS, &prop);
     if (ret < 0) {
         GXY_PSY_ERR("%s:get battery status property fail\n", __func__);
         return chr_type;
     }
+
+    #if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+    ret = power_supply_get_property(chg_usb, POWER_SUPPLY_PROP_USB_TYPE, &usb_prop);
+    if (ret < 0) {
+        GXY_PSY_ERR("%s:get usb_type status property fail\n", __func__);
+        return chr_type;
+    } else {
+        if (usb_prop.intval == 1) {
+            chr_type = 5;
+            GXY_PSY_ERR("%s:get usb_type\n", __func__);
+            return chr_type;
+        }
+    }
+    #endif
+
     switch (prop.intval) {
         case POWER_SUPPLY_STATUS_DISCHARGING:
             chr_type = POWER_SUPPLY_CHARGE_TYPE_NONE;
             break;
         case POWER_SUPPLY_STATUS_CHARGING:
         case POWER_SUPPLY_STATUS_FULL:
+            #if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+            power_supply_get_property(chg_psy,
+                                POWER_SUPPLY_PROP_CHARGE_TYPE, &chr_prop);
+            chr_type = chr_prop.intval;
+            GXY_PSY_ERR("%s:get battery chr_type\n", __func__, chr_type);
+            #else
             chr_type = POWER_SUPPLY_CHARGE_TYPE_FAST;
+            #endif
             break;
         default:
             chr_type = POWER_SUPPLY_CHARGE_TYPE_NONE;
@@ -476,6 +554,7 @@ static int gxy_get_chr_type(void)
     return chr_type;
 }
 #endif //!CONFIG_ODM_CUSTOM_FACTORY_BUILD
+/*Tab A9_na code for AX6739N-20 by zhangziyi at 20241112 end*/
 /*Tab A9 code for SR-AX6739A-01-454 by lina at 20230607 end*/
 /* include attrs for battery psy */
 static struct device_attribute gxy_battery_attrs[] = {
@@ -561,6 +640,11 @@ static struct device_attribute gxy_battery_attrs[] = {
     GXY_BATTERY_ATTR(battery_cycle_debug),
     #endif // !CONFIG_ODM_CUSTOM_FACTORY_BUILD
     /*Tab A9 U code for AX6739AU-112 by wenyaqi at 20240125 end*/
+    /*Tab A9_na code for AX6739N-20 by zhangziyi at 20241112 start*/
+    #if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+    GXY_BATTERY_ATTR(ibus_now),
+    #endif
+    /*Tab A9_na code for AX6739N-20 by zhangziyi at 20241112 end*/
 };
 
 /*Tab A9 code for SR-AX6739A-01-467 by hualei at 20230506 start*/
@@ -581,6 +665,11 @@ ssize_t gxy_bat_show_attrs(struct device *dev,
     /*Tab A9 code for SR-AX6739A-01-506 by hualei at 20230519 start*/
     int dump_flag = 0;
     /*Tab A9 code for SR-AX6739A-01-506 by hualei at 20230519 end*/
+    /*Tab A9_na code for AX6739N-20 by zhangziyi at 20241112 start*/
+    #if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+    int ibus_cur = 0;
+    #endif
+    /*Tab A9_na code for AX6739N-20 by zhangziyi at 20241112 end*/
     int gxy_time_to_full = 0;
 
     /*Tab A9 code for SR-AX6739A-01-486 by qiaodan at 20230512 start*/
@@ -769,12 +858,62 @@ ssize_t gxy_bat_show_attrs(struct device *dev,
             break;
         #endif // !CONFIG_ODM_CUSTOM_FACTORY_BUILD
         /*Tab A9 U code for AX6739AU-112 by wenyaqi at 20240125 end*/
+        /*Tab A9_na code for AX6739N-20 by zhangziyi at 20241112 start*/
+        #if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+        case IBUS_NOW:
+            ibus_cur = battery_get_ibus_value() * 2;
+            count += scnprintf(buf + count, PAGE_SIZE - count, "%d\n",
+                    ibus_cur);
+            GXY_PSY_INFO("ibus_now %d\n", ibus_cur);
+            break;
+        #endif
+        /*Tab A9_na code for AX6739N-20 by zhangziyi at 20241112 end*/
     default:
         count = -EINVAL;
         break;
     }
     return count;
 }
+
+/*Tab A9_V code for P241221-02215 by xiongxiaoliang at 20250108 start*/
+#if !defined(CONFIG_ODM_CUSTOM_FACTORY_BUILD)
+static int atoi(const char *str)
+{
+    int result = 0;
+    int count = 0;
+
+    if (str == NULL)
+        return -EIO;
+
+    while (str[count] != 0	/* NULL */
+        && str[count] >= '0' && str[count] <= '9') {
+        result = result * 10 + str[count] - '0';
+        ++count;
+    }
+
+    return result;
+}
+
+static int gxy_extract_Before_Space(const char *str) {
+    int count = 0;
+    char temp[5] = {};
+    int value = 0;
+    char *space = strchr(str, ' ');
+
+    if (space != NULL) {
+        count = space - str;
+        strncpy(temp, str, count);
+        temp[count] = '\0';
+        value = atoi(temp);
+        GXY_PSY_INFO("%s: max_soc_string=%s, (%d, %d)\n", __func__, str, count, value);
+    } else {
+        GXY_PSY_ERR("%s: space is NULL, str= (%s)\n", __func__, str);
+    }
+
+    return value;
+}
+#endif
+/*Tab A9_V code for P241221-02215 by xiongxiaoliang at 20250108 end*/
 
 /*Tab A9 code for P230713-00914 by qiaodan at 20230724 start*/
 /* sysfs write for "battery" psd */
@@ -789,6 +928,11 @@ ssize_t gxy_bat_store_attrs(
     static struct mtk_charger *s_info = NULL;
     struct power_supply *psy = NULL;
     int value = 0;
+    /*Tab A9_V code for P241221-02215 by xiongxiaoliang at 20250108 start*/
+    #if !defined(CONFIG_ODM_CUSTOM_FACTORY_BUILD)
+    int gxy_max_soc = 0;
+    #endif
+    /*Tab A9_V code for P241221-02215 by xiongxiaoliang at 20250108 end*/
 
     if (s_info == NULL) {
         psy = power_supply_get_by_name("mtk-master-charger");
@@ -818,11 +962,16 @@ ssize_t gxy_bat_store_attrs(
         /*Tab A9 U code for AX6739AU-127 by wenyaqi at 20240102 start*/
         /*Tab A9 code for SR-AX6739A-01-457 by qiaodan at 20230522 start*/
         #if !defined(CONFIG_ODM_CUSTOM_FACTORY_BUILD)
+        /*Tab A9_V code for P241221-02215 by xiongxiaoliang at 20250108 start*/
         case BATT_FULL_CAPACITY:
             if (!strncmp(buf, gs_basic_protection, (count-1))) {
                 s_info->gxy_discharge_batt_full_capacity = GXY_FULL_CAPACITY_LEVEL;
-            } else if (!strncmp(buf, gs_maximum_protection, (count-1))) {
+            } else if (strstr(buf, gs_maximum_protection)) {
                 s_info->gxy_discharge_batt_full_capacity = GXY_MAX_PROTECTION_FLAG;
+                gxy_max_soc = gxy_extract_Before_Space(buf);
+                if (gxy_max_soc > 0 && gxy_max_soc <= 100) {
+                    s_info->gxy_batt_max_protect_soc = gxy_max_soc;
+                }
             } else if (!strncmp(buf, gs_sleep_protection, (count-1))) {
                 s_info->gxy_discharge_batt_full_capacity = GXY_SLEEP_PROTECTION_FLAG;
             } else if (!strncmp(buf, gs_highsoc_protection, (count-1))) {
@@ -831,10 +980,11 @@ ssize_t gxy_bat_store_attrs(
                 GXY_PSY_ERR("%s: Setting Value incorrect, cancel batt protection, %s %d\n",
                     __func__, buf, s_info->gxy_discharge_batt_full_capacity);
             }
-            GXY_PSY_ERR("%s:set batt protection, type = %s value = %d\n", __func__, buf,
-                s_info->gxy_discharge_batt_full_capacity);
+            GXY_PSY_ERR("%s:set batt protection, type=%s value=%d, max_soc=%d\n", __func__, buf,
+                s_info->gxy_discharge_batt_full_capacity, s_info->gxy_batt_max_protect_soc);
             ret = count;
             break;
+        /*Tab A9_V code for P241221-02215 by xiongxiaoliang at 20250108 end*/
         #endif //!CONFIG_ODM_CUSTOM_FACTORY_BUILD
         /*Tab A9 code for SR-AX6739A-01-457 by qiaodan at 20230522 end*/
         #if !defined(CONFIG_ODM_CUSTOM_FACTORY_BUILD)
@@ -883,6 +1033,9 @@ ssize_t gxy_bat_store_attrs(
         case HV_DISABLE:
             if (sscanf(buf, "%10d\n", &value) == 1) {
                 gxy_bat_set_hv_disable(value);
+                /*Tab A9_v code for P240727-00576 by lina at 20240919 start*/
+                g_hv_disable = value;
+                /*Tab A9_v code for P240727-00576 by lina at 20240919 end*/
                 GXY_PSY_INFO("%s: set hv_disable = (%d)\n", __func__, value);
                 ret = count;
             }

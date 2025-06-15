@@ -377,7 +377,14 @@ int pd_hal_set_input_current(struct chg_alg_device *alg,
 	/*Tab A9 code for SR-AX6739A-01-503 by qiaodan at 20230510 start*/
 	#if defined(CONFIG_CUSTOM_PROJECT_OT11)
 	if (ua > PD_IBUS_LOW_BOUND) {
+		/*Tab A9_na code for AX6739NU-133 by yexuedong at 20250115 start*/
+		#if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+		ua = PD_IBUS_FIXED_VALUE;
+		#else
 		ua = PD_IBUS_HIGH_BOUND;
+		#endif
+		pd_err("%s ua=%d\n", __func__, ua);
+		/*Tab A9_na code for AX6739NU-133 by yexuedong at 20250115 end*/
 	}
 	#endif
 	/*Tab A9 code for SR-AX6739A-01-503 by qiaodan at 20230510 end*/

@@ -555,6 +555,26 @@ static ssize_t data_role_show(struct device *dev, struct device_attribute *attr,
     return sprintf(buf, "%s\n", chip->port.PolicyIsDFP == AW_TRUE ? "DFP" : "UFP");
 }
 
+/* Tab A9_V code for P241112-05620 by xiongxiaoliang at 20241225 start */
+static ssize_t
+data_role_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+{
+    struct aw35615_chip *chip = aw35615_GetChip();
+
+    if (buf[0] == '1'){
+        chip->tcpc->pd_port.data_role = PD_ROLE_DFP;
+        tcpci_notify_role_swap(chip->tcpc, TCP_NOTIFY_DR_SWAP, PD_ROLE_DFP);
+        chip->port.PolicyIsDFP = AW_TRUE;
+    }
+    else if (buf[0] == '0'){
+        chip->tcpc->pd_port.data_role = PD_ROLE_UFP;
+        tcpci_notify_role_swap(chip->tcpc, TCP_NOTIFY_DR_SWAP, PD_ROLE_UFP);
+        chip->port.PolicyIsDFP = AW_FALSE;
+    }
+    return count;
+}
+/* Tab A9_V code for P241112-05620 by xiongxiaoliang at 20241225 end */
+
 static ssize_t vconn_source_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
     struct aw35615_chip *chip = aw35615_GetChip();
@@ -758,7 +778,9 @@ static DEVICE_ATTR_RO(cc_pin);
 static DEVICE_ATTR_RO(pe_state);
 static DEVICE_ATTR_RW(pe_enabled);
 static DEVICE_ATTR_RO(pwr_role);
-static DEVICE_ATTR_RO(data_role);
+/* Tab A9_V code for P241112-05620 by xiongxiaoliang at 20241225 start */
+static DEVICE_ATTR_RW(data_role);
+/* Tab A9_V code for P241112-05620 by xiongxiaoliang at 20241225 end */
 static DEVICE_ATTR_RO(pd_specrev);
 static DEVICE_ATTR_RO(vconn_source);
 static DEVICE_ATTR_RW(src_current);
@@ -829,8 +851,11 @@ void aw_InitializeCore(void)
         pr_err("AWINIC  %s - Error: Chip structure is NULL!\n", __func__);
         return;
     }
-
+    /* Tab A9_V code for P241112-05620 by xiongxiaoliang at 20241225 start */
+    chip->port.First_check_Rd = AW_FALSE;
     core_initialize(&chip->port);
+    chip->port.First_check_Rd = AW_TRUE;
+    /* Tab A9_V code for P241112-05620 by xiongxiaoliang at 20241225 end */
     /* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 start */
     usleep_range(4000, 5000);
     chip->sink_timer = 25000;
@@ -1327,6 +1352,9 @@ void stop_otg_vbus(void)
 void start_usb_host(struct aw35615_chip *chip, bool ss)
 {
     AW_LOG("aw35615 - ss=%d\n", ss);
+    /* Tab A9_V code for P241112-05620 by xiongxiaoliang at 20241225 start */
+    chip->tcpc->pd_port.data_role = PD_ROLE_DFP;
+    /* Tab A9_V code for P241112-05620 by xiongxiaoliang at 20241225 end */
     chip->tcpc_desc->rp_lvl = TYPEC_CC_RP_1_5;
     if (chip->tcpc->typec_attach_new != TYPEC_ATTACHED_SRC) {
         chip->tcpc->typec_attach_new = TYPEC_ATTACHED_SRC;
@@ -1358,6 +1386,9 @@ void stop_acc_audio(struct aw35615_chip *chip)
 
 void start_usb_peripheral(struct aw35615_chip *chip)
 {
+    /* Tab A9_V code for P241112-05620 by xiongxiaoliang at 20241225 start */
+    chip->tcpc->pd_port.data_role = PD_ROLE_UFP;
+    /* Tab A9_V code for P241112-05620 by xiongxiaoliang at 20241225 end */
     if (chip->tcpc->typec_attach_new != TYPEC_ATTACHED_SNK) {
         chip->tcpc->typec_attach_new = TYPEC_ATTACHED_SNK;
         tcpci_notify_typec_state(chip->tcpc);
@@ -1397,6 +1428,12 @@ void start_acc_audio(struct aw35615_chip *chip)
     }
 }
 
+/*Tab A9_na code for AX6739NU-133 by yexuedong at 20250102 start*/
+#if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+extern void upm6910x_set_input_volt_lim_pd(bool enable);
+#endif
+/*Tab A9_na code for AX6739NU-133 by yexuedong at 20250102 end*/
+
 void handle_core_event(AW_U32 event, AW_U8 portId, void *usr_ctx, void *app_ctx)
 {
     static int usb_state;
@@ -1429,6 +1466,9 @@ void handle_core_event(AW_U32 event, AW_U8 portId, void *usr_ctx, void *app_ctx)
         }
 
         if (chip->port.sourceOrSink == SINK) {
+            /*Tab A9_NA code for P250124-03110 by xiongxiaoliang at 20250209 start*/
+            chip->port.is_a_to_c_cable = AW_TRUE;
+            /*Tab A9_NA code for P250124-03110 by xiongxiaoliang at 20250209 end*/
             start_usb_peripheral(chip);
             usb_state = 1;
             AW_LOG("aw35615 start_usb_peripheral\n");
@@ -1442,12 +1482,18 @@ void handle_core_event(AW_U32 event, AW_U8 portId, void *usr_ctx, void *app_ctx)
     case CC1_AND_CC2:
         AW_LOG("aw35615 :detect double 56k cable\n");
         usb_state = 1;
+        /*Tab A9_NA code for P250124-03110 by xiongxiaoliang at 20250209 start*/
+        chip->port.is_a_to_c_cable = AW_TRUE;
+        /*Tab A9_NA code for P250124-03110 by xiongxiaoliang at 20250209 end*/
         start_usb_rp_rp(chip);
         break;
 #ifdef AW_HAVE_VBUS_ONLY
     case VBUS_OK:
         AW_LOG("aw35615 :detect vbus ok\n");
         usb_state = 1;
+        /*Tab A9_NA code for P250124-03110 by xiongxiaoliang at 20250209 start*/
+        chip->port.is_a_to_c_cable = AW_TRUE;
+        /*Tab A9_NA code for P250124-03110 by xiongxiaoliang at 20250209 end*/
         start_usb_vbus_only(chip);
         break;
 #endif /* AW_HAVE_VBUS_ONLY */
@@ -1457,6 +1503,9 @@ void handle_core_event(AW_U32 event, AW_U8 portId, void *usr_ctx, void *app_ctx)
         break;
     case CC_NO_ORIENT:
         AW_LOG("aw35615 CC_NO_ORIENT=0x%x\n", event);
+        /*Tab A9_NA code for P250124-03110 by xiongxiaoliang at 20250209 start*/
+        chip->port.is_a_to_c_cable = AW_FALSE;
+        /*Tab A9_NA code for P250124-03110 by xiongxiaoliang at 20250209 end*/
         chip->tcpc->pd_port.pe_data.pe_ready = AW_FALSE;
         /* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 end */
         /*Tab A9 code for SR-AX6739A-01-468 by hualei at 20230508 start*/
@@ -1489,7 +1538,9 @@ void handle_core_event(AW_U32 event, AW_U8 portId, void *usr_ctx, void *app_ctx)
     case PD_STATE_CHANGED:
         /* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 start */
         AW_LOG("aw35615 : PE_ST=%d\n", chip->port.PolicyState);
-
+        /* Tab A9_V code for P241112-05620 by xiongxiaoliang at 20241225 start */
+        AW_LOG("data_role =%d,PolicyIsDFP=%d",chip->tcpc->pd_port.data_role,chip->port.PolicyIsDFP);
+        /* Tab A9_V code for P241112-05620 by xiongxiaoliang at 20241225 end */
         /*Tab A9 code for AX6739A-516 by wenyaqi at 20230603 start*/
         if (chip->port.PolicyState == peSinkTransitionDefault) {
             chip->tcpc->pd_port.pe_data.pe_ready = AW_FALSE;
@@ -1499,9 +1550,11 @@ void handle_core_event(AW_U32 event, AW_U8 portId, void *usr_ctx, void *app_ctx)
 
         if (chip->port.PolicyState == peSinkReady &&
             chip->port.PolicyHasContract == AW_TRUE) {
+            /*Tab A9_NA code for P250124-03110 by xiongxiaoliang at 20250209 start*/
+            chip->port.is_a_to_c_cable = AW_FALSE;
+            /*Tab A9_NA code for P250124-03110 by xiongxiaoliang at 20250209 end*/
             if (!chip->port.pd_state) {
                 chip->port.pd_state = AW_TRUE;
-                chip->tcpc->pd_port.data_role = PD_ROLE_UFP;
                 chip->tcpc->pd_port.power_role = PD_ROLE_SINK;
                 chip->tcpc->pd_port.pe_data.pe_ready = AW_TRUE;
                 if (chip->port.src_support_pps)
@@ -1513,7 +1566,6 @@ void handle_core_event(AW_U32 event, AW_U8 portId, void *usr_ctx, void *app_ctx)
             chip->port.PolicyHasContract == AW_TRUE) {
             if (!chip->port.pd_state) {
                 chip->port.pd_state = AW_TRUE;
-                chip->tcpc->pd_port.data_role = PD_ROLE_DFP;
                 chip->tcpc->pd_port.power_role = PD_ROLE_SOURCE;
                 chip->tcpc->pd_port.pe_data.pe_ready = AW_TRUE;
                 tcpci_notify_pd_state(chip->tcpc, PD_CONNECT_PE_READY_SRC_PD30);
@@ -1537,6 +1589,16 @@ void handle_core_event(AW_U32 event, AW_U8 portId, void *usr_ctx, void *app_ctx)
                     tcpci_sink_vbus(chip->tcpc, TCP_VBUS_CTRL_PD | TCP_VBUS_CTRL_PD_DETECT,
                     chip->port.SinkRequest.PPSRDO.Voltage * 20, chip->port.SinkRequest.PPSRDO.OpCurrent * 50);
         } else {
+            /*Tab A9_na code for AX6739NU-133 by yexuedong at 20250102 start*/
+            #if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+            if(chip->port.SinkRequest.FVRDO.MinMaxCurrent == 0){
+                upm6910x_set_input_volt_lim_pd(FALSE);
+            }
+            else{
+                upm6910x_set_input_volt_lim_pd(TRUE);
+            }
+            #endif
+            /*Tab A9_na code for AX6739NU-133 by yexuedong at 20250102 end*/
             AW_LOG("SinkRequest ObjectPosition = %d,Voltage = %d,Current = %d\n",
                     chip->port.SinkRequest.FVRDO.ObjectPosition,
                     chip->port.SrcCapsReceived[chip->port.SinkRequest.FVRDO.ObjectPosition - 1].FPDOSupply.Voltage * 50,

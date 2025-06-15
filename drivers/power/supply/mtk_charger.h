@@ -522,6 +522,9 @@ struct mtk_charger {
 	#if !defined(CONFIG_ODM_CUSTOM_FACTORY_BUILD)
 	int gxy_discharge_batt_full_capacity;
 	int gxy_discharge_batt_full_flag;
+	/*Tab A9_V code for P241221-02215 by xiongxiaoliang at 20250108 start*/
+	int gxy_batt_max_protect_soc;
+	/*Tab A9_V code for P241221-02215 by xiongxiaoliang at 20250108 end*/
 	#endif //!CONFIG_ODM_CUSTOM_FACTORY_BUILD
 	/*Tab A9 code for SR-AX6739A-01-457 by qiaodan at 20230522 end*/
 	/*Tab A9 U code for AX6739AU-127 by wenyaqi at 20240102 start*/
@@ -592,7 +595,11 @@ struct mtk_charger {
 	bool water_detected;
 
 	bool enable_dynamic_mivr;
-
+	/*Tab A9_na code for AX6739NU-133 by xiongxiaoliang at 20250115 start*/
+	#if IS_ENABLED(CONFIG_CUSTOM_PROJECT_OT11_NA)
+	struct notifier_block usb_nb;
+	#endif
+	/*Tab A9_na code for AX6739NU-133 by xiongxiaoliang at 20250115 end*/
 	/* fast charging algo support indicator */
 	bool enable_fast_charging_indicator;
 	unsigned int fast_charging_indicator;

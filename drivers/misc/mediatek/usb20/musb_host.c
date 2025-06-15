@@ -3044,6 +3044,14 @@ static int musb_cleanup_urb(struct urb *urb, struct musb_qh *qh)
 			    "abort %cX%d DMA for urb %p --> %d\n",
 			    is_in ? 'R' : 'T', ep->epnum, urb, status);
 			urb->actual_length += dma->actual_len;
+			/*Tab A9_V code for P250426-02524 by jiashixian at 20250428 start*/
+			#ifdef CONFIG_CUSTOM_PROJECT_OT11
+			if(urb->actual_length > urb->transfer_buffer_length) {
+				urb->status = -EIO;
+				urb->actual_length = urb->transfer_buffer_length;
+			}
+			#endif
+			/*Tab A9_V code for P250426-02524 by jiashixian at 20250428 end*/
 		}
 	}
 
@@ -3410,6 +3418,13 @@ static int musb_bus_resume(struct usb_hcd *hcd)
 	return 0;
 }
 
+static void musb_free_dev(struct usb_hcd *hcd, struct usb_device *udev)
+{
+	struct musb *musb = hcd_to_musb(hcd);
+
+	musb_mac_reset(musb);
+}
+
 const struct hc_driver musb_hc_driver = {
 	.description = "musb-hcd",
 	.product_desc = "MUSB HDRC host driver",
@@ -3424,6 +3439,8 @@ const struct hc_driver musb_hc_driver = {
 	.stop = musb_h_stop,
 
 	.get_frame_number = musb_h_get_frame_number,
+
+	.free_dev = musb_free_dev,
 
 	.urb_enqueue = musb_urb_enqueue,
 	.urb_dequeue = musb_urb_dequeue,

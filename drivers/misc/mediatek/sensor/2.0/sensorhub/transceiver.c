@@ -28,14 +28,17 @@
 #include "custom_cmd.h"
 /*Tab A9 code for SR-AX6739A-01-254 by zhangziyi at 20230522 start*/
 #include <linux/of_device.h>
-#define MAX_NUM 4
+
+/*Tab A9_NA code for AX6739NU-35 by zhawei at 20241127 start*/
+#define MAX_NUM 5
 const int g_max_len = 4;
 
 enum screen_supply {
 	FIRST_SCREEN = 1,
 	SECOND_SCREEN,
 	THIRD_SCREEN,
-	FOURTH_SCREEN
+	FOURTH_SCREEN,
+	FIFTH_SCREEN,
 };
 
 static int g_screen_num[MAX_NUM] = {
@@ -43,6 +46,7 @@ static int g_screen_num[MAX_NUM] = {
 	SECOND_SCREEN,
 	THIRD_SCREEN,
 	FOURTH_SCREEN,
+	FIFTH_SCREEN,
 };
 
 const char *g_name_judge[MAX_NUM] = {
@@ -50,7 +54,9 @@ const char *g_name_judge[MAX_NUM] = {
 	"0x30",
 	"0x40",
 	"0x60",
+	"0x70",
 }; // Cover ID
+/*Tab A9_NA code for AX6739NU-35 by zhawei at 20241127 end*/
 
 enum fac_version {
 	FAC_VERSION = 1,
@@ -647,6 +653,7 @@ static int transceiver_calibration(struct hf_device *hf_dev,
 }
 
 /*Tab A9 code for SR-AX6739A-01-254 by zhangziyi at 20230522 start*/
+/*Tab A9_NA code for AX6739NU-35 by zhawei at 20241127 start*/
 static int param_judge(void)
 {
 	int board_id = 0;
@@ -663,7 +670,7 @@ static int param_judge(void)
 		of_property_read_string(chosen, "get_swid", &screen_name);
 		strncpy(screen_id, screen_name, g_max_len);
 		pr_err("get_swid = %s, screen_id = %s\n", screen_name, screen_id);
-		for (i = 0; i < g_max_len; i++) {
+		for (i = 0; i < MAX_NUM; i++) {
 			if (strcmp(screen_id, g_name_judge[i]) == 0) {
 				board_id = g_screen_num[i];
 				pr_err("board_id = %d\n", board_id);
@@ -675,6 +682,7 @@ static int param_judge(void)
 	}
 	return board_id;
 }
+/*Tab A9_NA code for AX6739NU-35 by zhawei at 20241127 end*/
 
 static int transceiver_config(struct hf_device *hf_dev,
 		int sensor_type, void *data, uint8_t length)

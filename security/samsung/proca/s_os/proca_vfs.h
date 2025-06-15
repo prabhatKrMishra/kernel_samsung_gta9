@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * PROCA vfs functions
  *
@@ -21,5 +22,6 @@ struct file *proca_kernel_open(const char *path, int flags, int rights);
 int proca_kernel_read(struct file *file, loff_t offset,
 			  void *addr, unsigned long count);
 bool proca_path_is_mounted(const char *path);
+const char *proca_d_path(struct file *file, char **pathbuf, char *namebuf);
 
 #endif /* _LINUX_PROCA_VFS_H */

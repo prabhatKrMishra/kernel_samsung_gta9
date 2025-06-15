@@ -23,9 +23,6 @@
 
 #define USB2_PORT 2
 
-/*Tab A9 code for AX6739A-30 by qiaodan at 20230502 start*/
-extern int g_board_id_status;
-/*Tab A9 code for AX6739A-30 by qiaodan at 20230502 end*/
 enum mt_usb_vbus_id_state {
 	MUSB_ID_FLOAT = 1,
 	MUSB_ID_GROUND,
@@ -367,13 +364,9 @@ static int mt_usb_role_sw_register(struct otg_switch_mtk *otg_sx)
 	if (IS_ERR(otg_sx->role_sw))
 		return PTR_ERR(otg_sx->role_sw);
 
-	/*Tab A9 code for AX6739A-30 by qiaodan at 20230502 start*/
-	if (g_board_id_status == 0) {
-		mt_usb_role_sx_set(otg_sx->role_sw, USB_ROLE_DEVICE);
-	} else {
-		mt_usb_role_sx_set(otg_sx->role_sw, USB_ROLE_NONE);
-	}
-	/*Tab A9 code for AX6739A-30 by qiaodan at 20230502 end*/
+	/*Tab A9_na code for AX6739N-13 by zhangziyi at 20241029 start*/
+	mt_usb_role_sx_set(otg_sx->role_sw, USB_ROLE_NONE);
+	/*Tab A9_na code for AX6739N-13 by zhangziyi at 20241029 end*/
 	musb->usb_connected = 0;
 
 	return 0;
@@ -458,11 +451,6 @@ int mt_usb_otg_switch_init(struct mt_usb_glue *glue)
 	INIT_WORK(&otg_sx->vbus_work, mt_usb_vbus_work);
 
 	/* default as host, update state */
-	/*Tab A9 code for AX6739A-30 by qiaodan at 20230502 start*/
-	if (g_board_id_status == 0) {
-		mtk_musb->is_host = true;
-	}
-	/*Tab A9 code for AX6739A-30 by qiaodan at 20230502 end*/
 	otg_sx->sw_state = mtk_musb->is_host ?
 				MUSB_ID_GROUND : MUSB_VBUS_VALID;
 

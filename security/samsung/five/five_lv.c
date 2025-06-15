@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -62,3 +63,8 @@ int lv_set(struct lv *field, const void *data, uint16_t data_len,
 
 	return 0;
 }
+
+#if defined(CONFIG_SEC_KUNIT)
+EXPORT_SYMBOL_GPL(lv_get_next);
+EXPORT_SYMBOL_GPL(lv_set);
+#endif

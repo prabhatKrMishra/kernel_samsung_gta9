@@ -40,10 +40,6 @@
 
 int musb_fake_CDP;
 
-/*Tab A9 code for AX6739A-30 by qiaodan at 20230502 start*/
-extern int g_board_id_status;
-/*Tab A9 code for AX6739A-30 by qiaodan at 20230502 end*/
-
 /*
  * kernel_init_done should be set in early-init stage through
  * init.$platform.usb.rc
@@ -3293,6 +3289,30 @@ static int mt_usb_wakeup_init(struct musb *musb)
 
 	return 0;
 }
+
+static void mt_usb_mac_reset(struct musb *musb)
+{
+	struct device_node *node = musb->glue->dev->of_node;
+	u32 tmp;
+
+	if (infracg == NULL)
+		return;
+
+	if (of_device_is_compatible(node, "mediatek,mt6789-usb20")) {
+		DBG(0, "reset usb ip");
+		/* writ 1 to reset */
+		regmap_read(infracg, 0x120, &tmp);
+		tmp |= 1 << 13;
+		regmap_write(infracg, 0x120, tmp);
+		udelay(10);
+		/* writ 1 to release */
+		regmap_read(infracg, 0x124, &tmp);
+		tmp |= 1 << 13;
+		regmap_write(infracg, 0x124, tmp);
+
+	}
+
+}
 #endif
 
 static u32 cable_mode = CABLE_MODE_NORMAL;
@@ -4018,6 +4038,16 @@ void musb_platform_reset(struct musb *musb)
 }
 EXPORT_SYMBOL(musb_platform_reset);
 
+void musb_mac_reset(struct musb *musb)
+{
+	/* reset mac when HM bit is 1 */
+	if (musb_readb(musb->mregs, MUSB_DEVCTL) & MUSB_DEVCTL_HM) {
+		musb_save_context(musb);
+		mt_usb_mac_reset(musb);
+		musb_restore_context(musb);
+	}
+}
+
 void musb_sync_with_bat(struct musb *musb, int usb_state)
 {
 	DBG(1, "BATTERY_SetUSBState, state=%d\n", usb_state);
@@ -4307,7 +4337,14 @@ static int mt_usb_init(struct musb *musb)
 	/* enable host suspend mode */
 	uwk_vers = 0;
 	mt_usb_wakeup_init(musb);
+	/*Tab A9_V code for P250426-02524 by jiashixian at 20250428 start*/
+	#ifndef CONFIG_CUSTOM_PROJECT_OT11
 	musb->host_suspend = true;
+	#else
+	musb->host_suspend = false;
+	DBG(0, "%s not enable host suspend\n", __func__);
+	#endif
+	/*Tab A9_V code for P250426-02524 by jiashixian at 20250428 end*/
 #endif
 	DBG(0, "%s done\n", __func__);
 	return 0;
@@ -4604,12 +4641,6 @@ static int musb_probe(struct platform_device *pdev)
 #if defined(FPGA_PLATFORM) || defined(FOR_BRING_UP)
 	musb_force_on = 1;
 #endif
-
-	/*Tab A9 code for AX6739A-30 by qiaodan at 20230502 start*/
-	if (g_board_id_status == 0) {
-		musb_force_on = 1;
-	}
-	/*Tab A9 code for AX6739A-30 by qiaodan at 20230502 end*/
 
 	return 0;
 

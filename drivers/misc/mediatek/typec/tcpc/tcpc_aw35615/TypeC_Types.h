@@ -33,6 +33,9 @@ typedef enum {
     USBTypeC_Source,
     USBTypeC_DRP,
     USBTypeC_Debug,
+    /*Tab A9_NA code for P250124-03110 by xiongxiaoliang at 20250209 start*/
+    USBTypeC_open,
+    /*Tab A9_NA code for P250124-03110 by xiongxiaoliang at 20250209 end*/
     USBTypeC_UNDEFINED = 99
 } USBTypeCPort;
 

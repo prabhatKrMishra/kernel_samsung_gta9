@@ -84,7 +84,9 @@ static int charger_cooling_set_cur_state(struct thermal_cooling_device *cdev, un
  * platform data and platform driver callbacks
  *==================================================
  */
-
+/*Tab A9_v code for P240727-00576 by lina at 20240919 start*/
+extern int g_hv_disable;
+/*Tab A9_v code for P240727-00576 by lina at 20240919 end*/
 static int cooling_state_to_charger_limit_v1(struct charger_cooling_device *chg)
 {
 	union power_supply_propval prop_bat_chr;
@@ -121,7 +123,15 @@ static int cooling_state_to_charger_limit_v1(struct charger_cooling_device *chg)
 	/*Only master charger need to control Vbus*/
 	/*prop.intval = 0, vbus 5V*/
 	/*prop.intval = 1, vbus 9V*/
-	prop_vbus.intval = 1;
+	/*Tab A9_v code for P240727-00576 by lina at 20240919 start*/
+	if (g_hv_disable == 1) {
+		prop_vbus.intval = 0;
+		pr_notice("[%s] not enable enable_hv_charging\n",__func__);
+	} else {
+		prop_vbus.intval = 1;
+		pr_notice("[%s] enable enable_hv_charging\n",__func__);
+	}
+	/*Tab A9_v code for P240727-00576 by lina at 20240919 end*/
 
 	if (prop_bat_chr.intval == 0)
 		prop_vbus.intval = 0;

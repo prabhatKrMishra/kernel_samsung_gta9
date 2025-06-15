@@ -1172,8 +1172,20 @@ static int nvt_parse_dt(struct device *dev)
     }
 #endif
 #if NVT_TOUCH_SUPPORT_HW_RST
-    ts->reset_gpio = of_get_named_gpio_flags(np, "novatek,reset-gpio", 0, &ts->reset_flags);
-    input_info(true, dev, "%s: novatek,reset-gpio=%d\n", __func__, ts->reset_gpio);
+    /*Tab A9_na code for AX6739NU-2 by wenghailong at 20241106 start*/
+    if (!g_board_id_status) {
+        #if defined(CONFIG_CUSTOM_PROJECT_OT11_WIFI_ALL)
+        ts->reset_gpio = of_get_named_gpio_flags(np, "novatek,reset-gpio", 0, &ts->reset_flags);
+        input_info(true, dev, "%s: novatek,reset-gpio=%d\n", __func__, ts->reset_gpio);
+        #else
+        ts->reset_gpio = of_get_named_gpio_flags(np, "novatek,reset-gpio-na", 0, &ts->reset_flags);
+        input_info(true, dev, "%s: novatek,reset-na-gpio=%d\n", __func__, ts->reset_gpio);
+        #endif
+    } else {
+        ts->reset_gpio = of_get_named_gpio_flags(np, "novatek,reset-gpio", 0, &ts->reset_flags);
+        input_info(true, dev, "%s: novatek,reset-gpio=%d\n", __func__, ts->reset_gpio);
+    }
+    /*Tab A9_na code for AX6739NU-2 by wenghailong at 20241106 end*/
 #endif
     platdata->irq_gpio = of_get_named_gpio_flags(np, "novatek,irq-gpio", 0, &platdata->irq_flags);
     if (!gpio_is_valid(platdata->irq_gpio)) {

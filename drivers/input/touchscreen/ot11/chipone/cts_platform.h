@@ -53,7 +53,9 @@
 #include "cts_core.h"
 
 extern bool cts_show_debug_log;
-
+/*Tab A9_na code for AX6739NU-2 by wenghailong at 20241106 start*/
+extern int g_board_id_status;
+/*Tab A9_na code for AX6739NU-2 by wenghailong at 20241106 end*/
 #ifndef LOG_TAG
 #define LOG_TAG         ""
 #endif /* LOG_TAG */

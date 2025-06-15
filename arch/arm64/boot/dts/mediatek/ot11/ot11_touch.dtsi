@@ -22,7 +22,7 @@
         himax,panel-coords = <0 800 0 1340>;
         himax,display-coords = <0 800 0 1340>;
         himax,irq-gpio = <&pio 54 0x00>;
-        himax,rst-gpio = <&pio 42 0x00>;
+        himax,rst-gpio = <&pio 53 0x00>;
         /*Tab A9 code for SR-AX6739A-01-282 by wenghailong at 20230502 start*/
         himax,irq_offical-gpio = <&pio 9 0x00>;
         himax,rst_offical-gpio = <&pio 155 0x00>;

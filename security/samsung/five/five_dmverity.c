@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * FIVE dmverity functions
  *
@@ -21,6 +22,7 @@
 #include "five.h"
 #include "five_testing.h"
 #include "five_porting.h"
+
 #include "drivers/md/dm.h"
 
 #ifdef CONFIG_FIVE_DEBUG
@@ -84,13 +86,13 @@ __visible_for_testing __mockable
 struct block_device *call_blkdev_get_by_dev(
 		dev_t dev, fmode_t mode, void *holder)
 {
-	return blkdev_get_by_dev(dev, mode, holder);
+	return do_blkdev_get_by_dev(dev, mode, holder);
 }
 
 __visible_for_testing __mockable
 void call_blkdev_put(struct block_device *bdev, fmode_t mode)
 {
-	blkdev_put(bdev, mode);
+	do_blkdev_put(bdev, mode);
 	return;
 }
 
@@ -422,4 +424,10 @@ static inline int __init init_fs(void)
 {
 	return 0;
 }
+#endif
+
+#if defined(CONFIG_SEC_KUNIT)
+EXPORT_SYMBOL_GPL(is_loop_device);
+EXPORT_SYMBOL_GPL(is_dmverity_partition);
+EXPORT_SYMBOL_GPL(five_is_dmverity_protected);
 #endif

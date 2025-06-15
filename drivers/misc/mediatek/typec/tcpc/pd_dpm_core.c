@@ -161,11 +161,6 @@ enum {
 	SLATE_0A,
 };
 
-static struct pd_port_power_caps gs_src_cap_5v500ma = {
-	.nr = 1,
-	.pdos[0] = 0x00019032,
-};
-
 static struct pd_port_power_caps gs_src_cap_5v0a = {
 	.nr = 1,
 	.pdos[0] = 0x00019000,
@@ -199,14 +194,13 @@ int gxy_send_src_caps(int slate_mode)
 		return -ENODEV;
 	}
 	/*Tab A9  U code for P240510-06955 by wenyaqi at 20240515 end*/
-
+	/*Tab A9  U code for P241205-09345 by yexuedong at 20241211 start*/
 	switch(slate_mode) {
-		case SLATE_500MA:
-			src_cap_slate = &gs_src_cap_5v500ma;
-			break;
 		case SLATE_0A:
 			src_cap_slate = &gs_src_cap_5v0a;
 			break;
+		case SLATE_500MA:
+	/*Tab A9  U code for P241205-09345 by yexuedong at 20241211 end*/
 		case SLATE_DISABLE:
 		case SLATE_ENABLE:
 		default:
@@ -768,10 +762,12 @@ void pd_dpm_snk_standby_power(struct pd_port *pd_port)
 		/* Case6 Decreasing the Current, t1 i = new */
 		ma = pd_port->request_i_new;
 		type = TCP_VBUS_CTRL_STANDBY;
+	/* Tab A9_V code for AL6739VDEV-18 by zhangziyi at 20241021 start */
 	} else if (pd_port->request_v_new == pd_port->request_v) {
 		ma = standby_curr;
 		type = TCP_VBUS_CTRL_STANDBY;
 	}
+	/* Tab A9_V code for AL6739VDEV-18 by zhangziyi at 20241021 end */
 
 	if (ma >= 0) {
 		tcpci_sink_vbus(

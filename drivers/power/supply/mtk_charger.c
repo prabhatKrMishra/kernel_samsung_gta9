@@ -72,7 +72,11 @@
 /*Tab A9 code for SR-AX6739A-01-263 by zhawei at 20230522 start*/
 int g_tp_detect_usb_flag = 0;
 EXPORT_SYMBOL(g_tp_detect_usb_flag);
-
+/*Tab A9_na code for AX6739NU-133 by xiongxiaoliang at 20250115 start*/
+#if IS_ENABLED(CONFIG_CUSTOM_PROJECT_OT11_NA)
+bool usb_state_cv3_chg;
+#endif
+/*Tab A9_na code for AX6739NU-133 by xiongxiaoliang at 20250115 end*/
 static BLOCKING_NOTIFIER_HEAD(tp_usb_notifier);
 /**
  *
@@ -109,6 +113,13 @@ int tp_usb_notifier_call_chain(unsigned long val, void *v)
 }
 EXPORT_SYMBOL(tp_usb_notifier_call_chain);
 /*Tab A9 code for SR-AX6739A-01-263 by zhawei at 20230522 end*/
+
+/*Tab A9_na code for AX6739N-20 by zhangziyi at 20241112 start*/
+#if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+extern int battery_get_ibus_value(void);
+int g_ibus_current = 0;
+#endif
+/*Tab A9_na code for AX6739N-20 by zhangziyi at 20241112 end*/
 
 struct tag_bootmode {
 	u32 size;
@@ -869,16 +880,25 @@ static void check_dynamic_mivr(struct mtk_charger *info)
 	}
 
 	if (!is_fast_charge) {
-		vbat = get_battery_voltage(info);
-		if (vbat < info->data.min_charger_voltage_2 / 1000 - 200)
-			charger_dev_set_mivr(info->chg1_dev,
-				info->data.min_charger_voltage_2);
-		else if (vbat < info->data.min_charger_voltage_1 / 1000 - 200)
-			charger_dev_set_mivr(info->chg1_dev,
-				info->data.min_charger_voltage_1);
-		else
-			charger_dev_set_mivr(info->chg1_dev,
-				info->data.min_charger_voltage);
+		/*Tab A9_na code for AX6739NU-133 by xiongxiaoliang at 20250115 start*/
+		#if IS_ENABLED(CONFIG_CUSTOM_PROJECT_OT11_NA)
+		if (info->bootmode == 0 && usb_state_cv3_chg == true) {
+			charger_dev_set_mivr(info->chg1_dev, 5400000);
+		} else
+		#endif
+		{
+			vbat = get_battery_voltage(info);
+			if (vbat < info->data.min_charger_voltage_2 / 1000 - 200)
+				charger_dev_set_mivr(info->chg1_dev,
+					info->data.min_charger_voltage_2);
+			else if (vbat < info->data.min_charger_voltage_1 / 1000 - 200)
+				charger_dev_set_mivr(info->chg1_dev,
+					info->data.min_charger_voltage_1);
+			else
+				charger_dev_set_mivr(info->chg1_dev,
+					info->data.min_charger_voltage);
+		}
+		/*Tab A9_na code for AX6739NU-133 by xiongxiaoliang at 20250115 end*/
 	}
 }
 
@@ -2682,8 +2702,8 @@ static void charger_check_status(struct mtk_charger *info)
 	/*Tab A9 U code for AX6739AU-127 by wenyaqi at 20240102 start*/
 	/*Tab A9 code for SR-AX6739A-01-457 by qiaodan at 20230522 start*/
 	#if !defined(CONFIG_ODM_CUSTOM_FACTORY_BUILD)
-	if (info->gxy_discharge_batt_full_capacity == GXY_MAX_PROTECTION_FLAG ||
-		info->gxy_discharge_batt_full_capacity == GXY_SLEEP_PROTECTION_FLAG) {
+	/*Tab A9_V code for P241221-02215 by xiongxiaoliang at 20250108 start*/
+	if (info->gxy_discharge_batt_full_capacity == GXY_SLEEP_PROTECTION_FLAG) {
 		if (uisoc >= GXY_PROTECT_CAPACITY_LEVEL) {
 			info->gxy_discharge_info |= GXY_DISCHARGE_BATT_FULL_CAPACITY;
 			info->gxy_discharge_batt_full_flag = GXY_MAX_PROTECTION_FLAG;
@@ -2717,9 +2737,27 @@ static void charger_check_status(struct mtk_charger *info)
 		} else {
 			info->gxy_discharge_batt_full_flag = false;
 		}
+	} else if (info->gxy_discharge_batt_full_capacity == GXY_MAX_PROTECTION_FLAG) {
+		if (uisoc >= info->gxy_batt_max_protect_soc) {
+			info->gxy_discharge_info |= GXY_DISCHARGE_BATT_FULL_CAPACITY;
+			info->gxy_discharge_batt_full_flag = GXY_MAX_PROTECTION_FLAG;
+			port_charging = true;
+			charging = false;
+			goto stop_charging;
+		} else if ((uisoc > (info->gxy_batt_max_protect_soc -
+			GXY_FULL_CAPACITY_RECHG_VALUE)) &&
+			info->gxy_discharge_batt_full_flag == GXY_MAX_PROTECTION_FLAG) {
+			info->gxy_discharge_info |= GXY_DISCHARGE_BATT_FULL_CAPACITY;
+			port_charging = true;
+			charging = false;
+			goto stop_charging;
+		} else {
+			info->gxy_discharge_batt_full_flag = false;
+		}
 	} else {
 		info->gxy_discharge_batt_full_flag = false;
 	}
+	/*Tab A9_V code for P241221-02215 by xiongxiaoliang at 20250108 end*/
 	#endif //!CONFIG_ODM_CUSTOM_FACTORY_BUILD
 	/*Tab A9 code for SR-AX6739A-01-457 by qiaodan at 20230522 end*/
 
@@ -3130,7 +3168,16 @@ static int mtk_charger_plug_out(struct mtk_charger *info)
 	memset(&info->sc.data, 0, sizeof(struct scd_cmd_param_t_1));
 	wakeup_sc_algo_cmd(&info->sc.data, SC_EVENT_PLUG_OUT, 0);
 	charger_dev_set_input_current(info->chg1_dev, 100000);
-	charger_dev_set_mivr(info->chg1_dev, info->data.min_charger_voltage);
+	/*Tab A9_na code for AX6739NU-133 by xiongxiaoliang at 20250115 start*/
+	#if IS_ENABLED(CONFIG_CUSTOM_PROJECT_OT11_NA)
+	if (info->bootmode == 0 && usb_state_cv3_chg == true) {
+		charger_dev_set_mivr(info->chg1_dev, 5400000);
+	} else
+	#endif
+	{
+		charger_dev_set_mivr(info->chg1_dev, info->data.min_charger_voltage);
+	}
+	/*Tab A9_na code for AX6739NU-133 by xiongxiaoliang at 20250115 end*/
 	charger_dev_plug_out(info->chg1_dev);
 	mtk_charger_force_disable_power_path(info, CHG1_SETTING, true);
 
@@ -3173,7 +3220,11 @@ static int mtk_charger_plug_in(struct mtk_charger *info,
 	info->batpro_done = false;
 
 	chr_err("mtk_is_charger_on plug in, type:%d\n", chr_type);
-
+	/*Tab A9_na code for AX6739NU-133 by xiongxiaoliang at 20250115 start*/
+	#if IS_ENABLED(CONFIG_CUSTOM_PROJECT_OT11_NA)
+	usb_state_cv3_chg = false;
+	#endif
+	/*Tab A9_na code for AX6739NU-133 by xiongxiaoliang at 20250115 end*/
 	vbat = get_battery_voltage(info);
 
 	notify.evt = EVT_PLUG_IN;
@@ -3271,12 +3322,18 @@ static void kpoc_power_off_check(struct mtk_charger *info)
 					break;
 				}
 				if (info->is_suspend == false) {
+					/*Tab A9 code for AL6739VDEV-701 by yexuedong at 20250327 start*/
+					#ifndef CONFIG_ODM_CUSTOM_BUILD
+					/*Tab A9 code for AL6739VDEV-701 by yexuedong at 20250327 end*/
+					chr_err("%s, is sep, cannot shutdown\n", __func__);
+					#else
 					/*Tab A9 code for P230626-05554 by qiaodan at 20230707 start*/
 					chr_err("%s, not in suspend, shutdown prepare\n", __func__);
 					msleep(4000);
 					chr_err("%s, not in suspend, shutdown entering\n", __func__);
 					/*Tab A9 code for P230626-05554 by qiaodan at 20230707 end*/
 					kernel_power_off();
+					#endif
 				} else {
 					chr_err("%s, suspend! cannot shutdown\n", __func__);
 					msleep(20);
@@ -3968,9 +4025,14 @@ int psy_charger_set_property(struct power_supply *psy,
 #define R_CHARGER_1	330
 #define R_CHARGER_2	39
 
+/*Tab A9_na code for AX6739N-20 by zhangziyi at 20241112 start*/
 static enum power_supply_property chr_type_properties[] = {
 	POWER_SUPPLY_PROP_VOLTAGE_NOW,
+	#if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+	POWER_SUPPLY_PROP_CHARGE_TYPE,
+	#endif
 };
+/*Tab A9_na code for AX6739N-20 by zhangziyi at 20241112 end*/
 
 static int get_vbus_voltage(struct mtk_charger *info,
 	int *val)
@@ -3999,11 +4061,15 @@ static int get_vbus_voltage(struct mtk_charger *info,
 	return ret;
 }
 
+/*Tab A9_na code for AX6739N-20 by zhangziyi at 20241112 start*/
 static int psy_chr_type_get_property(struct power_supply *psy,
 	enum power_supply_property psp, union power_supply_propval *val)
 {
 	struct mtk_charger *info = NULL;
 	int vbus = 0;
+	#if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+	int chr_type = 0;
+	#endif
 
 	info = (struct mtk_charger *)power_supply_get_drvdata(psy);
 	if (info == NULL) {
@@ -4017,12 +4083,25 @@ static int psy_chr_type_get_property(struct power_supply *psy,
 		get_vbus_voltage(info, &vbus);
 		val->intval = vbus;
 		break;
+	#if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+	case POWER_SUPPLY_PROP_CHARGE_TYPE:
+	    if (info->chg1_dev != NULL) {
+			charger_dev_get_chr_type(info->chg1_dev, &chr_type);
+			val->intval = chr_type;
+			pr_err("%s get_ibus val:%d\n", __func__, val->intval);
+		} else {
+			val->intval = 0;
+			pr_err("%s get_ibus fail\n", __func__);
+		}
+	    break;
+	#endif
 	default:
 		return -EINVAL;
 	}
 
 	return 0;
 }
+/*Tab A9_na code for AX6739N-20 by zhangziyi at 20241112 end*/
 /*Tab A9 code for AX6739A-12 by wenyaqi at 20230421 end*/
 
 /*Tab A9 code for SR-AX6739A-01-488 by qiaodan at 20230503 start*/
@@ -4292,6 +4371,60 @@ int chg_alg_event(struct notifier_block *notifier,
 	return NOTIFY_DONE;
 }
 
+/*Tab A9_na code for AX6739NU-133 by xiongxiaoliang at 20250115 start*/
+#if IS_ENABLED(CONFIG_CUSTOM_PROJECT_OT11_NA)
+extern int musb_register_notify(struct notifier_block *nb);
+
+enum usb_state_enum {
+	USB_SUSPEND = 0,
+	USB_UNCONFIGURED,
+	USB_CONFIGURED
+};
+
+static int mtk_charger_usb_event(struct notifier_block *nb,
+        unsigned long status, void *data)
+{
+	struct mtk_charger *info = NULL;
+
+	info = container_of(nb, struct mtk_charger, usb_nb);
+	if (!info) {
+		pr_info("%s: !data, return!\n", __func__);
+		return -EINVAL;
+	}
+
+	if (info->bootmode == 0) {
+		usb_state_cv3_chg = false;
+		switch ((u8)status) {
+			case USB_SUSPEND:
+				pr_info("%s: usb_state_cv3 SUSPEND, set input current <=2.5mA\n", __func__);
+				usb_state_cv3_chg = true;
+				charger_dev_set_mivr(info->chg1_dev, 5400000);
+				break;
+			case USB_UNCONFIGURED:
+				pr_info("%s: usb_state_cv3 UNCONFIGURED, set input current <=100mA\n", __func__);
+				charger_dev_set_mivr(info->chg1_dev, 4600000);
+				charger_dev_set_input_current(info->chg1_dev, 100000);
+				break;
+			case USB_CONFIGURED:
+				if (info->chr_type == POWER_SUPPLY_TYPE_USB) {
+					pr_info("%s: usb_state_cv3 CONFIGURED, set input current 500mA(SDP)\n", __func__);
+					charger_dev_set_input_current(info->chg1_dev, 500000);
+				} else if (info->chr_type == POWER_SUPPLY_TYPE_USB_CDP) {
+					pr_info("%s: usb_state_cv3 CONFIGURED, set input current 1500mA(CDP)\n", __func__);
+					charger_dev_set_input_current(info->chg1_dev, 1500000);
+				}
+				break;
+		}
+		charger_dev_dump_registers(info->chg1_dev);
+	} else {
+		pr_info("%s: not normal_boot mode\n", __func__);
+	}
+
+	return 0;
+}
+#endif
+/*Tab A9_na code for AX6739NU-133 by xiongxiaoliang at 20250115 end*/
+
 static char *mtk_charger_supplied_to[] = {
 	"battery"
 };
@@ -4558,6 +4691,9 @@ static int mtk_charger_probe(struct platform_device *pdev)
 	#if !defined(CONFIG_ODM_CUSTOM_FACTORY_BUILD)
 	info->gxy_discharge_batt_full_capacity = GXY_FULL_CAPACITY_LEVEL;
 	info->gxy_discharge_batt_full_flag = false;
+	/*Tab A9_V code for P241221-02215 by xiongxiaoliang at 20250108 start*/
+	info->gxy_batt_max_protect_soc = GXY_FULL_CAPACITY_LEVEL;
+	/*Tab A9_V code for P241221-02215 by xiongxiaoliang at 20250108 end*/
 	#endif //!CONFIG_ODM_CUSTOM_FACTORY_BUILD
 	/*Tab A9 code for SR-AX6739A-01-457 by qiaodan at 20230522 end*/
 
@@ -4598,7 +4734,15 @@ static int mtk_charger_probe(struct platform_device *pdev)
 		mtk_charger_force_disable_power_path(info, CHG1_SETTING, true);
 
 	kthread_run(charger_routine_thread, info, "charger_thread");
-
+	/*Tab A9_na code for AX6739NU-133 by xiongxiaoliang at 20250115 start*/
+	#if IS_ENABLED(CONFIG_CUSTOM_PROJECT_OT11_NA)
+	info->usb_nb.notifier_call = mtk_charger_usb_event;
+	i = musb_register_notify(&info->usb_nb);
+	if (i < 0) {
+		pr_info("%s: register usb notifer fail\n", __func__);
+	}
+	#endif
+	/*Tab A9_na code for AX6739NU-133 by xiongxiaoliang at 20250115 end*/
 	return 0;
 }
 

@@ -235,6 +235,11 @@ static bool support_fast_charging(struct mtk_charger *info)
 	return ret;
 }
 
+/*Tab A9_na code for AX6739NU-133 by xiongxiaoliang at 20250115 start*/
+#if IS_ENABLED(CONFIG_CUSTOM_PROJECT_OT11_NA)
+extern u8 usb_state_cv3;
+#endif
+/*Tab A9_na code for AX6739NU-133 by xiongxiaoliang at 20250115 end*/
 static bool select_charging_current_limit(struct mtk_charger *info,
 	struct chg_limit_setting *setting)
 {
@@ -283,17 +288,71 @@ static bool select_charging_current_limit(struct mtk_charger *info,
 
 	if (info->chr_type == POWER_SUPPLY_TYPE_USB &&
 	    info->usb_type == POWER_SUPPLY_USB_TYPE_SDP) {
+		/*Tab A9_na code for AX6739NU-133 by xiongxiaoliang at 20250115 start*/
+		#if IS_ENABLED(CONFIG_CUSTOM_PROJECT_OT11_NA)
+		u32 uA1 = 0;
+		u32 uA2 = 0;
+		pr_info("%s:%d usb_state_cv3, pd_type:%d\n", __func__, __LINE__, info->pd_type);
+		if (info->bootmode == 0 && info->pd_type == 0) {
+			if (usb_state_cv3 == 0) {
+				pr_info("%s:%d usb_state_cv3 USB_SUSPEND, set input current 2.5mA\n", __func__, __LINE__);
+				uA1 = 2400;
+			} else if (usb_state_cv3 == 1) {
+				pr_info("%s:%d usb_state_cv3 USB_UNCONFIGURED, set input current 100mA\n", __func__, __LINE__);
+				uA1 = 99000;
+			} else if (usb_state_cv3 == 2) {
+				pr_info("%s:%d usb_state_cv3 USB_CONFIGURED, set input current %dmA\n", __func__, __LINE__,
+					info->data.usb_charger_current/1000);
+				uA1 = info->data.usb_charger_current;
+				uA2 = uA1;
+			}
+		} else {
+			uA1 = info->data.usb_charger_current;
+			uA2 = info->data.usb_charger_current;
+		}
+		pdata->input_current_limit = uA1;
+		pdata->charging_current_limit = uA2;
+		#else
 		pdata->input_current_limit =
 				info->data.usb_charger_current;
 		/* it can be larger */
 		pdata->charging_current_limit =
 				info->data.usb_charger_current;
+		#endif
+		/*Tab A9_na code for AX6739NU-133 by xiongxiaoliang at 20250115 end*/
 		is_basic = true;
 	} else if (info->chr_type == POWER_SUPPLY_TYPE_USB_CDP) {
+		/*Tab A9_na code for AX6739NU-133 by xiongxiaoliang at 20250115 start*/
+		#if IS_ENABLED(CONFIG_CUSTOM_PROJECT_OT11_NA)
+		u32 uA1 = 0;
+		u32 uA2 = 0;
+
+		if (info->bootmode == 0) {
+			if (usb_state_cv3 == 0) {
+				pr_info("%s:%d usb_state_cv3 USB_SUSPEND, set input current 2.5mA\n", __func__, __LINE__);
+				uA1 = 2400;
+			} else if (usb_state_cv3 == 1) {
+				pr_info("%s:%d usb_state_cv3 USB_UNCONFIGURED, set input current 100mA\n", __func__, __LINE__);
+				uA1 = 99000;
+			} else if (usb_state_cv3 == 2) {
+				pr_info("%s:%d usb_state_cv3 USB_CONFIGURED, set input current %dmA\n", __func__, __LINE__,
+					info->data.charging_host_charger_current/1000);
+				uA1 = info->data.charging_host_charger_current;
+				uA2 = uA1;
+			}
+		} else {
+			uA1 = info->data.charging_host_charger_current;
+			uA2 = info->data.charging_host_charger_current;
+		}
+		pdata->input_current_limit = uA1;
+		pdata->charging_current_limit = uA2;
+		#else
 		pdata->input_current_limit =
 			info->data.charging_host_charger_current;
 		pdata->charging_current_limit =
 			info->data.charging_host_charger_current;
+		#endif
+		/*Tab A9_na code for AX6739NU-133 by xiongxiaoliang at 20250115 end*/
 		is_basic = true;
 
 	} else if (info->chr_type == POWER_SUPPLY_TYPE_USB_DCP) {

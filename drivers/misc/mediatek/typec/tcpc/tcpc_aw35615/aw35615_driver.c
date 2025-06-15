@@ -46,7 +46,13 @@ extern void gxy_bat_set_tcpcinfo(enum gxy_bat_tcpc_info tinfo_data);
 
 /*Tab A9 code for AX6739A-708 by wenyaqi at 20230606 start*/
 /* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 start */
+/*Tab A9_na code for AX6739NU-133 by yexuedong at 20250102 start*/
+#if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+#define AW35615_DRIVER_VERSION		"V1.7.3"
+#else
 #define AW35615_DRIVER_VERSION		"V1.7.0"
+#endif
+/*Tab A9_na code for AX6739NU-133 by yexuedong at 20250102 end*/
 /* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 end */
 /*Tab A9 code for AX6739A-708 by wenyaqi at 20230606 end*/
 
@@ -139,7 +145,33 @@ static int aw35615_get_cc(struct tcpc_device *tcpc, int *cc1, int *cc2)
 
 static int aw35615_set_cc(struct tcpc_device *tcpc, int pull)
 {
-    AW_LOG("enter\n");
+    /*Tab A9_NA code for P250124-03110 by xiongxiaoliang at 20250209 start*/
+    struct aw35615_chip *chip = aw35615_GetChip();
+    static bool cc_open_flag = false;
+
+    AW_LOG("pull = %d,typec_local_cc= %d,is_a_to_c_cable=%d, cc_open_flag=%d\n",
+        pull, chip->tcpc->typec_local_cc, chip->port.is_a_to_c_cable, cc_open_flag);
+
+    if (AW_TRUE == chip->port.is_a_to_c_cable || true == cc_open_flag) {
+        switch (pull) {
+            case TYPEC_CC_OPEN:
+                core_set_open(&chip->port);
+                msleep(2000);
+                core_set_try_snk(&chip->port);
+                cc_open_flag = true;
+                break;
+            case TYPEC_CC_RP:
+                if (cc_open_flag) {
+                    chip->tcpc->typec_local_cc = TYPEC_CC_RD;
+                    cc_open_flag = false;
+                }
+                break;
+           default:
+                break;
+        }
+    }
+    /*Tab A9_NA code for P250124-03110 by xiongxiaoliang at 20250209 end*/
+
     return 0;
 }
 
@@ -337,6 +369,9 @@ static void aw35615_init_delay_work(struct work_struct *work)
             pr_err("not plug in with type-C\n");
             debug_reg_show();
     }
+    /* Tab A9_V code for P241112-05620 by xiongxiaoliang at 20241225 start */
+    schedule_delayed_work(&chip->notify_work, msecs_to_jiffies(12000));
+    /* Tab A9_V code for P241112-05620 by xiongxiaoliang at 20241225 end */
     /*Tab A9 code for AX6739A-1452|AX6739A-2389 by lina at 20230725 end*/
     AW_LOG("Core is initialized!\n");
 }
@@ -388,6 +423,27 @@ static enum hrtimer_restart aw35615_bist_timer_func(struct hrtimer *p_hrtimer)
     return HRTIMER_NORESTART;
 }
 /* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 end */
+/* Tab A9_V code for P241112-05620 by xiongxiaoliang at 20241225 start */
+static void aw35615_notify_work(struct work_struct *work)
+{
+    struct aw35615_chip *chip = aw35615_GetChip();
+
+    if (!chip) {
+        pr_err("%s - Chip structure is NULL!\n", __func__);
+        return;
+    }
+    AW_LOG("pe_ready = %d,data_role =%d,PolicyIsDFP=%d",
+        chip->tcpc->pd_port.pe_data.pe_ready,chip->tcpc->pd_port.data_role,chip->port.PolicyIsDFP);
+
+    if (chip->tcpc->pd_port.pe_data.pe_ready) {
+        if (chip->port.PolicyIsDFP) {
+            tcpci_notify_role_swap(chip->tcpc, TCP_NOTIFY_DR_SWAP, PD_ROLE_DFP);
+        } else {
+            tcpci_notify_role_swap(chip->tcpc, TCP_NOTIFY_DR_SWAP, PD_ROLE_UFP);
+        }
+    }
+}
+/* Tab A9_V code for P241112-05620 by xiongxiaoliang at 20241225 end */
 
 static int aw35615_probe(struct i2c_client *client, const struct i2c_device_id *id)
 {
@@ -488,13 +544,15 @@ static int aw35615_probe(struct i2c_client *client, const struct i2c_device_id *
 #endif // AW_DEBUG
 
     /* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 start */
-	INIT_WORK(&chip->bist_work, aw35615_bist_work);
-	hrtimer_init(&chip->bist_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
-	chip->bist_timer.function = aw35615_bist_timer_func;
+    /* Tab A9_V code for P241112-05620 by xiongxiaoliang at 20241225 start */
+    INIT_DELAYED_WORK(&chip->notify_work, aw35615_notify_work);
+    /* Tab A9_V code for P241112-05620 by xiongxiaoliang at 20241225 end */
+    INIT_WORK(&chip->bist_work, aw35615_bist_work);
+    hrtimer_init(&chip->bist_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+    chip->bist_timer.function = aw35615_bist_timer_func;
     /* delay init */
     INIT_DELAYED_WORK(&chip->init_delay_work, aw35615_init_delay_work);
     schedule_delayed_work(&chip->init_delay_work, msecs_to_jiffies(3000));
-
     AW_LOG(" AWINIC Driver loaded successfully!\n");
     AW_LOG(" 20240925\n");
     /* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 end */
@@ -529,7 +587,9 @@ static void aw35615_shutdown(struct i2c_client *client)
         pr_err("AW35615 shutdown - Chip structure is NULL!\n");
         return;
     }
-
+    /*Tab A9_NA code for P250124-03110 by xiongxiaoliang at 20250209 start*/
+    core_enable_typec(&chip->port, AW_FALSE);
+    /*Tab A9_NA code for P250124-03110 by xiongxiaoliang at 20250209 end*/
     /* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 start */
     if (chip->gpio_IntN_irq)
         disable_irq(chip->gpio_IntN_irq);
@@ -537,6 +597,10 @@ static void aw35615_shutdown(struct i2c_client *client)
     //hrtimer_cancel(&chip->sm_timer);
     alarm_cancel(&chip->alarmtimer);
     /* Tab A9_V code for AL6739VDEV-13 by zhangziyi at 20240925 end */
+    /*Tab A9_NA code for P250124-03110 by xiongxiaoliang at 20250209 start*/
+    SetPEState(&chip->port, peDisabled);
+    SetTypeCState(&chip->port, Unattached);
+    /*Tab A9_NA code for P250124-03110 by xiongxiaoliang at 20250209 end*/
     /*Tab A9 code for AX6739A-2500 by liufurong at 20230725 start*/
     reg_data = 0x00;
     DeviceWrite(&chip->port, regSwitches0, 1, &reg_data);
@@ -546,7 +610,6 @@ static void aw35615_shutdown(struct i2c_client *client)
     aw_GPIO_Cleanup();
     /*Tab A9 code for AX6739A-224 by wenyaqi at 20230603 end*/
 
-    core_enable_typec(&chip->port, AW_FALSE);
     ret = DeviceWrite(&chip->port, regControl3, length, &data);
     if (ret < 0)
         pr_err("send hardreset failed, ret = %d\n", ret);

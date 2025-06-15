@@ -144,6 +144,11 @@ enum {
     BATTERY_CYCLE_DEBUG,
     #endif // !CONFIG_ODM_CUSTOM_FACTORY_BUILD
     /*Tab A9 U code for AX6739AU-112 by wenyaqi at 20240125 end*/
+    /*Tab A9_na code for AX6739N-20 by zhangziyi at 20241112 start*/
+    #if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+    IBUS_NOW,
+    #endif
+    /*Tab A9_na code for AX6739N-20 by zhangziyi at 20241112 end*/
 };
 
 /*Tab A9 code for SR-AX6739A-01-499 by wenyaqi at 20230515 start*/
@@ -175,6 +180,9 @@ enum gxy_bat_chg_info {
     /* Tab A9 code for AX6739A-1334 by gaozhengwei at 20230620 start */
     GXY_BAT_CHG_INFO_SGM41515D,
     /* Tab A9 code for AX6739A-1334 by gaozhengwei at 20230620 end */
+    /*Tab A9_na code for AX6739NU-189 by xiongxiaoliang at 20250123 start*/
+    GXY_BAT_CHG_INFO_UPM6922,
+    /*Tab A9_na code for AX6739NU-189 by xiongxiaoliang at 20250123 end*/
 };
 
 /*Tab A9 code for SR-AX6739A-01-470 by wenyaqi at 20230504 start*/
@@ -193,6 +201,15 @@ enum gxy_battery_type {
     GXY_BATTERY_TYPE_UNKNOWN,
 };
 /*Tab A9 code for SR-AX6739A-01-515 by lina at 20230505 end*/
+
+/*Tab A9_na code for AX6739N-20 by zhangziyi at 20241112 start*/
+#if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+enum gxy_chr_type {
+    POWER_SUPPLY_CHARGE_TYPE_SLOW = 5,
+};
+#endif
+/*Tab A9_na code for AX6739N-20 by zhangziyi at 20241112 end*/
+
 /* data struct type */
 struct gxy_bat_hwinfo {
     enum gxy_bat_chg_info cinfo;
@@ -227,7 +244,9 @@ struct gxy_battery_data {
 #define GXY_SLEEP_PROTECTION_FLAG           2   // port_charging on, charging off
 #define GXY_HIGHSOC_PROTECTION_FLAG    3   // port_charging off, charging off
 static const char *gs_basic_protection  = "100";
-static const char *gs_maximum_protection  = "80 OPTION";
+/*Tab A9_V code for P241221-02215 by xiongxiaoliang at 20250108 start*/
+static const char *gs_maximum_protection  = "OPTION";
+/*Tab A9_V code for P241221-02215 by xiongxiaoliang at 20250108 end*/
 static const char *gs_sleep_protection  = "80 SLEEP";
 static const char *gs_highsoc_protection  = "80 HIGHSOC";
 #endif // !CONFIG_ODM_CUSTOM_FACTORY_BUILD

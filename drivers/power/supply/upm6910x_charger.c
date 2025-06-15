@@ -29,6 +29,16 @@
 /*Tab A9 code for SR-AX6739A-01-490 by qiaodan at 20230504 start*/
 #include <linux/power/gxy_psy_sysfs.h>
 
+/*Tab A9_na code for AX6739NU-133 by yexuedong at 20250116 start*/
+#if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+struct upm_tag_bootmode {
+	u32 size;
+	u32 tag;
+	u32 bootmode;
+	u32 boottype;
+};
+#endif
+/*Tab A9_na code for AX6739NU-133 by yexuedong at 20250116 end*/
 
 /**********************************************************
  *
@@ -37,14 +47,26 @@
  *********************************************************/
 extern void gxy_bat_set_chginfo(enum gxy_bat_chg_info cinfo_data);
 /*Tab A9 code for SR-AX6739A-01-490 by qiaodan at 20230504 end*/
-
+/*Tab A9_na code for AX6739N-20 by zhangziyi at 20241112 start*/
+#if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+extern int battery_get_ibus_value(void);
+static bool dump_reg_flag = true;
+static int last_chr_type = POWER_SUPPLY_CHARGE_TYPE_UNKNOWN;
+#endif
+/*Tab A9_na code for AX6739N-20 by zhangziyi at 20241112 end*/
 /**********************************************************
  *
  *   [I2C Slave Setting]
  *
  *********************************************************/
 
+/*Tab A9_na code for AX6739NU-1 by zhangziyi at 20241104 start*/
+#if defined(CONFIG_CUSTOM_PROJECT_OT11_NA) || defined(CONFIG_CUSTOM_PROJECT_OT11_NA_WIFI)
+#define UPM6910_REG_NUM (0xD)
+#else
 #define UPM6910_REG_NUM (0xC)
+#endif
+/*Tab A9_na code for AX6739NU-1 by zhangziyi at 20241104 end*/
 
 /* UPM6910 REG06 BOOST_LIM[5:4], uV */
 static const unsigned int BOOST_VOLT_LIMIT[] = { 4850000, 5000000, 5150000,
@@ -283,6 +305,72 @@ static int upm6910x_set_ichrg_curr(struct charger_device *chg_dev,
     return ret;
 }
 
+/*Tab A9_na code for AX6739NU-1 by zhangziyi at 20241104 start*/
+#if defined(CONFIG_CUSTOM_PROJECT_OT11_NA) || defined(CONFIG_CUSTOM_PROJECT_OT11_NA_WIFI)
+static int upm6910x_set_chrg_volt(struct charger_device *chg_dev, u32 uV)
+{
+    struct upm6910x_device *upm = charger_get_data(chg_dev);
+    u8 val1 = 0;
+    u8 val2 = 0;
+    int ret = 0;
+    int mv = 0;
+
+    pr_notice("[%s] volt = %duV", __func__, uV);
+    mv = uV / 1000;
+
+    if (mv < REG04_VREG_MIN) {
+        mv = REG04_VREG_MIN;
+    } else if (mv > REG04_VREG_MAX) {
+        mv = REG04_VREG_MAX;
+    }
+
+    val1 = (mv - REG04_VREG_BASE) / REG04_VREG_LSB;
+    ret = upm6910x_update_bits(upm, UPM6922_REG_04, REG04_VREG_MASK,
+                   val1 << REG04_VREG_SHIFT);
+    if (ret < 0) {
+        pr_err("write UPM6922_REG_04 fail, ret:%d\n", ret);
+        return ret;
+    }
+
+    val2 = ((mv - REG04_VREG_BASE) % REG04_VREG_LSB) / REG0D_VREG_FT_LSB;
+    ret = upm6910x_update_bits(upm, UPM6922_REG_0D, REG0D_VREG_FT_MASK,
+                   val2 << REG0D_VREG_FT_SHIFT);
+    if (ret < 0) {
+        pr_err("write UPM6922_REG_0D fail, ret:%d\n", ret);
+    }
+
+    return ret;
+}
+
+static int upm6910x_get_chrg_volt(struct charger_device *chg_dev,
+                  unsigned int *volt)
+{
+    struct upm6910x_device *upm = charger_get_data(chg_dev);
+    u8 val1, val2;
+    int cv = 0;
+    int ret = 0;
+
+    ret = upm6910x_read_reg(upm, UPM6922_REG_04, &val1);
+    if (ret < 0){
+        pr_err("read UPM6922_REG_04 fail, ret:%d\n", ret);
+        return ret;
+    }
+
+    ret = upm6910x_read_reg(upm, UPM6922_REG_0D, &val2);
+    if (ret < 0){
+        pr_err("read UPM6922_REG_0D fail, ret:%d\n", ret);
+        return ret;
+    }
+
+    cv = ((val1 & REG04_VREG_MASK) >> REG04_VREG_SHIFT) *
+                REG04_VREG_LSB + REG04_VREG_BASE;
+    cv += ((val2 & REG0D_VREG_FT_MASK) >> REG0D_VREG_FT_SHIFT) * REG0D_VREG_FT_LSB;
+
+    *volt = cv*1000;
+
+    return ret;
+}
+#else
 static int upm6910x_set_chrg_volt(struct charger_device *chg_dev, u32 uV)
 {
     struct upm6910x_device *upm = charger_get_data(chg_dev);
@@ -351,6 +439,7 @@ static int upm6910x_get_chrg_volt(struct charger_device *chg_dev,
 
     return 0;
 }
+#endif
 
 static int upm6910x_set_vac_ovp(struct upm6910x_device *upm, int volt)
 {
@@ -382,12 +471,25 @@ static int upm6910x_set_input_volt_lim(struct charger_device *chg_dev,
     int ret = 0;
     u8 reg_val = 0;
 
+    /*Tab A9_na code for AX6739NU-133 by yexuedong at 20250102 start*/
+    #if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+    if (upm->is_first_plugin == true) {
+        vindpm = 5400000;
+    }
+    #endif
+    /*Tab A9_na code for AX6739NU-133 by yexuedong at 20250102 end*/
+
     if (vindpm < UPM6910_VINDPM_V_MIN_uV) {
         vindpm = UPM6910_VINDPM_V_MIN_uV;
     } else if (vindpm > UPM6910_VINDPM_V_MAX_uV) {
         vindpm = UPM6910_VINDPM_V_MAX_uV;
     }
 
+    /*Tab A9_na code for AX6739NU-133 by yexuedong at 20250102 start*/
+    #if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+    pr_notice("[%s] value = %d, is_first_plugin=%d", __func__, vindpm, upm->is_first_plugin);
+    #endif
+    /*Tab A9_na code for AX6739NU-133 by yexuedong at 20250102 end*/
     pr_notice("[%s] value = %d", __func__, vindpm);
 
     reg_val = (vindpm - UPM6910_VINDPM_V_MIN_uV) / UPM6910_VINDPM_STEP_uV;
@@ -396,6 +498,55 @@ static int upm6910x_set_input_volt_lim(struct charger_device *chg_dev,
 
     return ret;
 }
+
+/*Tab A9_na code for AX6739NU-133 by yexuedong at 20250102 start*/
+#if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+void upm6910x_set_input_volt_lim_pd(bool enable)
+{
+    unsigned int vindpm = 0;
+    if (enable == true) {
+        vindpm = 4600000;
+    } else {
+        vindpm = 5400000;
+    }
+    if (s_chg_dev_otg != NULL) {
+        upm6910x_set_input_volt_lim(s_chg_dev_otg, vindpm);
+    } else {
+        pr_err("[%s] s_chg_dev_otg is NULL", __func__);
+    }
+}
+EXPORT_SYMBOL(upm6910x_set_input_volt_lim_pd);
+void upm6910x_set_input_volt_lim_plugin(struct upm6910x_device *upm)
+{
+    if (s_chg_dev_otg != NULL) {
+        upm6910x_set_input_volt_lim(s_chg_dev_otg, UPM6910_VINDPM_V_MAX_uV);
+        schedule_delayed_work(&upm->set_input_volt_lim_work,
+            msecs_to_jiffies(1500));
+    } else {
+        pr_err("[%s] s_chg_dev_otg is NULL", __func__);
+    }
+}
+static void upm6910x_delay_set_input_volt_lim(struct work_struct *work)
+{
+    struct delayed_work *set_input_volt_lim_work = NULL;
+    struct upm6910x_device *upm = NULL;
+    set_input_volt_lim_work = container_of(work, struct delayed_work, work);
+    if (set_input_volt_lim_work == NULL) {
+        pr_err("Cann't get set_input_volt_lim_work\n");
+        return;
+    }
+    upm = container_of(set_input_volt_lim_work, struct upm6910x_device,
+                       set_input_volt_lim_work);
+    if (upm == NULL) {
+        pr_err("Cann't get upm6910x_device\n");
+        return;
+    }
+    upm->is_first_plugin = false;
+    upm6910x_set_input_volt_lim_pd(true);
+    pr_err("%s end\n", __func__);
+}
+#endif
+/*Tab A9_na code for AX6739NU-133 by yexuedong at 20250102 end*/
 
 static int upm6910x_get_input_volt_lim(struct charger_device *chg_dev, u32 *uV)
 {
@@ -519,7 +670,28 @@ static int upm6910x_chg_attach_pre_process(struct charger_device *chg_dev,
             break;
     }
 
+    /*Tab A9_na code for AX6739NU-133 by yexuedong at 20250116 start*/
+    #if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+    if (upm->bootmode == 0) {
+        if (attach == ATTACH_TYPE_NONE) {
+            upm->is_first_plugin = false;
+        } else {
+            upm->is_first_plugin = true;
+        }
+    }
+    #endif
+    /*Tab A9_na code for AX6739NU-133 by yexuedong at 20250116 end*/
+    /*Tab A9_na code for AX6739NU-121 by xiongxiaoliang at 20241213 start*/
+    upm->state.chrg_type = upm->psy_type;
+    /*Tab A9_na code for AX6739NU-121 by xiongxiaoliang at 20241213 end*/
     power_supply_changed(upm->charger);
+
+    /*Tab A9_na code for AX6739NU-133 by yexuedong at 20250102 start*/
+    #if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+    dev_err(upm->dev, "%s: type(%d %d),attach:%d,is_first_plugin:%d\n", __func__,
+        upm->psy_type, upm->psy_usb_type, attach, upm->is_first_plugin);
+    #endif
+    /*Tab A9_na code for AX6739NU-133 by yexuedong at 20250102 end*/
 
     dev_err(upm->dev, "%s: type(%d %d),attach:%d\n", __func__,
         upm->psy_type, upm->psy_usb_type, attach);
@@ -555,6 +727,34 @@ static int upm6910x_get_input_mincurr_lim(struct charger_device *chg_dev,
     return 0;
 }
 
+#if defined(CONFIG_CUSTOM_PROJECT_OT11_NA) || defined(CONFIG_CUSTOM_PROJECT_OT11_NA_WIFI)
+static int upm6910x_get_vreg(struct upm6910x_device *upm,  unsigned int *volt_uv)
+{
+    u8 val1 = 0;
+    u8 val2 = 0;
+    int cv = 0;
+    int ret = 0;
+
+    ret = upm6910x_read_reg(upm, UPM6922_REG_04, &val1);
+    if (ret < 0){
+        pr_err("read UPM6922_REG_04 fail, ret:%d\n", ret);
+        return ret;
+    }
+
+    ret = upm6910x_read_reg(upm, UPM6922_REG_0D, &val2);
+    if (ret < 0){
+        pr_err("read UPM6922_REG_0D fail, ret:%d\n", ret);
+        return ret;
+    }
+
+    cv = ((val1 & REG04_VREG_MASK) >> REG04_VREG_SHIFT) *
+                REG04_VREG_LSB + REG04_VREG_BASE;
+    cv += ((val2 & REG0D_VREG_FT_MASK) >> REG0D_VREG_FT_SHIFT) * REG0D_VREG_FT_LSB;
+
+    *volt_uv = cv * 1000;
+    return ret;
+}
+#else
 /*Tab A9 code for AX6739A-765 by hualei at 20230612 start*/
 static int upm6910x_get_vreg(struct upm6910x_device *upm,  unsigned int *volt_uv)
 {
@@ -582,6 +782,8 @@ static int upm6910x_get_vreg(struct upm6910x_device *upm,  unsigned int *volt_uv
     return ret;
 }
 /*Tab A9 code for AX6739A-765 by hualei at 20230612 end*/
+#endif
+/*Tab A9_na code for AX6739NU-1 by zhangziyi at 20241104 end*/
 
 /*Tab A9 code for SR-AX6739A-01-494 by qiaodan at 20230506 start*/
 static int upm6910x_get_chrg_stat(struct upm6910x_device *upm)
@@ -624,7 +826,9 @@ static int upm6910x_get_chrg_stat(struct upm6910x_device *upm)
             break;
         }
     }
-
+    /*Tab A9_na code for AX6739NU-121 by xiongxiaoliang at 20241213 start*/
+    pr_err("%s chrg_type=%d, psy_stat_now=%d\n", __func__, upm->state.chrg_type, psy_stat_now);
+    /*Tab A9_na code for AX6739NU-121 by xiongxiaoliang at 20241213 end*/
     if (s_psy_stat_old == POWER_SUPPLY_STATUS_NOT_CHARGING &&
         psy_stat_now == POWER_SUPPLY_STATUS_CHARGING) {
         power_supply_changed(upm->charger);
@@ -708,6 +912,28 @@ static int upm6910x_set_en_ignorebc12(struct upm6910x_device *upm, bool enable)
     return ret;
 }
 /*Tab A9 code for AX6739A-2076 by hualei at 20230707 end*/
+
+/*Tab A9_na code for AX6739NU-1 by zhangziyi at 20241104 start*/
+#if defined(CONFIG_CUSTOM_PROJECT_OT11_NA) || defined(CONFIG_CUSTOM_PROJECT_OT11_NA_WIFI)
+static int upm6910x_set_trim_code(struct upm6910x_device *upm)
+{
+    int ret = 0;
+
+    upm6910x_write_byte(upm, UPM6910_CHRG_CTRL_A9, UPM6910_CHRG_SPECIAL_MODE);
+    ret = upm6910x_update_bits(upm, UPM6922_REG_AB,
+                REGAB_MIN_TOFF_MASK,
+                REGAB_MIN_TOFF_SET << REGAB_MIN_TOFF_SHIFT);
+
+    ret = upm6910x_update_bits(upm, UPM6922_REG_AB,
+                REGAB_SCAN_CUR_MASK,
+                REGAB_SCAN_CUR_SET << REGAB_SCAN_CUR_SHIFT);
+    upm6910x_write_byte(upm, UPM6910_CHRG_CTRL_A9, 0);
+
+
+    return ret;
+}
+#endif
+/*Tab A9_na code for AX6739NU-1 by zhangziyi at 20241104 end*/
 
 static int upm6910x_get_chgtype(struct upm6910x_device *upm,
                 struct upm6910x_state *state, bool type_recheck)
@@ -1124,6 +1350,34 @@ static int upm6910x_set_recharge_volt(struct upm6910x_device *upm, int mV)
                     reg_val);
 }
 
+/*Tab A9_na code for AX6739N-20 by zhangziyi at 20241112 start*/
+#if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+static int upm6910x_get_chr_type(struct charger_device *chg_dev, int *chr_type);
+static int upm6910x_dump_register(struct charger_device *chg_dev)
+{
+    struct upm6910x_device *upm = charger_get_data(chg_dev);
+    unsigned char i = 0;
+    unsigned int ret = 0;
+    unsigned char upm6910x_reg[UPM6910_REG_NUM + 1] = { 0 };
+    int chr_type = 0;
+
+    for (i = 0; i < UPM6910_REG_NUM + 1; i++) {
+        ret = upm6910x_read_reg(upm, i, &upm6910x_reg[i]);
+        if (ret != 0) {
+            pr_info("[upm6910x] i2c transfor error\n");
+            return 1;
+        }
+        pr_info("%s,[0x%x]=0x%x ", __func__, i, upm6910x_reg[i]);
+    }
+
+    if (dump_reg_flag) {
+        upm6910x_get_chr_type(chg_dev, &chr_type);
+        dump_reg_flag = false;
+    }
+
+    return 0;
+}
+#else
 static int upm6910x_dump_register(struct charger_device *chg_dev)
 {
     struct upm6910x_device *upm = charger_get_data(chg_dev);
@@ -1142,6 +1396,8 @@ static int upm6910x_dump_register(struct charger_device *chg_dev)
 
     return 0;
 }
+#endif
+/*Tab A9_na code for AX6739N-20 by zhangziyi at 20241112 end*/
 
 /*Tab A9 code for AX6739A-2299 by hualei at 20230713 start*/
 static int upm6910x_plug_in(struct charger_device *chg_dev)
@@ -1155,6 +1411,12 @@ static int upm6910x_plug_in(struct charger_device *chg_dev)
     if (ret) {
         dev_err(upm->dev, "Failed to enable charging:%d\n", ret);
     }
+    /*Tab A9_na code for AX6739N-20 by zhangziyi at 20241112 start*/
+    #if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+    dump_reg_flag = true;
+    last_chr_type = POWER_SUPPLY_CHARGE_TYPE_UNKNOWN;
+    #endif
+    /*Tab A9_na code for AX6739N-20 by zhangziyi at 20241112 end*/
 
     return ret;
 }
@@ -1172,6 +1434,12 @@ static int upm6910x_plug_out(struct charger_device *chg_dev)
     if (ret) {
         dev_err(upm->dev, "Failed to disable charging:%d\n", ret);
     }
+    /*Tab A9_na code for AX6739N-20 by zhangziyi at 20241112 start*/
+    #if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+    dump_reg_flag = true;
+    last_chr_type = POWER_SUPPLY_CHARGE_TYPE_UNKNOWN;
+    #endif
+    /*Tab A9_na code for AX6739N-20 by zhangziyi at 20241112 end*/
 
     return ret;
 }
@@ -1227,7 +1495,13 @@ static int upm6910x_hw_dev_rev_detect(struct upm6910x_device *upm)
 
     val = val & UPM6910_DEV_REV_MASK;
     if (val == UPM6910_DEV_REV_DH) {
+        /*Tab A9_na code for AX6739NU-189 by xiongxiaoliang at 20250123 start*/
+        #if defined(CONFIG_CUSTOM_PROJECT_OT11_NA) || defined(CONFIG_CUSTOM_PROJECT_OT11_NA_WIFI)
+        gxy_bat_set_chginfo(GXY_BAT_CHG_INFO_UPM6922);
+        #else
         gxy_bat_set_chginfo(GXY_BAT_CHG_INFO_UPM6910DH);
+        #endif
+        /*Tab A9_na code for AX6739NU-189 by xiongxiaoliang at 20250123 end*/
     } else if (val == UPM6910_DEV_REV_DS) {
         gxy_bat_set_chginfo(GXY_BAT_CHG_INFO_UPM6910DS);
     }
@@ -1518,6 +1792,13 @@ static void charger_detect_work_func(struct work_struct *work)
     if (!vbus_attach_pre && state.vbus_attach) {
         pr_notice("adapter/usb inserted\n");
         upm->chg_config = true;
+        /*Tab A9_na code for AX6739NU-133 by yexuedong at 20250116 start*/
+        #if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+        if (upm->bootmode == 0) {
+            upm6910x_set_input_volt_lim_plugin(upm);
+        }
+        #endif
+        /*Tab A9_na code for AX6739NU-133 by yexuedong at 20250116 end*/
     } else if (vbus_attach_pre && !state.vbus_attach) {
         pr_notice("adapter/usb removed\n");
         /*Tab A9 code for AX6739A-1460 by hualei at 20230625 start*/
@@ -1539,6 +1820,13 @@ static void charger_detect_work_func(struct work_struct *work)
         upm->force_dpdm = false;
         /*Tab A9 code for AX6739A-2344 by hualei at 20230717 end*/
     }
+    /*Tab A9_na code for AX6739NU-133 by xiongxiaoliang at 20250121 start*/
+    #if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+    else if (vbus_attach_pre && state.vbus_attach) {
+        upm->is_first_plugin = false;
+    }
+    #endif
+    /*Tab A9_na code for AX6739NU-133 by xiongxiaoliang at 20250121 end*/
     /*Tab A9 code for SR-AX6739A-01-494 by qiaodan at 20230506 end*/
 
     /* bc12 done, get charger type */
@@ -1709,6 +1997,11 @@ static int upm6910x_hw_init(struct upm6910x_device *upm)
     upm->init_data.max_vreg = UPM6910_VREG_V_MAX_uV;
 
     upm6910x_set_watchdog_timer(upm, 0);
+    /*Tab A9_na code for AX6739NU-1 by zhangziyi at 20241104 start*/
+    #if defined(CONFIG_CUSTOM_PROJECT_OT11_NA) || defined(CONFIG_CUSTOM_PROJECT_OT11_NA_WIFI)
+    upm6910x_set_trim_code(upm);
+    #endif
+    /*Tab A9_na code for AX6739NU-1 by zhangziyi at 20241104 end*/
 
     ret = upm6910x_set_ichrg_curr(s_chg_dev_otg,
                       bat_info.constant_charge_current_max_ua);
@@ -1795,10 +2088,36 @@ err_out:
 
 static int upm6910x_parse_dt(struct upm6910x_device *upm)
 {
+    /*Tab A9_na code for AX6739NU-133 by yexuedong at 20250116 start*/
+    #if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+    struct device_node *boot_node = NULL;
+    struct upm_tag_bootmode *tag = NULL;
+    #endif
     int ret = 0;
     int irq_gpio = 0, irqn = 0;
 
     dev_err(upm->dev, "[%s] enter\n", __func__);
+
+    #if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+    boot_node = of_find_node_by_path("/chosen");
+    if (!boot_node) {
+        boot_node = of_find_node_by_path("/chosen@0");
+    }
+    if (boot_node) {
+        tag = (struct upm_tag_bootmode *)of_get_property(boot_node,
+                                "atag,boot", NULL);
+        if (!tag)
+            dev_err(upm->dev, "%s: failed to get atag,boot\n", __func__);
+        else {
+            dev_err(upm->dev, "%s: size:0x%x tag:0x%x bootmode:0x%x boottype:0x%x\n",
+                             __func__, tag->size, tag->tag, tag->bootmode, tag->boottype);
+            upm->bootmode = tag->bootmode;
+        }
+    } else {
+        dev_err(upm->dev, "%s: failed to get /chosen and /chosen@0\n", __func__);
+    }
+    #endif
+    /*Tab A9_na code for AX6739NU-133 by yexuedong at 20250116 end*/
 
     ret = device_property_read_u32(upm->dev,
                        "input-voltage-limit-microvolt",
@@ -1927,6 +2246,116 @@ static int upm6910x_set_boost_current_limit(struct charger_device *chg_dev,
     return ret;
 }
 
+/*Tab A9_na code for AX6739N-20 by zhangziyi at 20241112 start*/
+#if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+static int upm6910x_get_chr_type(struct charger_device *chg_dev, int *chr_type)
+{
+    int i = 0;
+    int ret = 0;
+    int vbus = 0;
+    int ibus = 0;
+    int vbat = 0;
+    u8 chg_stat = 0;
+    u8 vbus_stat = 0;
+    union power_supply_propval vbus_prop;
+    union power_supply_propval vbat_prop;
+    static struct power_supply *chg_psy = NULL;
+    static struct power_supply *batt_psy = NULL;
+    struct upm6910x_device *upm = charger_get_data(chg_dev);
+
+    *chr_type = POWER_SUPPLY_CHARGE_TYPE_UNKNOWN;
+    msleep(500);
+
+    //vbus_stat
+    ret = upm6910x_read_reg(upm, UPM6910_CHRG_STAT, &vbus_stat);
+    vbus_stat &= UPM6910_VBUS_STAT_MASK;
+    vbus_stat = vbus_stat >> 5;
+    pr_err("%s: vbus_stat:%d\n", __func__, vbus_stat);
+    if (vbus_stat == 6) {
+        *chr_type = POWER_SUPPLY_CHARGE_TYPE_SLOW;
+        last_chr_type = POWER_SUPPLY_CHARGE_TYPE_SLOW;
+        pr_err("%s: non-standard charger\n", __func__);
+        return 0;
+    }
+
+    if (dump_reg_flag) {
+        //chg_stat
+        ret = upm6910x_read_reg(upm, UPM6910_CHRG_STAT, &chg_stat);
+        chg_stat = (chg_stat >> 3) & 3;
+        pr_err("%s: chg_stat:%d\n", __func__, chg_stat);
+        switch (chg_stat) {
+            case 1:
+                *chr_type = POWER_SUPPLY_CHARGE_TYPE_TRICKLE;
+                last_chr_type = POWER_SUPPLY_CHARGE_TYPE_TRICKLE;
+                break;
+            case 2:
+                *chr_type = POWER_SUPPLY_CHARGE_TYPE_FAST;
+                last_chr_type = POWER_SUPPLY_CHARGE_TYPE_FAST;
+
+                if (chg_psy == NULL) {
+                    chg_psy = power_supply_get_by_name("mtk_charger_type");
+                }
+                if (chg_psy == NULL || IS_ERR(chg_psy)) {
+                    pr_err("%s Couldn't get chg_psy\n", __func__);
+                    return -EPERM;
+                } else {
+                    power_supply_get_property(chg_psy,
+                            POWER_SUPPLY_PROP_VOLTAGE_NOW, &vbus_prop);
+                    vbus = vbus_prop.intval;
+                    pr_err("%s: vbus:%d\n", __func__, vbus);
+                }
+
+                //vbat
+                if (batt_psy == NULL) {
+                    batt_psy = power_supply_get_by_name("battery");
+                }
+                if (batt_psy == NULL || IS_ERR(batt_psy)) {
+                    pr_err("%s Couldn't get batt_psy\n", __func__);
+                    return -EPERM;
+                } else {
+                    power_supply_get_property(batt_psy,
+                            POWER_SUPPLY_PROP_VOLTAGE_NOW, &vbat_prop);
+                    vbat = vbat_prop.intval;
+
+                    pr_err("%s: vbat:%d\n", __func__, vbat);
+
+                    if (vbat > 4350000) {
+                        *chr_type = POWER_SUPPLY_CHARGE_TYPE_TAPER;
+                        last_chr_type = POWER_SUPPLY_CHARGE_TYPE_TAPER;
+                        pr_err("%s: vbat: > 4.35v\n", __func__);
+                        return 0;
+                    }
+                }
+
+                //ibus
+                for (i = 0; i < 2; i++)  {
+                    ibus = battery_get_ibus_value() * 2;
+                    pr_err("[%s] ibus = %d\n", __func__, ibus);
+                    msleep(200);
+                }
+
+                if (*chr_type != POWER_SUPPLY_CHARGE_TYPE_NONE && vbus <= 4600 && ibus < 1000) {
+                    *chr_type = POWER_SUPPLY_CHARGE_TYPE_SLOW;
+                    last_chr_type = POWER_SUPPLY_CHARGE_TYPE_SLOW;
+                    pr_err("%s: slow charger\n", __func__);
+                }
+                break;
+            default:
+                *chr_type = POWER_SUPPLY_CHARGE_TYPE_NONE;
+                last_chr_type = POWER_SUPPLY_CHARGE_TYPE_NONE;
+                break;
+        }
+    } else {
+        *chr_type = last_chr_type;
+    }
+
+    pr_err("[%s] dump_reg_flag = %d, last_chr_type:%d\n", __func__, dump_reg_flag, last_chr_type);
+
+    return 0;
+}
+#endif
+/*Tab A9_na code for AX6739N-20 by zhangziyi at 20241112 end*/
+
 static struct regulator_ops upm6910x_vbus_ops = {
     .enable = upm6910x_enable_vbus,
     .disable = upm6910x_disable_vbus,
@@ -2027,6 +2456,11 @@ static struct charger_ops upm6910x_chg_ops = {
     /*Tab A9 code for AX6739A-409 by wenyaqi at 20230530 start*/
     .get_hvdcp_status = upm6910x_get_hvdcp_status,
     /*Tab A9 code for AX6739A-409 by wenyaqi at 20230530 end*/
+    /*Tab A9_na code for AX6739N-20 by zhangziyi at 20241112 start*/
+    #if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+    .get_chr_type = upm6910x_get_chr_type,
+    #endif
+    /*Tab A9_na code for AX6739N-20 by zhangziyi at 20241112 end*/
 };
 
 static int upm6910x_driver_probe(struct i2c_client *client,
@@ -2098,6 +2532,11 @@ static int upm6910x_driver_probe(struct i2c_client *client,
     /*Tab A9 code for AX6739A-2076 by hualei at 20230707 start*/
     INIT_DELAYED_WORK(&upm->force_detect_dwork, upm6910x_force_detection_dwork_handler);
     /*Tab A9 code for AX6739A-2076 by hualei at 20230707 end*/
+    /*Tab A9_na code for AX6739NU-133 by yexuedong at 20250102 start*/
+    #if defined(CONFIG_CUSTOM_PROJECT_OT11_NA)
+    INIT_DELAYED_WORK(&upm->set_input_volt_lim_work, upm6910x_delay_set_input_volt_lim);
+    #endif
+    /*Tab A9_na code for AX6739NU-133 by yexuedong at 20250102 end*/
     upm->hvdcp_done = false;
     /*Tab A9 code for AX6739A-409 by wenyaqi at 20230530 end*/
 
