@@ -1932,9 +1932,11 @@ static unsigned noinline_for_stack move_pages_to_lru(struct lruvec *lruvec,
 	int nr_pages, nr_moved = 0;
 	LIST_HEAD(pages_to_free);
 	struct page *page;
+	enum lru_list lru;
 
 	while (!list_empty(list)) {
 		page = lru_to_page(list);
+		lru = page_lru(page);
 		VM_BUG_ON_PAGE(PageLRU(page), page);
 		list_del(&page->lru);
 		if (unlikely(!page_evictable(page))) {
