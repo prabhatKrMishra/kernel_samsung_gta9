@@ -132,3 +132,5 @@ obj-$(CONFIG_PTDUMP_CORE) += ptdump.o
 obj-$(CONFIG_PAGE_REPORTING) += page_reporting.o
 
 obj-$(CONFIG_PAGE_BOOST_RECORDING) += io_record.o
+
+obj-$(CONFIG_OPLUS_MEM_OPT_SUITE) += oplus_opt/
