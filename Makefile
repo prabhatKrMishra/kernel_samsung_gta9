@@ -783,14 +783,12 @@ endif
 
 # Enable Cortex-A55 optimizations
 ifeq ($(CONFIG_CC_IS_CLANG), y)
-KBUILD_CFLAGS   += -pipe -fvisibility=hidden
+KBUILD_CFLAGS   += -pipe
 KBUILD_CFLAGS   += -fvectorize -fomit-frame-pointer -funroll-loops
-KBUILD_CFLAGS   += -finline-functions -mfloat-abi=hard -foptimize-sibling-calls
-KBUILD_CFLAGS   += -fmerge-all-constants -falign-functions=32
+KBUILD_CFLAGS   += -finline-functions -fmerge-all-constants
 KBUILD_CFLAGS   += -mfloat-abi=hard -mfpu=neon-fp-armv8
 KBUILD_CFLAGS   += -mllvm -enable-loop-distribute
-KBUILD_CFLAGS   += -mllvm -enable-load-pre
-KBUILD_CFLAGS   += -mllvm -regalloc=greedy
+KBUILD_CFLAGS   += -mllvm -vectorize-loops
 
 KBUILD_CFLAGS   += -march=armv8.2-a+crypto+fp16+dotprod
 KBUILD_CFLAGS   += -mcpu=cortex-a55 -mtune=cortex-a55
