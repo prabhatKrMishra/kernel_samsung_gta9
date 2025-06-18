@@ -56,7 +56,7 @@ if [ "$SKIP_DEFCONFIG" -eq 1 ]; then
 fi
 
 cd $BUILD_DIRECTORY
-./build/build.sh -j$(nproc) HOSTCC='clang' HOSTCXX='clang++' HOSTLD='ld.lld' CC='clang' CXX='clang++' LD='ld.lld' LLVM='clang' AR='llvm-ar' NM='llvm-nm' OBJCOPY='llvm-objcopy' OBJDUMP='llvm-objdump' OBJSIZE='llvm-size' READELF='llvm-readelf' STRIP='llvm-strip' LLVM=1 LLVM_IAS=1
+./build/build.sh -j$(($(nproc) - 1)) HOSTCC='clang' HOSTCXX='clang++' HOSTLD='ld.lld' CC='clang' CXX='clang++' LD='ld.lld' LLVM='clang' AR='llvm-ar' NM='llvm-nm' OBJCOPY='llvm-objcopy' OBJDUMP='llvm-objdump' OBJSIZE='llvm-size' READELF='llvm-readelf' STRIP='llvm-strip' LLVM=1 LLVM_IAS=1
 
 copy_modules() {
     echo "========================================================"
@@ -70,10 +70,6 @@ rename_modules() {
     echo " Renaming vendor modules."
     mv "$MODULES_DIRECTORY/mtk_fpsgo.ko" "$MODULES_DIRECTORY/fpsgo.ko"
     echo " mtk_fpsgo.ko ==> fpsgo.ko"
-    mv "$MODULES_DIRECTORY/mali_mgm_mt6789.ko" "$MODULES_DIRECTORY/mali_mgm.ko"
-    echo " mali_mgm_mt6789.ko ==> mali_mgm.ko"
-    mv "$MODULES_DIRECTORY/mali_prot_alloc_mt6789.ko" "$MODULES_DIRECTORY/mali_prot_alloc.ko"
-    echo " mali_prot_alloc_mt6789.ko ==> mali_prot_alloc.ko"
 }
 
 select_modules_vendor_boot() {
@@ -83,10 +79,10 @@ select_modules_vendor_boot() {
 	else
 	  COMPILED_MODULES_DIR=$MODULES_DIRECTORY
 	  DEST_DIR=$OUTPUT_DIRECTORY/vendor_boot_modules
-	  
+
 	  rm -rf "$DEST_DIR"
 	  mkdir -p "$DEST_DIR"
-	  
+
 	  while IFS= read -r module; do
 	    if [ -f "$COMPILED_MODULES_DIR/$module" ]; then
 	        cp "$COMPILED_MODULES_DIR/$module" "$DEST_DIR"
@@ -104,10 +100,10 @@ select_modules_vendor_dlkm() {
 	else
 	  COMPILED_MODULES_DIR=$MODULES_DIRECTORY
 	  DEST_DIR=$OUTPUT_DIRECTORY/vendor_dlkm_modules
-	  
+
 	  rm -rf "$DEST_DIR"
 	  mkdir -p "$DEST_DIR"
-	  
+
 	  while IFS= read -r module; do
 	    if [ -f "$COMPILED_MODULES_DIR/$module" ]; then
 	        cp "$COMPILED_MODULES_DIR/$module" "$DEST_DIR"
@@ -119,30 +115,14 @@ select_modules_vendor_dlkm() {
 	echo "========================================================"
 }
 
-create_dtb_img() {
-    DIST_DIR=${OUTPUT_DIRECTORY}/gen_dtb
-    rm -rf ${DIST_DIR}
-    mkdir -p ${DIST_DIR}
+copy_binaries() {
+	echo " Copying kernel binaries"
+	KERNEL_BINARY_DIR=$OUTPUT_DIRECTORY/kernel-5.10/arch/arm64/boot
+	KERNEL_DTB_DIR=$OUTPUT_DIRECTORY/kernel-5.10/arch/arm64/boot/dts/mediatek
 
-    BASE_DIRS=(
-        mediatek
-    )
-
-    for BASE_DIR in "${BASE_DIRS[@]}"; do
-        DIR_PATH="${OUTPUT_DIRECTORY}/kernel-5.10/arch/arm64/boot/dts/${BASE_DIR}"
-        if [ -d "$DIR_PATH" ]; then
-            DTB_FILES=$(find "$DIR_PATH" -name "*.dtb")
-            for FILE in $DTB_FILES; do
-                cp "$FILE" "${DIST_DIR}/"
-            done
-        else
-            echo "Directory $DIR_PATH does not exist!"
-        fi
-    done
-
-    DTB_FILE_LIST=$(find ${DIST_DIR} -name "*.dtb" | sort)
-    cat $DTB_FILE_LIST > ${OUTPUT_DIRECTORY}/kernel-5.10/arch/arm64/boot/dtb
-    rm -rf $DIST_DIR
+	cp "$KERNEL_BINARY_DIR/Image.gz" "$OUTPUT_DIRECTORY"
+	cp "$KERNEL_DTB_DIR/mt6789.dtb" "$OUTPUT_DIRECTORY/dtb"
+	cp "$KERNEL_DTB_DIR/mt8781_gta9_eur_open_00.dtbo" "$OUTPUT_DIRECTORY/dtbo"
 }
 
 # Check if 'arch/arm64/boot/Image.gz' exists
@@ -158,10 +138,14 @@ if [ -f $OUTPUT_DIRECTORY/kernel-5.10/arch/arm64/boot/Image.gz ]; then
     echo ''
     select_modules_vendor_dlkm
     #echo " Proceeding with generating dtb"
-    #create_dtb
     echo ''
-    echo " KERNEL binary is ready in $OUTPUT_DIRECTORY/kernel-5.10/arch/arm64/boot/Image"
-    echo " MDULES are ready in $OUTPUT_DIRECTORY/vendor_boot_modules & $OUTPUT_DIRECTORY/vendor_dlkm_modules"
+    copy_binaries
+    echo ''
+    echo " KERNEL binary file is ready as out/Image.gz"
+    echo " DTB binary file is ready as out/dtb"
+    echo " DTBO binary file is ready as out/dtbo"
+    echo " VENDOR_BOOT modules are ready in out/vendor_boot_modules"
+    echo " VENDOR_DLKM modules are ready in out/vendor_dlkm_modules"
     echo ''
 else
     echo ''
