@@ -1,43 +1,35 @@
-# Apply network parameters for high data performance
-echo "bbr" > /proc/sys/net/ipv4/tcp_congestion_control
+# Setup runtime cpusets
+echo "0-7" > /dev/cpuset/top-app/cpus
+echo "0-7" > /dev/cpuset/foreground/cpus
+echo "0-5" > /dev/cpuset/background/cpus
+echo "0-5" > /dev/cpuset/system-background/cpus
+echo "2-5" > /dev/cpuset/restricted/cpus
 
-# Adjust TCP buffer sizes
+# Set default and maximum receive buffer sizes
 echo 1310720 > /proc/sys/net/core/rmem_default
 echo 8388608 > /proc/sys/net/core/rmem_max
+
+# Set default and maximum send buffer sizes
 echo 327680 > /proc/sys/net/core/wmem_default
 echo 8388608 > /proc/sys/net/core/wmem_max
+
+# Set maximum size for ancillary data and options
 echo 20480 > /proc/sys/net/core/optmem_max
+
+# Increase network device input backlog
 echo 10000 > /proc/sys/net/core/netdev_max_backlog
 
-# Adjust TCP receive and send memory
+# Set TCP receive buffer sizes (min default max)
 echo "2097152 4194304 8388608" > /proc/sys/net/ipv4/tcp_rmem
+
+# Set TCP send buffer sizes (min default max)
 echo "262144 524288 8388608" > /proc/sys/net/ipv4/tcp_wmem
 
-# Adjust UDP memory limits
+# Set total TCP memory thresholds (low pressure high - in pages)
 echo "44259 59012 88518" > /proc/sys/net/ipv4/tcp_mem
+
+# Set total UDP memory thresholds (low pressure high - in pages)
 echo "88518 118025 177036" > /proc/sys/net/ipv4/udp_mem
-
-# TCP keepalive time (how often to check if the connection is still active)
-echo 1800 > /proc/sys/net/ipv4/tcp_keepalive_time
-# TCP keepalive interval (how often to check)
-echo 60 > /proc/sys/net/ipv4/tcp_keepalive_intvl
-# TCP keepalive probes (how many probes before the connection is considered dead)
-echo 5 > /proc/sys/net/ipv4/tcp_keepalive_probes
-
-# Enable tcp_low_latency for even faster ACKs
-echo 1 > /proc/sys/net/ipv4/tcp_low_latency
-
-# Enable TCP Fast Open
-echo 3 > /proc/sys/net/ipv4/tcp_fastopen
-
-# Increase the Maximum Number of Open Sockets
-echo 1048576 > /proc/sys/net/core/somaxconn
-
-# Disable TCP Slow Start
-echo 1 > /proc/sys/net/ipv4/tcp_slow_start_after_idle
-
-# Use the "best-effort" scheduler for the network
-echo 1 > /proc/sys/net/core/netdev_budget
 
 # Set RPS (Receive Packet Steering) for each rmnet interface
 echo fe > /sys/class/net/rmnet0/queues/rx-0/rps_cpus
@@ -52,11 +44,15 @@ echo fe > /sys/class/net/rmnet7/queues/rx-0/rps_cpus
 # Set governor settings for CPU scaling
 echo "schedutil" > /sys/devices/system/cpu/cpufreq/policy0/scaling_governor
 echo 500 > /sys/devices/system/cpu/cpufreq/policy0/schedutil/up_rate_limit_us
-echo 1000 > /sys/devices/system/cpu/cpufreq/policy0/schedutil/down_rate_limit_us
+echo 20000 > /sys/devices/system/cpu/cpufreq/policy0/schedutil/down_rate_limit_us
 
 echo "schedutil" > /sys/devices/system/cpu/cpufreq/policy6/scaling_governor
 echo 500 > /sys/devices/system/cpu/cpufreq/policy6/schedutil/up_rate_limit_us
-echo 1000 > /sys/devices/system/cpu/cpufreq/policy6/schedutil/down_rate_limit_us
+echo 20000 > /sys/devices/system/cpu/cpufreq/policy6/schedutil/down_rate_limit_us
+
+# Disable Core control on both clusters
+echo 0 > /sys/devices/system/cpu/cpu0/core_ctl/enable
+echo 0 > /sys/devices/system/cpu/cpu6/core_ctl/enable
 
 # Fix mali GPU
 echo 'simple_ondemand' > /sys/devices/platform/soc/13000000.mali/devfreq/13000000.mali/governor
@@ -86,6 +82,13 @@ echo 0 > /proc/sys/kernel/sched_schedstats
 echo 64 > /sys/block/sda/queue/nr_requests
 echo 0 > /sys/block/sda/queue/iostats
 
+# Disable logging
+echo "0" > /proc/sys/debug/exception-trace
+echo "0 0 0 0" > /proc/sys/kernel/printk
+
 # Enable console_suspend to save power
 echo "Y" > /sys/module/printk/parameters/console_suspend
+
+# Enable KSM
+echo 1 > /sys/kernel/mm/ksm/run
 
