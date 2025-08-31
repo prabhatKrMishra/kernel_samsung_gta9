@@ -3,7 +3,7 @@ echo "0-7" > /dev/cpuset/top-app/cpus
 echo "0-7" > /dev/cpuset/foreground/cpus
 echo "0-5" > /dev/cpuset/background/cpus
 echo "0-5" > /dev/cpuset/system-background/cpus
-echo "2-5" > /dev/cpuset/restricted/cpus
+echo "0-1" > /dev/cpuset/restricted/cpus
 
 # Set default and maximum receive buffer sizes
 echo 1310720 > /proc/sys/net/core/rmem_default
@@ -44,15 +44,11 @@ echo fe > /sys/class/net/rmnet7/queues/rx-0/rps_cpus
 # Set governor settings for CPU scaling
 echo "schedutil" > /sys/devices/system/cpu/cpufreq/policy0/scaling_governor
 echo 500 > /sys/devices/system/cpu/cpufreq/policy0/schedutil/up_rate_limit_us
-echo 20000 > /sys/devices/system/cpu/cpufreq/policy0/schedutil/down_rate_limit_us
+echo 1000 > /sys/devices/system/cpu/cpufreq/policy0/schedutil/down_rate_limit_us
 
 echo "schedutil" > /sys/devices/system/cpu/cpufreq/policy6/scaling_governor
 echo 500 > /sys/devices/system/cpu/cpufreq/policy6/schedutil/up_rate_limit_us
-echo 20000 > /sys/devices/system/cpu/cpufreq/policy6/schedutil/down_rate_limit_us
-
-# Disable Core control on both clusters
-echo 0 > /sys/devices/system/cpu/cpu0/core_ctl/enable
-echo 0 > /sys/devices/system/cpu/cpu6/core_ctl/enable
+echo 900 > /sys/devices/system/cpu/cpufreq/policy6/schedutil/down_rate_limit_us
 
 # Fix mali GPU
 echo 'simple_ondemand' > /sys/devices/platform/soc/13000000.mali/devfreq/13000000.mali/governor
